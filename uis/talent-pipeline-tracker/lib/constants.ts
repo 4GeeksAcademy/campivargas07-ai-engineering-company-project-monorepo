@@ -23,19 +23,53 @@ export const STAGE_LABELS: Record<Stage, string> = Object.fromEntries(
   STAGE_OPTIONS.map(({ value, label }) => [value, label]),
 ) as Record<Stage, string>;
 
-export const STATUS_COLORS: Record<Status, string> = {
-  received: "bg-sky-100 text-sky-800 border-sky-200",
-  in_progress: "bg-amber-100 text-amber-800 border-amber-200",
-  selected: "bg-emerald-100 text-emerald-800 border-emerald-200",
-  discarded: "bg-rose-100 text-rose-800 border-rose-200",
+export type BadgeStyle = {
+  surface: string;
+  dot: string;
+  pulseDot?: boolean;
 };
 
-export const STAGE_COLORS: Record<Stage, string> = {
-  pending: "bg-zinc-100 text-zinc-700 border-zinc-200",
-  review: "bg-blue-100 text-blue-800 border-blue-200",
-  personal_interview: "bg-violet-100 text-violet-800 border-violet-200",
-  technical_interview: "bg-indigo-100 text-indigo-800 border-indigo-200",
-  offer_presented: "bg-orange-100 text-orange-800 border-orange-200",
+export const STATUS_BADGE_STYLES: Record<Status, BadgeStyle> = {
+  received: {
+    surface: "bg-sky-50 text-sky-900 ring-1 ring-inset ring-sky-200/80",
+    dot: "bg-sky-600",
+  },
+  in_progress: {
+    surface: "bg-amber-50 text-amber-900 ring-1 ring-inset ring-amber-200/80",
+    dot: "bg-amber-500",
+    pulseDot: true,
+  },
+  selected: {
+    surface: "bg-emerald-50 text-emerald-900 ring-1 ring-inset ring-emerald-200/80",
+    dot: "bg-emerald-600",
+  },
+  discarded: {
+    surface: "bg-rose-50 text-rose-900 ring-1 ring-inset ring-rose-200/80",
+    dot: "bg-rose-600",
+  },
+};
+
+export const STAGE_BADGE_STYLES: Record<Stage, BadgeStyle> = {
+  pending: {
+    surface: "bg-stone-50 text-stone-800 ring-1 ring-inset ring-stone-200/80",
+    dot: "bg-stone-400",
+  },
+  review: {
+    surface: "bg-stone-50 text-stone-800 ring-1 ring-inset ring-stone-200/80",
+    dot: "bg-stone-500",
+  },
+  personal_interview: {
+    surface: "bg-stone-50 text-stone-800 ring-1 ring-inset ring-stone-200/80",
+    dot: "bg-stone-500",
+  },
+  technical_interview: {
+    surface: "bg-stone-50 text-stone-800 ring-1 ring-inset ring-stone-200/80",
+    dot: "bg-stone-600",
+  },
+  offer_presented: {
+    surface: "bg-orange-50 text-orange-900 ring-1 ring-inset ring-orange-200/80",
+    dot: "bg-orange-500",
+  },
 };
 
 export const COMPANY_NAME = "Brasaland";

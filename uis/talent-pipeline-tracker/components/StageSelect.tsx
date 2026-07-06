@@ -54,7 +54,7 @@ export default function StageSelect({
         value={candidate.stage}
         disabled={isUpdating}
         onChange={(e) => void handleChange(e.target.value as Stage)}
-        className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none ring-orange-500 focus:ring-2 disabled:opacity-60"
+        className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none ring-orange-500 placeholder:text-stone-500 focus:ring-2 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500"
       >
         {STAGE_OPTIONS.map((option) => (
           <option key={option.value} value={option.value}>
@@ -63,7 +63,7 @@ export default function StageSelect({
         ))}
       </select>
       {isUpdating && (
-        <p className="mt-1 text-xs text-stone-500">Actualizando etapa...</p>
+        <p className="mt-1 text-xs text-stone-600">Actualizando etapa...</p>
       )}
       {successMessage && (
         <div className="mt-2">

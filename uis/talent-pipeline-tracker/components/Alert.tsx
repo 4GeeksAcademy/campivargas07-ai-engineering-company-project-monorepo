@@ -28,7 +28,13 @@ export default function Alert({
         <button
           type="button"
           onClick={onRetry}
-          className="mt-3 rounded-lg bg-white/70 px-3 py-1.5 text-sm font-medium shadow-sm transition hover:bg-white"
+          className={`mt-3 rounded-lg bg-white px-3 py-1.5 text-sm font-medium shadow-sm transition hover:bg-stone-50 ${
+            variant === "error"
+              ? "text-rose-900"
+              : variant === "success"
+                ? "text-emerald-900"
+                : "text-sky-900"
+          }`}
         >
           Reintentar
         </button>

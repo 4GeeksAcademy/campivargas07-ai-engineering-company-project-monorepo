@@ -64,7 +64,7 @@ export default function CandidateFilters() {
           value={searchInput}
           onChange={(e) => setDraftSearch(e.target.value)}
           placeholder="Ej. María o maria@email.com"
-          className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none ring-orange-500 focus:ring-2"
+          className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none ring-orange-500 placeholder:text-stone-500 focus:ring-2"
         />
       </div>
 
@@ -79,7 +79,7 @@ export default function CandidateFilters() {
           id="status"
           value={statusParam}
           onChange={(e) => updateParam("status", e.target.value)}
-          className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none ring-orange-500 focus:ring-2"
+          className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none ring-orange-500 placeholder:text-stone-500 focus:ring-2"
         >
           <option value="">Todos los estados</option>
           {STATUS_OPTIONS.map((option) => (
@@ -101,7 +101,7 @@ export default function CandidateFilters() {
           id="stage"
           value={stageParam}
           onChange={(e) => updateParam("stage", e.target.value)}
-          className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none ring-orange-500 focus:ring-2"
+          className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none ring-orange-500 placeholder:text-stone-500 focus:ring-2"
         >
           <option value="">Todas las etapas</option>
           {STAGE_OPTIONS.map((option) => (

@@ -54,7 +54,7 @@ export default function StatusSelect({
         value={candidate.status}
         disabled={isUpdating}
         onChange={(e) => void handleChange(e.target.value as Status)}
-        className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none ring-orange-500 focus:ring-2 disabled:opacity-60"
+        className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none ring-orange-500 placeholder:text-stone-500 focus:ring-2 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-500"
       >
         {STATUS_OPTIONS.map((option) => (
           <option key={option.value} value={option.value}>
@@ -63,7 +63,7 @@ export default function StatusSelect({
         ))}
       </select>
       {isUpdating && (
-        <p className="mt-1 text-xs text-stone-500">Actualizando estado...</p>
+        <p className="mt-1 text-xs text-stone-600">Actualizando estado...</p>
       )}
       {successMessage && (
         <div className="mt-2">

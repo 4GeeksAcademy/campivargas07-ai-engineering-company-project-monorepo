@@ -219,7 +219,7 @@ export default function CandidateForm({
       <button
         type="submit"
         disabled={isSubmitting}
-        className="rounded-lg bg-orange-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-60"
+        className="rounded-lg bg-orange-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-500 disabled:cursor-not-allowed disabled:bg-stone-200 disabled:text-stone-500"
       >
         {isSubmitting
           ? "Guardando..."
@@ -265,7 +265,7 @@ function Field({
         min={min}
         required={required}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none ring-orange-500 focus:ring-2"
+        className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none ring-orange-500 placeholder:text-stone-500 focus:ring-2"
       />
       {error && <p className="mt-1 text-xs text-rose-600">{error}</p>}
     </div>

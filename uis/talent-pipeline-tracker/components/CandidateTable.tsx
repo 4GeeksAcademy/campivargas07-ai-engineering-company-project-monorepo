@@ -5,7 +5,7 @@ import type { RecordOut } from "@/types";
 
 function CandidateRow({ candidate }: { candidate: RecordOut }) {
   return (
-    <tr className="border-b border-stone-100 transition hover:bg-orange-50/40">
+    <tr className="border-b border-stone-100 transition hover:bg-stone-50">
       <td className="px-4 py-3">
         <Link
           href={`/candidates/${candidate.id}`}
@@ -13,7 +13,7 @@ function CandidateRow({ candidate }: { candidate: RecordOut }) {
         >
           {candidate.full_name}
         </Link>
-        <p className="text-xs text-stone-500">{candidate.email}</p>
+        <p className="text-xs text-stone-600">{candidate.email}</p>
       </td>
       <td className="px-4 py-3 text-sm text-stone-700">{candidate.position}</td>
       <td className="px-4 py-3">

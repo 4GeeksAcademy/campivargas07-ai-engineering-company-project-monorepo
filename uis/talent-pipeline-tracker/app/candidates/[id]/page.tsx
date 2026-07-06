@@ -32,11 +32,11 @@ function DetailField({
 }) {
   return (
     <div>
-      <dt className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+      <dt className="text-xs font-semibold uppercase tracking-wide text-stone-600">
         {label}
       </dt>
       <dd
-        className={`mt-1 text-sm ${empty ? "text-stone-400 italic" : "text-stone-900"}`}
+        className={`mt-1 text-sm ${empty ? "text-stone-600 italic" : "text-stone-900"}`}
       >
         {href && !empty ? (
           <a

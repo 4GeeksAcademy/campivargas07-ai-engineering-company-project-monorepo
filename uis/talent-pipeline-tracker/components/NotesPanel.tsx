@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Alert from "@/components/Alert";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import EmptyState from "@/components/EmptyState";
 import ErrorState from "@/components/ErrorState";
 import LoadingState from "@/components/LoadingState";
@@ -18,6 +19,7 @@ export default function NotesPanel({ recordId }: { recordId: string }) {
   const { state, actionError, isSubmitting, refetch, createNote, removeNote } =
     useNotes(recordId);
   const [content, setContent] = useState("");
+  const [noteToDelete, setNoteToDelete] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -39,11 +41,15 @@ export default function NotesPanel({ recordId }: { recordId: string }) {
     }
   };
 
-  const handleDelete = async (noteId: string) => {
+  const handleConfirmDelete = async () => {
+    if (!noteToDelete) return;
+
+    const noteId = noteToDelete;
     setDeletingId(noteId);
     setSuccessMessage(null);
     const success = await removeNote(noteId);
     setDeletingId(null);
+    setNoteToDelete(null);
     if (success) {
       setSuccessMessage("Nota eliminada correctamente.");
     }
@@ -66,12 +72,12 @@ export default function NotesPanel({ recordId }: { recordId: string }) {
           onChange={(e) => setContent(e.target.value)}
           rows={3}
           placeholder="Escribe una nota interna..."
-          className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none ring-orange-500 focus:ring-2"
+          className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm outline-none ring-orange-500 placeholder:text-stone-500 focus:ring-2"
         />
         <button
           type="submit"
           disabled={isSubmitting || !content.trim()}
-          className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-500 disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-500 disabled:cursor-not-allowed disabled:bg-stone-200 disabled:text-stone-500"
         >
           {isSubmitting ? "Guardando..." : "Añadir nota"}
         </button>
@@ -112,14 +118,14 @@ export default function NotesPanel({ recordId }: { recordId: string }) {
                   <p className="text-sm text-stone-800">{note.content}</p>
                   <button
                     type="button"
-                    onClick={() => void handleDelete(note.id)}
+                    onClick={() => setNoteToDelete(note.id)}
                     disabled={deletingId === note.id}
-                    className="shrink-0 text-xs font-medium text-rose-600 hover:text-rose-700 disabled:opacity-50"
+                    className="shrink-0 text-xs font-medium text-rose-600 hover:text-rose-700 disabled:cursor-not-allowed disabled:text-stone-400"
                   >
                     {deletingId === note.id ? "Eliminando..." : "Eliminar"}
                   </button>
                 </div>
-                <p className="mt-2 text-xs text-stone-500">
+                <p className="mt-2 text-xs text-stone-600">
                   {formatDate(note.created_at)}
                 </p>
               </li>
@@ -127,6 +133,20 @@ export default function NotesPanel({ recordId }: { recordId: string }) {
           </ul>
         )}
       </div>
+
+      <ConfirmDialog
+        open={noteToDelete !== null}
+        title="Eliminar nota"
+        message="¿Eliminar esta nota? Esta acción no se puede deshacer."
+        confirmLabel="Eliminar"
+        cancelLabel="Cancelar"
+        variant="danger"
+        isLoading={deletingId !== null}
+        onConfirm={() => void handleConfirmDelete()}
+        onCancel={() => {
+          if (deletingId === null) setNoteToDelete(null);
+        }}
+      />
     </section>
   );
 }
