@@ -5,16 +5,19 @@
 - Lógica TypeScript del Hito 2 incorporada al branch main (src/types + src/utils).
 - Existe una app previa en uis/talent-pipeline-tracker (fuera del alcance funcional directo de este hito).
 
-## En progreso (Milestone 4)
-- Configuración de workspaces npm en raíz.
-- Creación de infraestructura de agentes (AGENTS.md, .agents/rules, .agents/skills).
-- Inicialización de apps Next.js en uis/website, uis/backoffice, uis/loyalty-app, uis/operations-ui.
-- Migración de web pública del Hito 1 a uis/website.
-- Integración visible de lógica Hito 2 en uis/backoffice.
+## Milestone 4 completado
+- Workspaces npm configurados en raíz para `uis/*` y `packages/*`.
+- Infraestructura AI-ready creada: `AGENTS.md`, `memory-bank/`, `.agents/rules/` y `.agents/skills/`.
+- Cuatro apps Next.js operativas en `uis/website`, `uis/backoffice`, `uis/loyalty-app`, `uis/operations-ui`.
+- Web corporativa del Hito 1 migrada y funcional en `uis/website` (incluye `/careers`).
+- Backoffice integrado con lógica real del Hito 2 mediante imports directos desde `src/utils` y `src/types`.
+- Evidencias de entrega generadas en `docs/pr-assets/website-home.png` y `docs/pr-assets/backoffice-hito2.png`.
 
-## Próximos pasos inmediatos
-1. Finalizar creación de archivos de gobernanza AI-ready.
-2. Terminar scaffolding de las cuatro apps Next.js.
-3. Conectar backoffice con transformaciones/validaciones del dominio.
-4. Ejecutar typecheck/build y documentar resultados.
-5. Actualizar este archivo con estado final del hito.
+## Validación ejecutada
+1. `npm run typecheck` (root): OK.
+2. `npm run typecheck:uis`: OK.
+3. `npm run build:uis`: OK.
+
+## Estado de entrega
+- Rama de trabajo: `milestone-4`.
+- Listo para abrir PR hacia `main` con capturas y enlace a `AGENTS.md`.
