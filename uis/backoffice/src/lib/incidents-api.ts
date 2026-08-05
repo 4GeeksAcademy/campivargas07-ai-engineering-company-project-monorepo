@@ -45,6 +45,12 @@ export async function analyzeIncidentsFile(file: File): Promise<IncidentAnalysis
   return (await response.json()) as IncidentAnalysisResponse;
 }
 
+export async function analyzeIncidentsText(csvText: string, filename: string = "pasted.csv"): Promise<IncidentAnalysisResponse> {
+  const blob = new Blob([csvText], { type: "text/csv" });
+  const file = new File([blob], filename, { type: "text/csv" });
+  return analyzeIncidentsFile(file);
+}
+
 export function getIncidentsExportUrl(): string {
   return `${API_BASE_URL}/api/incidents/results/export`;
 }

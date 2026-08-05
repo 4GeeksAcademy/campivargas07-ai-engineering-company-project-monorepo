@@ -2,7 +2,7 @@
 
 import { ChangeEvent, DragEvent, useId, useState, useTransition } from "react";
 
-import { analyzeIncidentsFile, getIncidentsExportUrl, type IncidentAnalysisResponse } from "@/lib/incidents-api";
+import { analyzeIncidentsFile, analyzeIncidentsText, getIncidentsExportUrl, type IncidentAnalysisResponse } from "@/lib/incidents-api";
 
 function percentageLabel(value?: number | null) {
   return value === undefined || value === null ? null : `${value.toFixed(1)}%`;
@@ -16,6 +16,8 @@ export function IncidentsAnalyzer() {
   const [isDragging, setIsDragging] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const [mode, setMode] = useState<"upload" | "paste">("upload");
+  const [pastedText, setPastedText] = useState("");
 
   function onFileSelected(file: File | null) {
     setSelectedFile(file);
@@ -44,8 +46,13 @@ export function IncidentsAnalyzer() {
   }
 
   async function handleAnalyze() {
-    if (!selectedFile) {
+    if (mode === "upload" && !selectedFile) {
       setErrorMessage("Selecciona un archivo CSV antes de analizar.");
+      return;
+    }
+
+    if (mode === "paste" && !pastedText.trim()) {
+      setErrorMessage("Pega el contenido del CSV antes de analizar.");
       return;
     }
 
@@ -53,7 +60,12 @@ export function IncidentsAnalyzer() {
     setErrorMessage(null);
 
     try {
-      const payload = await analyzeIncidentsFile(selectedFile);
+      let payload: IncidentAnalysisResponse;
+      if (mode === "paste") {
+        payload = await analyzeIncidentsText(pastedText, "pasted-incidents.csv");
+      } else {
+        payload = await analyzeIncidentsFile(selectedFile!);
+      }
       startTransition(() => {
         setAnalysis(payload);
       });
@@ -112,18 +124,48 @@ export function IncidentsAnalyzer() {
           <span className="chip chip-ok">POST /api/incidents/analyze</span>
         </div>
 
-        <label
-          className={isDragging ? "upload-zone upload-zone-active" : "upload-zone"}
-          htmlFor={inputId}
-          onDragLeave={handleDragLeave}
-          onDragOver={handleDragOver}
-          onDrop={handleDrop}
-        >
-          <input accept=".csv,text/csv" className="sr-only" id={inputId} onChange={handleInputChange} type="file" />
-          <span className="upload-title">Arrastra el archivo aquí o selecciónalo desde tu equipo</span>
-          <span className="muted">Se acepta CSV UTF-8 con encabezados de Brasaland.</span>
-          <strong>{selectedFile ? selectedFile.name : "Ningun archivo seleccionado"}</strong>
-        </label>
+        <div className="mode-toggle">
+          <button
+            className={mode === "upload" ? "mode-button active" : "mode-button"}
+            onClick={() => setMode("upload")}
+            type="button"
+          >
+            📁 Subir archivo
+          </button>
+          <button
+            className={mode === "paste" ? "mode-button active" : "mode-button"}
+            onClick={() => setMode("paste")}
+            type="button"
+          >
+            📋 Pegar CSV
+          </button>
+        </div>
+
+        {mode === "upload" ? (
+          <label
+            className={isDragging ? "upload-zone upload-zone-active" : "upload-zone"}
+            htmlFor={inputId}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+          >
+            <input accept=".csv,text/csv" className="sr-only" id={inputId} onChange={handleInputChange} type="file" />
+            <span className="upload-title">Arrastra el archivo aquí o selecciónalo desde tu equipo</span>
+            <span className="muted">Se acepta CSV UTF-8 con encabezados de Brasaland.</span>
+            <strong>{selectedFile ? selectedFile.name : "Ningun archivo seleccionado"}</strong>
+          </label>
+        ) : (
+          <div className="paste-area">
+            <textarea
+              className="paste-textarea"
+              placeholder="Pega aquí el contenido del CSV..."
+              value={pastedText}
+              onChange={(e) => setPastedText(e.target.value)}
+              rows={10}
+            />
+            <span className="muted">{pastedText ? `${pastedText.split('\n').length} líneas` : "Pega el CSV con encabezados de Brasaland"}</span>
+          </div>
+        )}
 
         <div className="actions-row">
           <button className="primary-button" disabled={busy} onClick={handleAnalyze} type="button">
