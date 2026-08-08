@@ -25,9 +25,10 @@
 - **service.py**: 7 funciones CRUD (create, list, get, update_rate, update_status, delete) con TinyDB Query-based lookups.
 - **router.py**: 6 endpoints REST: POST /api/suppliers (201), GET /api/suppliers (filtros), GET /api/suppliers/{id}, PATCH rate, PATCH status, DELETE (404s).
 - **main.py**: Router registrado con prefijo `/api/suppliers`.
-- **seed.py**: Seeder idempotente con 3 proveedores iniciales (Avícola Valle, Bogotá Meats, SaludPack). `uv run python seed.py`.
+- **seed.py**: Seeder idempotente con 3 proveedores iniciales (Avícola Valle, Bogotá Meats, SaludPack). Comando validado: `uv run seed`.
 - **pyproject.toml**: tinydb, httpx2 (dev) añadidos. Package find config para `app*`.
 - **tests/test_suppliers_api.py**: 22 tests verdes cubriendo todos los endpoints + validación + edge cases.
+- **Compatibilidad de entrega**: añadidos `services/api/main.py`, `services/api/models.py`, `services/api/database.py` y `services/api/routes/suppliers.py` como wrappers para cumplir la estructura solicitada sin mover la arquitectura base.
 
 ### Frontend (uis/backoffice)
 - **lib/suppliers-api.ts**: API client con funciones `listSuppliers`, `createSupplier`, `updateSupplierRate`, `updateSupplierStatus`, `deleteSupplier`.
@@ -35,6 +36,7 @@
 - **app/suppliers/page.tsx**: Page wrapper con layout backoffice.
 - **components/backoffice-header.tsx**: Nav extendido con link "Proveedores" → `/suppliers`.
 - **app/globals.css**: Estilos CSS para supplier directory (hero, filtros, tabla, chips, formularios, inline edit).
+- **Compatibilidad de entrega**: añadida ruta espejo en `uis/application/app/suppliers/page.tsx` y documentación en `uis/application/README.md`.
 
 ## Próximos pasos inmediatos
 1. Ejecutar build completo de backoffice y capturar evidencia visual de la nueva vista de proveedores.
@@ -47,5 +49,5 @@
 - Exportación interactiva del script con generación de `results.csv`.
 - `python3 -m pytest /workspaces/campivargas07-ai-engineering-company-project-monorepo/services/api/tests/test_incidents_api.py` con 3 pruebas verdes.
 - `uv run pytest tests/test_suppliers_api.py -v` → 22 tests verdes.
-- `uv run python seed.py` → 3 proveedores insertados (idempotente: segunda ejecución 0 inserted, 3 skipped).
+- `uv run seed` → 0 inserted, 3 skipped (idempotente), total en base: 3.
 - `npm --prefix /workspaces/campivargas07-ai-engineering-company-project-monorepo/uis/backoffice run typecheck` exitoso.
