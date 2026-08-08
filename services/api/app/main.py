@@ -2,11 +2,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.domains.analytics.incidents.router import router as incidents_router
+from app.domains.procurement.suppliers.router import router as suppliers_router
 
 app = FastAPI(
-    title="Brasaland Incidents API",
-    description="Internal API for validating and summarizing incident CSV files.",
-    version="0.1.0",
+    title="Brasaland API",
+    description="Internal API for incident analysis and supplier directory management.",
+    version="0.2.0",
 )
 
 app.add_middleware(
@@ -23,6 +24,7 @@ app.add_middleware(
 )
 
 app.include_router(incidents_router)
+app.include_router(suppliers_router)
 
 
 @app.get("/health", tags=["health"])
