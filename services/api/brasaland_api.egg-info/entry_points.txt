@@ -1,0 +1,2 @@
+[console_scripts]
+seed = app.seed:main

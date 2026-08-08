@@ -1,0 +1,8 @@
+fastapi<1.0,>=0.116
+python-multipart<1.0,>=0.0.20
+uvicorn<1.0,>=0.35
+tinydb<5.0,>=4.8
+
+[dev]
+pytest<9.0,>=8.0
+httpx2<3.0,>=2.0
