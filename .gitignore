@@ -1,1 +1,12 @@
-node_modules
+node_modules/
+scripts/pr-body.md
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+dist/
+build/
+.env
+.next/
+out/
