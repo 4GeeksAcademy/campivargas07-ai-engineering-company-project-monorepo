@@ -1,12 +1,15 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.domains.analytics.incidents.router import router as incidents_router
+from app.domains.auth.router import router as auth_router
+from app.domains.profiles.router import router as profiles_router
+from app.domains.procurement.suppliers.router import router as suppliers_router
+from app.domains.users.router import router as users_router
 
 app = FastAPI(
-    title="Brasaland Incidents API",
-    description="Internal API for validating and summarizing incident CSV files.",
-    version="0.1.0",
+    title="Brasaland API",
+    description="Internal API for supplier directory management.",
+    version="0.4.0",
 )
 
 app.add_middleware(
@@ -14,13 +17,18 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+        "http://localhost:3002",
+        "http://127.0.0.1:3002",
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.include_router(incidents_router)
+app.include_router(auth_router)
+app.include_router(users_router)
+app.include_router(profiles_router)
+app.include_router(suppliers_router)
 
 
 @app.get("/health", tags=["health"])
