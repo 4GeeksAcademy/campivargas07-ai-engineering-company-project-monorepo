@@ -1,12 +1,15 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.domains.auth.router import router as auth_router
+from app.domains.profiles.router import router as profiles_router
 from app.domains.procurement.suppliers.router import router as suppliers_router
+from app.domains.users.router import router as users_router
 
 app = FastAPI(
     title="Brasaland API",
     description="Internal API for supplier directory management.",
-    version="0.3.0",
+    version="0.4.0",
 )
 
 app.add_middleware(
@@ -22,6 +25,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth_router)
+app.include_router(users_router)
+app.include_router(profiles_router)
 app.include_router(suppliers_router)
 
 

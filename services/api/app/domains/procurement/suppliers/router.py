@@ -1,19 +1,21 @@
 """
 router.py — Brasaland · Supplier directory endpoints
 
-POST   /api/suppliers          Create supplier
-GET    /api/suppliers          List (filter by country, category)
-GET    /api/suppliers/{id}     Detail by ID
-PATCH  /api/suppliers/{id}/rate    Update tariff + timestamp
-PATCH  /api/suppliers/{id}/status  Activate / suspend
-DELETE /api/suppliers/{id}     Remove
+POST   /api/suppliers              Create supplier       (PROTECTED)
+GET    /api/suppliers              List (filter)         (PUBLIC)
+GET    /api/suppliers/{id}         Detail by ID          (PUBLIC)
+PATCH  /api/suppliers/{id}/rate    Update tariff         (PROTECTED)
+PATCH  /api/suppliers/{id}/status  Activate / suspend    (PROTECTED)
+DELETE /api/suppliers/{id}         Remove                (PROTECTED)
 """
 
 from __future__ import annotations
 
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+
+from app.domains.auth.dependencies import get_current_user
 
 from .schemas import (
     SupplierCreate,
@@ -29,7 +31,10 @@ router = APIRouter(prefix="/api/suppliers", tags=["suppliers"])
 
 # ── POST /api/suppliers ──────────────────────────────────────
 @router.post("", response_model=SupplierResponse, status_code=201)
-def create_supplier(data: SupplierCreate) -> SupplierResponse:
+def create_supplier(
+    data: SupplierCreate,
+    current_user: dict = Depends(get_current_user),
+) -> SupplierResponse:
     """Register a new supplier. Returns the created supplier with its ID."""
     return service.create_supplier(data)
 
@@ -57,7 +62,11 @@ def get_supplier(supplier_id: str) -> SupplierResponse:
 
 # ── PATCH /api/suppliers/{id}/rate ───────────────────────────
 @router.patch("/{supplier_id}/rate", response_model=SupplierResponse)
-def update_supplier_rate(supplier_id: str, data: SupplierRateUpdate) -> SupplierResponse:
+def update_supplier_rate(
+    supplier_id: str,
+    data: SupplierRateUpdate,
+    current_user: dict = Depends(get_current_user),
+) -> SupplierResponse:
     """Update the tariff (montoMinimoOrden) and record the change timestamp."""
     supplier = service.update_rate(supplier_id, data)
     if supplier is None:
@@ -68,7 +77,9 @@ def update_supplier_rate(supplier_id: str, data: SupplierRateUpdate) -> Supplier
 # ── PATCH /api/suppliers/{id}/status ─────────────────────────
 @router.patch("/{supplier_id}/status", response_model=SupplierResponse)
 def update_supplier_status(
-    supplier_id: str, data: SupplierStatusUpdate
+    supplier_id: str,
+    data: SupplierStatusUpdate,
+    current_user: dict = Depends(get_current_user),
 ) -> SupplierResponse:
     """Activate or suspend a supplier. Only 'activo' and 'suspendido' are allowed."""
     supplier = service.update_status(supplier_id, data)
@@ -79,7 +90,10 @@ def update_supplier_status(
 
 # ── DELETE /api/suppliers/{id} ────────────────────────────────
 @router.delete("/{supplier_id}")
-def delete_supplier(supplier_id: str) -> dict:
+def delete_supplier(
+    supplier_id: str,
+    current_user: dict = Depends(get_current_user),
+) -> dict:
     """Delete a supplier. Returns 404 if not found."""
     deleted = service.delete_supplier(supplier_id)
     if not deleted:
