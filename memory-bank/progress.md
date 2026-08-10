@@ -4,6 +4,7 @@
 - Contexto de empresa definido y foco validado en pedidos inteligentes de ingredientes.
 - Lógica TypeScript del Hito 2 incorporada al branch main (src/types + src/utils).
 - Existe una app previa en uis/talent-pipeline-tracker (fuera del alcance funcional directo de este hito).
+- Regla de higiene de PR agregada en .agents/rules/pr-hygiene-checklist.md para evitar archivos de ruido.
 
 ## En progreso (Milestone 4)
 - Configuración de workspaces npm en raíz.
