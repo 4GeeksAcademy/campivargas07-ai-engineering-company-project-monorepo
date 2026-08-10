@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 
 // Icons as components
@@ -279,7 +280,7 @@ export default function LoginPage() {
               />
               Recordarme
             </label>
-            <a href="#" style={styles.forgotLink}>¿Olvidaste tu contraseña?</a>
+            <Link href="/forgot-password" style={styles.forgotLink}>¿Olvidaste tu contraseña?</Link>
           </div>
 
           {/* Submit */}

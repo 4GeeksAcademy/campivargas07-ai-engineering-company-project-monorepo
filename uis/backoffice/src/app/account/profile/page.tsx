@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { authApi } from '@/lib/auth/api';
 
@@ -222,6 +223,15 @@ export default function ProfilePage() {
                 <div className="text-gray-900">
                   {user.profile?.address || 'No especificada'}
                 </div>
+              </div>
+
+              <div className="pt-4 border-t border-gray-200">
+                <Link
+                  href="/account/change-password"
+                  className="inline-block px-4 py-2 text-sm font-medium text-amber-600 hover:text-amber-700 border border-amber-300 rounded-md hover:bg-amber-50"
+                >
+                  Cambiar contraseña
+                </Link>
               </div>
             </div>
           )}

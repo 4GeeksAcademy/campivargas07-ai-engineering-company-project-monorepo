@@ -36,3 +36,21 @@ class ProfileOut(BaseModel):
 class AuthMeResponse(BaseModel):
     user: UserOut
     profile: ProfileOut | None = None
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str = Field(..., description="User email address")
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(..., description="Password reset token")
+    new_password: str = Field(..., min_length=6, description="New password")
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(..., min_length=1, description="Current password")
+    new_password: str = Field(..., min_length=6, description="New password")
+
+
+class MessageResponse(BaseModel):
+    detail: str

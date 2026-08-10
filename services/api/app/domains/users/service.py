@@ -33,7 +33,10 @@ def create_user(data: UserCreate) -> UserResponse:
     Create a new user with hashed password.
     Also creates a linked Profile if name/phone/address are provided.
     """
-    from app.domains.auth.service import hash_password
+    from app.domains.auth.service import hash_password, validate_password_policy
+
+    # Validate password policy
+    validate_password_policy(data.password)
 
     existing = users_table.get(_Q.email == data.email)
     if existing is not None:
