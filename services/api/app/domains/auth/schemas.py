@@ -4,11 +4,22 @@ schemas.py — Brasaland · Authentication Pydantic models
 
 from __future__ import annotations
 
+from typing import Annotated
+
 from pydantic import BaseModel, Field
+
+EmailField = Annotated[
+    str,
+    Field(
+        ...,
+        pattern=r"^[^\s@]+@[^\s@]+\.[^\s@]+$",
+        description="User email address",
+    ),
+]
 
 
 class LoginRequest(BaseModel):
-    email: str = Field(..., description="User email address")
+    email: EmailField
     password: str = Field(..., min_length=1, description="User password")
 
 
@@ -39,11 +50,11 @@ class AuthMeResponse(BaseModel):
 
 
 class ForgotPasswordRequest(BaseModel):
-    email: str = Field(..., description="User email address")
+    email: EmailField
 
 
 class ResetPasswordRequest(BaseModel):
-    token: str = Field(..., description="Password reset token")
+    token: str = Field(..., min_length=1, description="Password reset token")
     new_password: str = Field(..., min_length=6, description="New password")
 
 
@@ -54,3 +65,5 @@ class ChangePasswordRequest(BaseModel):
 
 class MessageResponse(BaseModel):
     detail: str
+    debug_reset_link: str | None = None
+    email_delivery: str | None = None

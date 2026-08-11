@@ -65,4 +65,6 @@ export interface ChangePasswordRequest {
 
 export interface MessageResponse {
   detail: string;
+  debug_reset_link?: string | null;
+  email_delivery?: string | null;
 }

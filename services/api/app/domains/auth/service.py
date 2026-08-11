@@ -80,7 +80,7 @@ def validate_password_policy(password: str) -> None:
         errors.append("must contain at least one digit")
     if errors:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f"Password {'; '.join(errors)}",
         )
 

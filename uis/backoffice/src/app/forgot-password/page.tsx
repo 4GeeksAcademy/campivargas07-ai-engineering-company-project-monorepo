@@ -3,12 +3,14 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { authApi } from '@/lib/auth/api';
+import type { MessageResponse } from '@/lib/types/auth';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
+  const [response, setResponse] = useState<MessageResponse | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -16,7 +18,8 @@ export default function ForgotPasswordPage() {
     setLoading(true);
 
     try {
-      await authApi.forgotPassword({ email: email.trim().toLowerCase() });
+      const result = await authApi.forgotPassword({ email: email.trim().toLowerCase() });
+      setResponse(result);
       setSubmitted(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al enviar solicitud');
@@ -42,8 +45,19 @@ export default function ForgotPasswordPage() {
             Si el email {email} está registrado, recibirás un enlace para restablecer tu contraseña.
           </p>
           <div style={styles.successBanner}>
-            Revisa tu bandeja de entrada y sigue las instrucciones.
+            {response?.detail || 'Revisa tu bandeja de entrada y sigue las instrucciones.'}
           </div>
+          {response?.debug_reset_link && (
+            <div style={styles.debugBanner}>
+              <p style={{ margin: 0, marginBottom: '0.65rem' }}>
+                Entorno local detectado: abre este enlace directamente para continuar la prueba.
+              </p>
+              <a href={response.debug_reset_link} style={styles.debugLink}>
+                Abrir enlace de recuperación
+              </a>
+              <p style={styles.debugText}>{response.debug_reset_link}</p>
+            </div>
+          )}
           <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
             <Link href="/login" style={styles.footerLink}>Volver al login</Link>
           </div>
@@ -216,5 +230,27 @@ const styles = {
     color: '#a8f0d4',
     fontSize: '0.85rem',
     marginBottom: '1rem',
+  } as React.CSSProperties,
+  debugBanner: {
+    background: 'rgba(74,140,255,0.12)',
+    border: '1px solid rgba(74,140,255,0.35)',
+    borderRadius: '0.65rem',
+    padding: '0.9rem 1rem',
+    color: '#d8e6ff',
+    fontSize: '0.85rem',
+    marginBottom: '1rem',
+  } as React.CSSProperties,
+  debugLink: {
+    display: 'inline-block',
+    color: '#8db7ff',
+    fontWeight: 700,
+    textDecoration: 'none',
+    marginBottom: '0.65rem',
+  } as React.CSSProperties,
+  debugText: {
+    margin: 0,
+    overflowWrap: 'anywhere' as const,
+    color: '#bcd2ff',
+    fontSize: '0.78rem',
   } as React.CSSProperties,
 };

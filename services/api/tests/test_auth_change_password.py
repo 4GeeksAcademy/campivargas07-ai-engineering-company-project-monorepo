@@ -58,11 +58,17 @@ def get_auth_headers() -> dict:
 class TestChangePassword:
     """Tests for POST /auth/change-password"""
 
+    def setup_method(self):
+        setup_function()
+
+    def teardown_method(self):
+        teardown_function()
+
     def test_change_password_success(self):
         """Should successfully change password with valid current password."""
         new_password = "NewPass456"
         response = client.post(
-            "/api/auth/change-password",
+            "/auth/change-password",
             json={
                 "current_password": TEST_PASSWORD,
                 "new_password": new_password,
@@ -82,7 +88,7 @@ class TestChangePassword:
     def test_change_password_wrong_current(self):
         """Should reject wrong current password."""
         response = client.post(
-            "/api/auth/change-password",
+            "/auth/change-password",
             json={
                 "current_password": "WrongPass999",
                 "new_password": "NewPass456",
@@ -95,7 +101,7 @@ class TestChangePassword:
     def test_change_password_same_password(self):
         """Should reject same password as current."""
         response = client.post(
-            "/api/auth/change-password",
+            "/auth/change-password",
             json={
                 "current_password": TEST_PASSWORD,
                 "new_password": TEST_PASSWORD,
@@ -103,48 +109,48 @@ class TestChangePassword:
             headers=get_auth_headers(),
         )
         assert response.status_code == 400
-        assert "diferente" in response.json()["detail"].lower() or "misma" in response.json()["detail"].lower()
+        assert "igual" in response.json()["detail"].lower() or "actual" in response.json()["detail"].lower()
 
     def test_change_password_weak_password(self):
         """Should reject password that doesn't meet policy."""
         response = client.post(
-            "/api/auth/change-password",
+            "/auth/change-password",
             json={
                 "current_password": TEST_PASSWORD,
                 "new_password": "abc",
             },
             headers=get_auth_headers(),
         )
-        assert response.status_code == 400
+        assert response.status_code == 422
 
     def test_change_password_no_uppercase(self):
         """Should reject password without uppercase."""
         response = client.post(
-            "/api/auth/change-password",
+            "/auth/change-password",
             json={
                 "current_password": TEST_PASSWORD,
                 "new_password": "alllower123",
             },
             headers=get_auth_headers(),
         )
-        assert response.status_code == 400
+        assert response.status_code == 422
 
     def test_change_password_no_digit(self):
         """Should reject password without digit."""
         response = client.post(
-            "/api/auth/change-password",
+            "/auth/change-password",
             json={
                 "current_password": TEST_PASSWORD,
                 "new_password": "NoDigitHere",
             },
             headers=get_auth_headers(),
         )
-        assert response.status_code == 400
+        assert response.status_code == 422
 
     def test_change_password_unauthenticated(self):
         """Should reject unauthenticated request."""
         response = client.post(
-            "/api/auth/change-password",
+            "/auth/change-password",
             json={
                 "current_password": TEST_PASSWORD,
                 "new_password": "NewPass456",
@@ -155,7 +161,7 @@ class TestChangePassword:
     def test_change_password_invalid_token(self):
         """Should reject invalid JWT token."""
         response = client.post(
-            "/api/auth/change-password",
+            "/auth/change-password",
             json={
                 "current_password": TEST_PASSWORD,
                 "new_password": "NewPass456",
@@ -168,7 +174,7 @@ class TestChangePassword:
         """Should allow multiple password changes."""
         # First change
         response1 = client.post(
-            "/api/auth/change-password",
+            "/auth/change-password",
             json={
                 "current_password": TEST_PASSWORD,
                 "new_password": "SecondPass123",
@@ -179,7 +185,7 @@ class TestChangePassword:
 
         # Second change with new current password
         response2 = client.post(
-            "/api/auth/change-password",
+            "/auth/change-password",
             json={
                 "current_password": "SecondPass123",
                 "new_password": "ThirdPass456",

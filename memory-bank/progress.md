@@ -34,9 +34,14 @@
 - Provider de autenticación en `uis/backoffice/src/components/auth-provider.tsx`.
 - Layout actualizado con AuthProvider en `uis/backoffice/src/app/layout.tsx`.
 - Cliente API helper en `uis/backoffice/src/lib/api.ts`.
+- Recuperación de contraseña ajustada para desarrollo local: `POST /auth/forgot-password` ahora devuelve `debug_reset_link` en localhost y la vista `uis/backoffice/src/app/forgot-password/page.tsx` lo muestra para abrir la prueba sin depender de entrega de Resend.
+- Flujos `forgot-password`, `reset-password` y `change-password` alineados con pruebas del backend y con actualización segura de tokens TinyDB por query.
 
 ## Validaciones ejecutadas
 - `python3 /workspaces/campivargas07-ai-engineering-company-project-monorepo/scripts/analyze.py /workspaces/campivargas07-ai-engineering-company-project-monorepo/docs/incidents-brasaland.csv` con conteos esperados: 100 totales, 96 válidos, 4 inválidos y promedio 3.46.
 - Exportación interactiva del script con generación de `results.csv`.
 - `python3 -m pytest /workspaces/campivargas07-ai-engineering-company-project-monorepo/services/api/tests/test_incidents_api.py` con 3 pruebas verdes.
 - `npm --prefix /workspaces/campivargas07-ai-engineering-company-project-monorepo/uis/backoffice run typecheck` exitoso.
+- `pytest tests/test_auth_password_reset.py -q` con 13 pruebas verdes.
+- `pytest tests/test_auth_change_password.py -q` con 9 pruebas verdes.
+- Flujo real validado en localhost: `POST /auth/forgot-password` devuelve `debug_reset_link`, `POST /auth/reset-password` actualiza la contraseña y `POST /auth/login` autentica con la nueva clave.

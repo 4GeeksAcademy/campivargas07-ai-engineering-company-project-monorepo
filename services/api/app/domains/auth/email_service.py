@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 import os
+from dataclasses import dataclass
 
 from dotenv import load_dotenv
 
@@ -51,13 +52,31 @@ Este enlace expira en 30 minutos.
 Si no solicitaste este cambio, puedes ignorar este mensaje de forma segura."""
 
 
-async def send_reset_email(to_email: str, token: str) -> None:
+@dataclass(frozen=True)
+class EmailDeliveryResult:
+    sent: bool
+    reset_link: str
+    provider_status: int | None = None
+    error: str | None = None
+
+
+def build_reset_link(token: str) -> str:
+    """Build the password reset link sent to the user."""
+    return f"{FRONTEND_URL}/reset-password?token={token}"
+
+
+async def send_reset_email(to_email: str, token: str) -> EmailDeliveryResult:
     """Send password reset email via Resend API."""
+    reset_link = build_reset_link(token)
+
     if not RESEND_API_KEY:
         logger.warning("RESEND_API_KEY not configured - email not sent to %s", to_email)
-        return
+        return EmailDeliveryResult(
+            sent=False,
+            reset_link=reset_link,
+            error="RESEND_API_KEY not configured",
+        )
 
-    reset_link = f"{FRONTEND_URL}/reset-password?token={token}"
     payload = {
         "from": RESEND_FROM_EMAIL,
         "to": [to_email],
@@ -74,11 +93,30 @@ async def send_reset_email(to_email: str, token: str) -> None:
                 headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
                 timeout=10.0,
             )
-            if response.status_code != 200:
-                logger.warning(
-                    "Resend API returned status %s for %s",
-                    response.status_code,
-                    to_email,
+            if 200 <= response.status_code < 300:
+                return EmailDeliveryResult(
+                    sent=True,
+                    reset_link=reset_link,
+                    provider_status=response.status_code,
                 )
+
+            error_text = response.text.strip() or "Resend rejected the email"
+            logger.warning(
+                "Resend API returned status %s for %s: %s",
+                response.status_code,
+                to_email,
+                error_text,
+            )
+            return EmailDeliveryResult(
+                sent=False,
+                reset_link=reset_link,
+                provider_status=response.status_code,
+                error=error_text,
+            )
     except Exception as exc:
         logger.warning("Failed to send reset email to %s: %s", to_email, type(exc).__name__)
+        return EmailDeliveryResult(
+            sent=False,
+            reset_link=reset_link,
+            error=str(exc),
+        )

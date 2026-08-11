@@ -10,9 +10,11 @@ POST   /auth/change-password  Change password (authenticated)
 
 from __future__ import annotations
 
+import os
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from tinydb import Query
 
 from app.database import password_resets_table, profiles_table, users_table
@@ -41,6 +43,16 @@ from .service import (
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 _Q = Query()
+
+
+def _should_expose_reset_link() -> bool:
+    """Expose reset links during local development or when explicitly enabled."""
+    if os.environ.get("AUTH_DEBUG_RESET_LINKS", "").lower() == "true":
+        return True
+
+    frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000")
+    host = urlparse(frontend_url).hostname or ""
+    return host in {"localhost", "127.0.0.1"}
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -95,7 +107,6 @@ def get_me(current_user: dict = Depends(get_current_user)) -> AuthMeResponse:
 @router.post("/forgot-password", response_model=MessageResponse)
 async def forgot_password(
     data: ForgotPasswordRequest,
-    background_tasks: BackgroundTasks,
 ) -> MessageResponse:
     """Request a password reset email. Always returns the same response to prevent enumeration."""
     normalized_email = data.email.strip().lower()
@@ -108,8 +119,11 @@ async def forgot_password(
         previous_tokens = password_resets_table.search(
             (_Q.user_id == user_id) & (_Q.purpose == "password_reset") & (_Q.used == False)
         )
-        for token_doc in previous_tokens:
-            password_resets_table.update({"used": True}, doc_ids=[token_doc.doc_id])
+        if previous_tokens:
+            password_resets_table.update(
+                {"used": True},
+                (_Q.user_id == user_id) & (_Q.purpose == "password_reset") & (_Q.used == False),
+            )
 
         # Generate new reset token
         reset_token = create_reset_token(user_id)
@@ -129,8 +143,13 @@ async def forgot_password(
             "used": False,
         })
 
-        # Send email in background
-        background_tasks.add_task(send_reset_email, normalized_email, reset_token)
+        delivery = await send_reset_email(normalized_email, reset_token)
+
+        return MessageResponse(
+            detail="Si el email existe, recibirás un enlace de recuperación.",
+            debug_reset_link=delivery.reset_link if _should_expose_reset_link() else None,
+            email_delivery="sent" if delivery.sent else "failed",
+        )
 
     # Always return the same message regardless of email existence
     return MessageResponse(
@@ -199,7 +218,10 @@ def reset_password(data: ResetPasswordRequest) -> MessageResponse:
     )
 
     # Mark token as used
-    password_resets_table.update({"used": True}, doc_ids=[token_doc.doc_id])
+    password_resets_table.update(
+        {"used": True},
+        (_Q.jti == jti) & (_Q.user_id == user_id) & (_Q.purpose == "password_reset"),
+    )
 
     return MessageResponse(detail="Contraseña actualizada correctamente.")
 
