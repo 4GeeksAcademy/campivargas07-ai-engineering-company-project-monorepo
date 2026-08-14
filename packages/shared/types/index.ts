@@ -4,6 +4,7 @@
  */
 
 export * from './auth';
+export * from './incidents';
 
 export type Id = string;
 
