@@ -12,6 +12,7 @@ Antes de cualquier cambio, todo agente debe leer en este orden:
 3. Implementar y verificar: aplicar cambios mínimos, ejecutar typecheck/build y revisar errores.
 4. Actualizar contexto: registrar decisiones y estado en memory-bank/progress.md.
 5. Preparar entrega: redactar resumen de cambios, riesgos y evidencias de validación.
+6. Higiene de PR: aplicar checklist de .agents/rules/pr-hygiene-checklist.md y corregir ruido antes de abrir/actualizar PR.
 
 ## Zonas protegidas (no modificar sin confirmación explícita)
 - CONTEXT.md

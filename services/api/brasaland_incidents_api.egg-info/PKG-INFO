@@ -4,8 +4,12 @@ Version: 0.1.0
 Summary: FastAPI service for Brasaland incident analysis
 Requires-Python: >=3.11
 Description-Content-Type: text/markdown
+Requires-Dist: bcrypt<5.0,>=4.0
 Requires-Dist: fastapi<1.0,>=0.116
+Requires-Dist: httpx<1.0,>=0.27
+Requires-Dist: python-jose[cryptography]<4.0,>=3.3
 Requires-Dist: python-multipart<1.0,>=0.0.20
+Requires-Dist: tinydb<5.0,>=4.8
 Requires-Dist: uvicorn<1.0,>=0.35
 Provides-Extra: dev
 Requires-Dist: pytest<9.0,>=8.0; extra == "dev"
@@ -36,5 +40,31 @@ uvicorn app.main:app --reload
 
 ## Endpoints
 
+### Incidents
 - POST /api/incidents/analyze
 - GET /api/incidents/results/export
+
+### Authentication
+- POST /api/auth/login - User login
+- POST /api/auth/register - User registration
+
+### Password Recovery
+- POST /api/auth/forgot-password - Request password reset (sends email via Resend)
+- POST /api/auth/reset-password - Reset password using token from email
+- POST /api/auth/change-password - Change password (requires authentication)
+
+## Environment Variables
+
+See `.env.example` for all required environment variables. Key variables:
+
+- `SECRET_KEY` - JWT secret for access tokens
+- `PASSWORD_RESET_SECRET_KEY` - JWT secret for reset tokens (different from SECRET_KEY)
+- `RESEND_API_KEY` - API key for Resend email service
+- `RESEND_FROM_EMAIL` - Sender email (must be verified in Resend)
+- `FRONTEND_URL` - Frontend URL for password reset links
+
+## Password Policy
+
+- Minimum 6 characters
+- At least 1 uppercase letter
+- At least 1 digit

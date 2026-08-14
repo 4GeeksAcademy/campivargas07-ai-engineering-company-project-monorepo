@@ -3,7 +3,9 @@
  * Extend with domain types (e.g. Location, Sale, Customer) as needed.
  */
 
-// Example placeholder — replace with your domain types
+export * from './auth';
+export * from './incidents';
+
 export type Id = string;
 
 export interface BaseEntity {
