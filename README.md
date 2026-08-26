@@ -1,98 +1,156 @@
-# AI Engineering Company Project — Student Template
+# Brasaland — Monorepo de Ingeniería de IA
 
 [![4Geeks Academy](https://img.shields.io/badge/4Geeks-Academy-blue)](https://4geeksacademy.com)
 [![AI Engineering](https://img.shields.io/badge/track-AI%20Engineering-green)](https://4geeksacademy.com/es/programas-de-carrera/ingenieria-ia)
 
-_Base template for transversal projects in the AI Engineering Career Program — 4Geeks Academy._
-
-> _Instrucciones disponibles en español en [README.es.md](./README.es.md)._
+> _Available in English and Spanish. Para versión en español, ver [README.es.md](./README.es.md)._
 
 ---
 
-## Purpose
+## 📌 Visión General del Proyecto
 
-This repository is the **starter template** for transversal projects. You will work on real company scenarios (Brasaland, TrackFlow, Nexova), building deliverables that map to course milestones (Web, Programming, Backend, Telemetry, RAG, Agents, Workflows, Real-time).
-
-- Create a template from this repository.
-- Replace the placeholder `CONTEXT.md` with your assigned company context.
-- Use `skills/` and the directory-level `README.md` files as working guidance.
+**Brasaland** es una cadena de restaurantes a la brasa con 14 sedes en Colombia y Florida (USA). Este monorepo implementa la plataforma integral AI-ready para gestión de pedidos, incidencias, directorio de proveedores y autenticación centralizada mediante JWT.
 
 ---
 
-## Current status of the template
+## 🚀 Guía Rápida: Cómo Levantar el Proyecto
 
-The repository currently provides a **base folder structure and documentation skeleton**. It does not include runnable apps or global scripts yet.
+### 1. Requisitos Previos
 
-- `CONTEXT.md` is a placeholder and must be replaced with your assigned company context.
-- There is no root `AGENTS.md` yet.
-- Shared package metadata exists in `packages/shared/package.json` (`@repo/shared-types`), but no workspace runner is configured at root.
+- **Node.js**: v18.0 o superior (se recomienda v20+)
+- **npm**: v9.0 o superior
+- **Python**: v3.11 o superior
+- **pip** / **venv**
 
 ---
 
-## Repository structure
+### 2. Configuración de Variables de Entorno
 
-```text
-ai-engineering-company-project-monorepo/
-├── README.md
-├── README.es.md
-├── CONTEXT.md                # Placeholder to be replaced with assigned context
-├── agents/                   # Agent patterns/templates and tools docs
-├── data/                     # raw, process, pipelines, eval
-├── docs/                     # Project and architecture documentation
-├── infra/                    # Docker, Terraform, deployment configs
-├── internal/                 # CLIs, packaged migration scripts, internal utilities
-├── mcps/                     # Model Context Protocol (MCP) Servers
-├── packages/
-│   └── shared/               # Shared package (@repo/shared-types)
-├── scripts/                  # Script conventions/documentation
-├── services/                 # APIs and background workers
-├── shared/                   # Shared assets/conventions at repo level
-├── skills/                   # Reusable agent skills
-├── uis/                      # User interfaces (React, Next.js, Streamlit, HTML)
-└── workflows/                # Automation/orchestration documentation
+El repositorio incluye plantillas `.env.example`. Copia los archivos de ejemplo antes de iniciar:
+
+```bash
+# 1. Configuración general en la raíz
+cp .env.example .env
+
+# 2. Configuración para el servicio Backend API
+cp services/api/.env.example services/api/.env
+
+# 3. Configuración para el Backoffice
+cp uis/backoffice/.env.example uis/backoffice/.env
+
+# 4. Configuración para el Website
+cp uis/website/.env.example uis/website/.env
 ```
 
 ---
 
-## How to start
+### 3. Instalación de Dependencias
 
-1. **Use this repository as a template** and create your own project repo.
-2. **Clone** your repository (or open it in Codespaces).
-3. **Replace** `CONTEXT.md` with the full context for your assigned company.
-4. **Review** each top-level folder `README.md` to understand intended responsibilities (`uis/`, `services/`, `data/`, `skills/`, etc.).
-5. **Start implementing** milestone deliverables in `uis/` and `services/`, reusing `packages/shared/` and `data/` as needed.
+```bash
+# Instalar dependencias de frontend (workspaces npm en la raíz)
+npm install
 
----
-
-## Milestones (reference)
-
-| Milestone | Focus        | Typical deliverables                        |
-| --------- | ------------ | ------------------------------------------- |
-| 0         | Prework      | Environment setup, first prompts            |
-| 1         | Web          | Corporate website, forms, SEO               |
-| 2         | Programming  | Business logic, scoring, calculations       |
-| 3         | AI-driven UI | AI-generated interfaces                     |
-| 4         | Next.js      | Portals, loyalty app, operations UI         |
-| 5         | Backend      | Central API (locations, menus, sales, etc.) |
-| 6         | Telemetry    | Data pipeline, dashboards                   |
-| 7         | RAG & Memory | Semantic knowledge base, search             |
-| 8         | Agents       | Support, onboarding, training agents        |
-| 9         | Workflows    | n8n automations                             |
-| 10        | Real-time    | Live dashboards, alerts, streaming          |
+# Instalar dependencias del backend Python
+pip install -r services/api/requirements.txt
+```
 
 ---
 
-## Links
+### 4. Levantar los Servicios
 
-- [4Geeks Academy — AI Engineering](https://4geeksacademy.com/es/programas-de-carrera/ingenieria-ia)
-- [How to start a coding project](https://4geeks.com/lesson/how-to-start-a-project)
+Recomendamos utilizar dos terminales separadas (una para el Backend y otra para el Frontend):
+
+#### 🔹 Terminal 1: Backend FastAPI (Puerto 8000)
+
+```bash
+cd services/api
+uvicorn app.main:app --reload --port 8000
+```
+- **API URL:** `http://localhost:8000`
+- **Documentación Swagger Interactiva:** `http://localhost:8000/docs`
+- **Healthcheck:** `http://localhost:8000/health`
+
+#### 🔹 Terminal 2: Frontend Backoffice Next.js (Puerto 3000)
+
+```bash
+# Desde la raíz del monorepo:
+npm run dev:backoffice
+
+# O directamente desde la carpeta:
+cd uis/backoffice
+npm run dev
+```
+- **Backoffice URL:** `http://localhost:3000`
+- **Página de Login:** `http://localhost:3000/login`
+- **Página de Registro:** `http://localhost:3000/register`
+- **Página de Perfil:** `http://localhost:3000/account/profile`
+- **Analizador de Incidencias:** `http://localhost:3000/incidents`
+
+#### 🔹 (Opcional) Terminal 3: Website Público Next.js (Puerto 3001)
+
+```bash
+# Desde la raíz del monorepo:
+npm run dev:website
+```
+- **Website URL:** `http://localhost:3001`
 
 ---
 
-## Contributors
+## 🔐 Autenticación y Cuentas de Usuario
 
-This template was built as part of the 4Geeks Academy AI Engineering Career Program by [@marcogonzalo](https://www.linkedin.com/in/marcogonzalo) and [@alezanchezr](https://x.com/alesanchezr) and many other contributors. Find out more about our [AI Engineering Course](https://4geeksacademy.com/en/career-programs/ai-engineering), and [other courses](https://4geeksacademy.com/en/program-comparison).
+El sistema cuenta con autenticación completa mediante **JWT (JSON Web Tokens)**:
 
-You can find other templates and resources like this at the [4Geeks Academy GitHub page](https://github.com/4geeksacademy).
+1. **Crear una cuenta**: Visita `http://localhost:3000/register` o haz clic en **Registrarse** en la barra superior. Los usuarios registrados desde el backoffice se crean automáticamente con rol `admin`.
+2. **Iniciar sesión**: Visita `http://localhost:3000/login` o haz clic en **Iniciar Sesión**. El token JWT se almacena de forma segura en `localStorage` y se incluye en los encabezados `Authorization: Bearer <token>`.
+3. **Mi Perfil**: Una vez conectado, haz clic en tu usuario en la cabecera para ver o editar tu información de contacto (`/account/profile`).
+4. **Cerrar sesión**: Puedes cerrar sesión en cualquier momento mediante el botón **Salir** de la cabecera.
 
-_This template is maintained by 4Geeks Academy for the AI Engineering track. For exclusive use in the programme._
+---
+
+## 🧪 Pruebas y Validación
+
+### Pruebas Unitarias del Backend (Python / pytest)
+```bash
+python3 -m pytest services/api/tests
+```
+
+### Typecheck de TypeScript (Frontend / Next.js)
+```bash
+npm run typecheck:uis
+```
+
+### Build de Producción (Next.js)
+```bash
+npm run build:uis
+```
+
+---
+
+## 📂 Estructura del Repositorio
+
+```text
+ai-engineering-company-project-monorepo/
+├── .env.example               # Configuración global de variables de entorno
+├── AGENTS.md                  # Protocolo y directrices para agentes de IA
+├── memory-bank/               # Documentación viva del proyecto (projectbrief, techContext, progress)
+├── packages/
+│   └── shared/                # Tipos y utilidades compartidas (@repo/shared-types, auth)
+├── services/
+│   └── api/                   # Backend FastAPI (Auth, Users, Profiles, Suppliers, Incidents)
+│       ├── app/
+│       ├── tests/             # Pruebas unitarias con pytest
+│       ├── requirements.txt   # Dependencias de Python
+│       └── .env.example
+├── uis/                       # Aplicaciones Frontend
+│   ├── backoffice/            # Panel de control Next.js (Auth, KPIs, Incidents, Suppliers)
+│   ├── website/               # Sitio web corporativo Next.js
+│   ├── loyalty-app/           # Aplicación de fidelización
+│   └── operations-ui/         # Interfaz operativa
+└── docs/                      # Documentación de arquitectura y datos
+```
+
+---
+
+## 👥 Contribuidores & Créditos
+
+Proyecto desarrollado como parte del programa de **AI Engineering** de **4Geeks Academy**.

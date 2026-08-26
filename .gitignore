@@ -17,8 +17,8 @@ __pycache__/
 # Environment files
 .env
 .env.local
-.env.*.local
 !.env.example
+!**/.env.example
 
 # IDE
 .vscode/

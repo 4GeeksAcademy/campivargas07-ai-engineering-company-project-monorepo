@@ -1,98 +1,156 @@
-# Proyecto de Compañía - Ingeniería de IA — Plantilla para estudiantes
+# Brasaland — Monorepo de Ingeniería de IA
 
 [![4Geeks Academy](https://img.shields.io/badge/4Geeks-Academy-blue)](https://4geeksacademy.com)
 [![AI Engineering](https://img.shields.io/badge/track-AI%20Engineering-green)](https://4geeksacademy.com/es/programas-de-carrera/ingenieria-ia)
 
-_Plantilla base para proyectos transversales del Programa de Carrera en Ingeniería de IA — 4Geeks Academy._
-
-_Las instrucciones están [disponibles en inglés](./README.md)._
+> _Instrucciones en español. Para versión en inglés, ver [README.md](./README.md)._
 
 ---
 
-## Propósito
+## 📌 Visión General del Proyecto
 
-Este repositorio es la **plantilla de inicio** para los proyectos transversales. Trabajarás con escenarios de empresas reales (Brasaland, TrackFlow, Nexova) construyendo entregables que se corresponden con los hitos del curso (Web, Programación, Backend, Telemetría, RAG, Agentes, Workflows, Tiempo real).
-
-- Crea una plantilla a partir de este repositorio.
-- Reemplaza el `CONTEXT.md` placeholder por el contexto de tu empresa asignada.
-- Usa `skills/` y los `README.md` por carpeta como guía de trabajo.
+**Brasaland** es una cadena de restaurantes a la brasa con 14 sedes en Colombia y Florida (USA). Este monorepo implementa la plataforma integral AI-ready para gestión de pedidos, incidencias, directorio de proveedores y autenticación centralizada mediante JWT.
 
 ---
 
-## Estado actual de la plantilla
+## 🚀 Guía Rápida: Cómo Levantar el Proyecto
 
-Actualmente el repositorio ofrece una **estructura base de carpetas y documentación**, pero todavía no incluye aplicaciones ejecutables ni scripts globales en la raíz.
+### 1. Requisitos Previos
 
-- `CONTEXT.md` es un placeholder y debe sustituirse por el contexto de la empresa asignada.
-- No existe todavía un `AGENTS.md` en la raíz.
-- Existe metadata del paquete compartido en `packages/shared/package.json` (`@repo/shared-types`), pero aún no hay runner de workspace en raíz.
+- **Node.js**: v18.0 o superior (se recomienda v20+)
+- **npm**: v9.0 o superior
+- **Python**: v3.11 o superior
+- **pip** / **venv**
 
 ---
 
-## Estructura del repositorio
+### 2. Configuración de Variables de Entorno
 
-```text
-ai-engineering-company-project-monorepo/
-├── README.md
-├── README.es.md
-├── CONTEXT.md                # Placeholder a reemplazar con el contexto asignado
-├── agents/                   # Patrones/plantillas de agentes y documentación de tools
-├── data/                     # raw, process, pipelines, eval
-├── docs/                     # Documentación de proyecto y arquitectura
-├── infra/                    # Docker, Terraform, configuraciones de despliegue
-├── internal/                 # CLIs, scripts de migración empaquetados, utilidades internas
-├── mcps/                     # Servidores Model Context Protocol (MCP)
-├── packages/
-│   └── shared/               # Paquete compartido (@repo/shared-types)
-├── scripts/                  # Convenciones/documentación de scripts
-├── services/                 # APIs y workers en segundo plano
-├── shared/                   # Recursos/convenciones compartidas a nivel repo
-├── skills/                   # Skills reutilizables para agentes
-├── uis/                      # Interfaces de usuario (React, Next.js, Streamlit, HTML)
-└── workflows/                # Documentación de automatizaciones/orquestación
+El repositorio incluye plantillas `.env.example`. Copia los archivos de ejemplo antes de iniciar:
+
+```bash
+# 1. Configuración general en la raíz
+cp .env.example .env
+
+# 2. Configuración para el servicio Backend API
+cp services/api/.env.example services/api/.env
+
+# 3. Configuración para el Backoffice
+cp uis/backoffice/.env.example uis/backoffice/.env
+
+# 4. Configuración para el Website
+cp uis/website/.env.example uis/website/.env
 ```
 
 ---
 
-## Cómo empezar
+### 3. Instalación de Dependencias
 
-1. **Usa este repositorio como plantilla** y crea tu propio repo de proyecto.
-2. **Clona** tu repositorio (o ábrelo en Codespaces).
-3. **Reemplaza** `CONTEXT.md` con el contexto completo de tu empresa asignada.
-4. **Revisa** los `README.md` de cada carpeta raíz para entender responsabilidades (`uis/`, `services/`, `data/`, `skills/`, etc.).
-5. **Empieza a implementar** entregables por hito en `uis/` y `services/`, reutilizando `packages/shared/` y `data/` según corresponda.
+```bash
+# Instalar dependencias de frontend (workspaces npm en la raíz)
+npm install
 
----
-
-## Hitos (referencia)
-
-| Hito | Enfoque       | Entregables típicos                              |
-| ---- | ------------- | ------------------------------------------------ |
-| 0    | Prework       | Configuración del entorno, primeros prompts      |
-| 1    | Web           | Sitio corporativo, formularios, SEO              |
-| 2    | Programación  | Lógica de negocio, puntuación, cálculos          |
-| 3    | UI con IA     | Interfaces generadas con IA                      |
-| 4    | Next.js       | Portales, app de fidelización, UI de operaciones |
-| 5    | Backend       | API central (ubicaciones, menús, ventas, etc.)   |
-| 6    | Telemetría    | Pipeline de datos, dashboards                    |
-| 7    | RAG y memoria | Base de conocimiento semántica, búsqueda         |
-| 8    | Agentes       | Agentes de soporte, onboarding, formación        |
-| 9    | Workflows     | Automatizaciones con n8n                         |
-| 10   | Tiempo real   | Dashboards en vivo, alertas, streaming           |
+# Instalar dependencias del backend Python
+pip install -r services/api/requirements.txt
+```
 
 ---
 
-## Enlaces
+### 4. Levantar los Servicios
 
-- [4Geeks Academy — Ingeniería de IA](https://4geeksacademy.com/es/programas-de-carrera/ingenieria-ia)
-- [Cómo empezar un proyecto de código](https://4geeks.com/lesson/how-to-start-a-project)
+Recomendamos utilizar dos terminales separadas (una para el Backend y otra para el Frontend):
+
+#### 🔹 Terminal 1: Backend FastAPI (Puerto 8000)
+
+```bash
+cd services/api
+uvicorn app.main:app --reload --port 8000
+```
+- **API URL:** `http://localhost:8000`
+- **Documentación Swagger Interactiva:** `http://localhost:8000/docs`
+- **Healthcheck:** `http://localhost:8000/health`
+
+#### 🔹 Terminal 2: Frontend Backoffice Next.js (Puerto 3000)
+
+```bash
+# Desde la raíz del monorepo:
+npm run dev:backoffice
+
+# O directamente desde la carpeta:
+cd uis/backoffice
+npm run dev
+```
+- **Backoffice URL:** `http://localhost:3000`
+- **Página de Login:** `http://localhost:3000/login`
+- **Página de Registro:** `http://localhost:3000/register`
+- **Página de Perfil:** `http://localhost:3000/account/profile`
+- **Analizador de Incidencias:** `http://localhost:3000/incidents`
+
+#### 🔹 (Opcional) Terminal 3: Website Público Next.js (Puerto 3001)
+
+```bash
+# Desde la raíz del monorepo:
+npm run dev:website
+```
+- **Website URL:** `http://localhost:3001`
 
 ---
 
-## Contribuidores
+## 🔐 Autenticación y Cuentas de Usuario
 
-Esta plantilla fue creada como parte del Programa de Carrera de Ingeniería de IA de 4Geeks Academy por [@marcogonzalo](https://www.linkedin.com/in/marcogonzalo) y [@alezanchezr](https://x.com/alesanchezr), junto a otros muchos colaboradores. Descubre más sobre nuestro [Curso de Ingeniería de IA](https://4geeksacademy.com/es/programas-de-carrera/ingenieria-ia) y sobre [otros cursos](https://4geeksacademy.com/es/comparar-programas).
+El sistema cuenta con autenticación completa mediante **JWT (JSON Web Tokens)**:
 
-Puedes encontrar otras plantillas y recursos similares en la [página de GitHub de 4Geeks Academy](https://github.com/4geeksacademy).
+1. **Crear una cuenta**: Visita `http://localhost:3000/register` o haz clic en **Registrarse** en la barra superior. Los usuarios registrados desde el backoffice se crean automáticamente con rol `admin`.
+2. **Iniciar sesión**: Visita `http://localhost:3000/login` o haz clic en **Iniciar Sesión**. El token JWT se almacena de forma segura en `localStorage` y se incluye en los encabezados `Authorization: Bearer <token>`.
+3. **Mi Perfil**: Una vez conectado, haz clic en tu usuario en la cabecera para ver o editar tu información de contacto (`/account/profile`).
+4. **Cerrar sesión**: Puedes cerrar sesión en cualquier momento mediante el botón **Salir** de la cabecera.
 
-_Esta plantilla la mantiene 4Geeks Academy para el track de Ingeniería de IA. Uso exclusivo del programa._
+---
+
+## 🧪 Pruebas y Validación
+
+### Pruebas Unitarias del Backend (Python / pytest)
+```bash
+python3 -m pytest services/api/tests
+```
+
+### Typecheck de TypeScript (Frontend / Next.js)
+```bash
+npm run typecheck:uis
+```
+
+### Build de Producción (Next.js)
+```bash
+npm run build:uis
+```
+
+---
+
+## 📂 Estructura del Repositorio
+
+```text
+ai-engineering-company-project-monorepo/
+├── .env.example               # Configuración global de variables de entorno
+├── AGENTS.md                  # Protocolo y directrices para agentes de IA
+├── memory-bank/               # Documentación viva del proyecto (projectbrief, techContext, progress)
+├── packages/
+│   └── shared/                # Tipos y utilidades compartidas (@repo/shared-types, auth)
+├── services/
+│   └── api/                   # Backend FastAPI (Auth, Users, Profiles, Suppliers, Incidents)
+│       ├── app/
+│       ├── tests/             # Pruebas unitarias con pytest
+│       ├── requirements.txt   # Dependencias de Python
+│       └── .env.example
+├── uis/                       # Aplicaciones Frontend
+│   ├── backoffice/            # Panel de control Next.js (Auth, KPIs, Incidents, Suppliers)
+│   ├── website/               # Sitio web corporativo Next.js
+│   ├── loyalty-app/           # Aplicación de fidelización
+│   └── operations-ui/         # Interfaz operativa
+└── docs/                      # Documentación de arquitectura y datos
+```
+
+---
+
+## 👥 Contribuidores & Créditos
+
+Proyecto desarrollado como parte del programa de **AI Engineering** de **4Geeks Academy**.

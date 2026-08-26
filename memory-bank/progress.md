@@ -6,7 +6,7 @@
 - Existe una app previa en uis/talent-pipeline-tracker (fuera del alcance funcional directo de este hito).
 - Regla de higiene de PR agregada en .agents/rules/pr-hygiene-checklist.md para evitar archivos de ruido.
 
-## En progreso (Milestone 4)
+## En progreso (Milestone 4 / AUTH-02)
 - Configuración de workspaces npm en raíz.
 - Creación de infraestructura de agentes (AGENTS.md, .agents/rules, .agents/skills).
 - Inicialización de apps Next.js en uis/website, uis/backoffice, uis/loyalty-app, uis/operations-ui.
@@ -16,27 +16,15 @@
 - Creación de `services/api` con FastAPI para análisis de CSV y exportación del último resultado.
 - Nueva vista `/incidents` en `uis/backoffice` con carga de CSV, resumen operativo y descarga de resultados.
 
-## Próximos pasos inmediatos
-1. Ejecutar build completo de backoffice y capturar evidencia visual de la nueva vista de incidencias.
-2. Evaluar si el servicio `services/api` debe incorporarse a la orquestación raíz del monorepo.
-3. Definir persistencia o histórico si el área operativa necesita conservar múltiples análisis.
-4. Implementar protección de rutas completa con cookies HttpOnly para producción.
-5. Extender autenticación a otras apps del monorepo (loyalty-app, operations-ui, talent-pipeline-tracker).
-
-## Implementación AUTH-02 (Completada)
-- Tipos de autenticación compartidos en `packages/shared/types/auth.ts`.
-- Cliente API con manejo de token en `packages/shared/auth/api.ts`.
-- Contexto de autenticación con hooks en `packages/shared/auth/context.tsx`.
-- Vista de login en `uis/backoffice/src/app/login/page.tsx`.
-- Vista de registro en `uis/backoffice/src/app/register/page.tsx`.
-- Vista de perfil en `uis/backoffice/src/app/account/profile/page.tsx`.
-- Middleware de protección de rutas en `uis/backoffice/src/middleware.ts`.
-- Provider de autenticación en `uis/backoffice/src/components/auth-provider.tsx`.
-- Layout actualizado con AuthProvider en `uis/backoffice/src/app/layout.tsx`.
-- Cliente API helper en `uis/backoffice/src/lib/api.ts`.
+## Implementación AUTH-02 y Correcciones de Feedback
+- Plantillas `.env.example` añadidas en raíz, `services/api/`, `uis/backoffice/`, `uis/website/`, `uis/loyalty-app/`, `uis/operations-ui/`.
+- Navegación mejorada en `BackofficeHeader` con botones visibles para Iniciar Sesión (`/login`), Registrarse (`/register`), Perfil (`/account/profile`) y Cerrar Sesión.
+- Corrección de rol en registro (`role: 'admin'`) en frontend (`uis/backoffice` y `packages/shared`) y backend (`UserRole` en `services/api`).
+- Instrucciones detalladas de despliegue y ejecución local añadidas a `README.md` y `README.es.md`.
+- Backend FastAPI actualizado con `requirements.txt`, soporte CORS para todos los puertos locales, router de incidencias y suite de tests completa (`pytest`).
 
 ## Validaciones ejecutadas
-- `python3 /workspaces/campivargas07-ai-engineering-company-project-monorepo/scripts/analyze.py /workspaces/campivargas07-ai-engineering-company-project-monorepo/docs/incidents-brasaland.csv` con conteos esperados: 100 totales, 96 válidos, 4 inválidos y promedio 3.46.
-- Exportación interactiva del script con generación de `results.csv`.
-- `python3 -m pytest /workspaces/campivargas07-ai-engineering-company-project-monorepo/services/api/tests/test_incidents_api.py` con 3 pruebas verdes.
-- `npm --prefix /workspaces/campivargas07-ai-engineering-company-project-monorepo/uis/backoffice run typecheck` exitoso.
+- `python3 /workspaces/campivargas07-ai-engineering-company-project-monorepo/scripts/analyze.py /workspaces/campivargas07-ai-engineering-company-project-monorepo/docs/incidents-brasaland.csv` (100 totales, 96 válidos, 4 inválidos).
+- `python3 -m pytest services/api/tests` con 6 pruebas verdes al 100% (incidents + auth API).
+- `npm run typecheck:uis` exitoso en las 4 aplicaciones de Next.js.
+- `npm run build:uis` exitoso en website, backoffice, loyalty-app y operations-ui.

@@ -47,20 +47,22 @@ def login(data: LoginRequest) -> TokenResponse:
 @router.get("/me", response_model=AuthMeResponse)
 def get_me(current_user: dict = Depends(get_current_user)) -> AuthMeResponse:
     """Return the authenticated user's credentials and linked profile."""
+    user_id = str(getattr(current_user, "doc_id", current_user.get("doc_id", current_user.get("id", ""))))
     user_out = UserOut(
-        id=str(current_user.doc_id),
+        id=user_id,
         email=current_user["email"],
         role=current_user["role"],
-        is_active=current_user["is_active"],
-        created_at=current_user["created_at"],
+        is_active=current_user.get("is_active", True),
+        created_at=current_user.get("created_at", ""),
     )
 
-    profile_doc = profiles_table.get(_Q.user_id == str(current_user.doc_id))
+    profile_doc = profiles_table.get(_Q.user_id == user_id)
     profile_out = None
     if profile_doc:
+        profile_id = str(getattr(profile_doc, "doc_id", profile_doc.get("doc_id", profile_doc.get("id", ""))))
         profile_out = ProfileOut(
-            id=str(profile_doc.doc_id),
-            user_id=profile_doc["user_id"],
+            id=profile_id,
+            user_id=profile_doc.get("user_id", user_id),
             name=profile_doc.get("name"),
             phone=profile_doc.get("phone"),
             address=profile_doc.get("address"),

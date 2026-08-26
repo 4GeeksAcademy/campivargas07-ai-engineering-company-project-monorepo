@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { authApi } from '@/lib/auth/api';
+import { BackofficeHeader } from '@/components/backoffice-header';
 
 export default function ProfilePage() {
   const { user, loading: authLoading, refreshUser } = useAuth();
@@ -60,8 +62,8 @@ export default function ProfilePage() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-gray-500">Cargando...</div>
+      <div className="backoffice-page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+        <p className="muted">Cargando perfil...</p>
       </div>
     );
   }
@@ -71,162 +73,203 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto py-8 px-4">
-      <div className="bg-white shadow rounded-lg p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Mi Perfil</h1>
-          {!editing && (
-            <button
-              onClick={() => setEditing(true)}
-              className="px-4 py-2 text-sm font-medium text-amber-600 hover:text-amber-700"
-            >
-              Editar
-            </button>
-          )}
+    <div className="backoffice-page">
+      <BackofficeHeader activeView="profile" badge="Cuenta de usuario" />
+
+      <main className="container bo-main" style={{ maxWidth: '720px', margin: '0 auto', paddingTop: '2rem' }}>
+        <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Link href="/" className="nav-link" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.88rem' }}>
+            ← Volver al panel
+          </Link>
         </div>
 
-        {message.text && (
-          <div className={`mb-4 p-4 rounded-md text-sm ${
-            message.type === 'success' 
-              ? 'bg-green-50 text-green-700 border border-green-200' 
-              : 'bg-red-50 text-red-700 border border-red-200'
-          }`}>
-            {message.text}
-          </div>
-        )}
-
-        <div className="space-y-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Email
-            </label>
-            <div className="text-gray-900">{user.email}</div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Rol
-            </label>
-            <div className="text-gray-900 capitalize">{user.role}</div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Estado
-            </label>
-            <div className="flex items-center">
-              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                user.is_active 
-                  ? 'bg-green-100 text-green-800' 
-                  : 'bg-red-100 text-red-800'
-              }`}>
-                {user.is_active ? 'Activo' : 'Inactivo'}
-              </span>
+        <section className="card" style={{ padding: '2rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
+            <div>
+              <h2 style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>Mi Perfil</h2>
+              <p className="muted" style={{ fontSize: '0.85rem' }}>Información de tu cuenta y datos de contacto</p>
             </div>
+            {!editing && (
+              <button
+                onClick={() => setEditing(true)}
+                className="secondary-button"
+                style={{ padding: '0.45rem 1rem', fontSize: '0.85rem' }}
+              >
+                Editar Perfil
+              </button>
+            )}
           </div>
 
-          {editing ? (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
-                  Nombre completo
-                </label>
-                <input
-                  id="name"
-                  name="name"
-                  type="text"
-                  value={formData.name}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                />
-              </div>
+          {message.text && (
+            <div className={message.type === 'success' ? 'feedback feedback-ok' : 'feedback feedback-error'} style={{ marginBottom: '1.25rem' }}>
+              {message.text}
+            </div>
+          )}
 
-              <div>
-                <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
-                  Teléfono
-                </label>
-                <input
-                  id="phone"
-                  name="phone"
-                  type="tel"
-                  value={formData.phone}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                />
-              </div>
+          <div style={{ display: 'grid', gap: '1.25rem' }}>
+            <div>
+              <label style={{ display: 'block', color: 'var(--muted)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.3rem' }}>
+                Email
+              </label>
+              <div style={{ fontSize: '1.05rem', fontWeight: 600 }}>{user.email}</div>
+            </div>
 
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               <div>
-                <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-1">
-                  Dirección
+                <label style={{ display: 'block', color: 'var(--muted)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.3rem' }}>
+                  Rol de Acceso
                 </label>
-                <input
-                  id="address"
-                  name="address"
-                  type="text"
-                  value={formData.address}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
-                />
-              </div>
-
-              <div className="flex space-x-4 pt-4">
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="px-4 py-2 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 disabled:opacity-50"
-                >
-                  {saving ? 'Guardando...' : 'Guardar cambios'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditing(false);
-                    if (user?.profile) {
-                      setFormData({
-                        name: user.profile.name || '',
-                        phone: user.profile.phone || '',
-                        address: user.profile.address || '',
-                      });
-                    }
-                  }}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </form>
-          ) : (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Nombre completo
-                </label>
-                <div className="text-gray-900">
-                  {user.profile?.name || 'No especificado'}
+                <div>
+                  <span className="chip chip-ok" style={{ textTransform: 'uppercase' }}>{user.role}</span>
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Teléfono
+                <label style={{ display: 'block', color: 'var(--muted)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.3rem' }}>
+                  Estado de Cuenta
                 </label>
-                <div className="text-gray-900">
-                  {user.profile?.phone || 'No especificado'}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Dirección
-                </label>
-                <div className="text-gray-900">
-                  {user.profile?.address || 'No especificada'}
+                <div>
+                  <span className={`chip ${user.is_active ? 'chip-ok' : 'chip-danger'}`}>
+                    {user.is_active ? 'Activo' : 'Inactivo'}
+                  </span>
                 </div>
               </div>
             </div>
-          )}
-        </div>
-      </div>
+
+            <div style={{ height: '1px', background: 'var(--border)', margin: '0.5rem 0' }} />
+
+            {editing ? (
+              <form onSubmit={handleSubmit} style={{ display: 'grid', gap: '1rem' }}>
+                <div>
+                  <label htmlFor="name" style={{ display: 'block', color: 'var(--muted)', fontSize: '0.85rem', marginBottom: '0.35rem' }}>
+                    Nombre completo
+                  </label>
+                  <input
+                    id="name"
+                    name="name"
+                    type="text"
+                    value={formData.name}
+                    onChange={handleChange}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.85rem',
+                      background: 'rgba(255,255,255,0.04)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '0.65rem',
+                      color: 'var(--fg)',
+                      fontSize: '0.92rem',
+                    }}
+                    placeholder="Ej. Lucía Fernández"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="phone" style={{ display: 'block', color: 'var(--muted)', fontSize: '0.85rem', marginBottom: '0.35rem' }}>
+                    Teléfono
+                  </label>
+                  <input
+                    id="phone"
+                    name="phone"
+                    type="tel"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.85rem',
+                      background: 'rgba(255,255,255,0.04)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '0.65rem',
+                      color: 'var(--fg)',
+                      fontSize: '0.92rem',
+                    }}
+                    placeholder="+57 300 1234567"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="address" style={{ display: 'block', color: 'var(--muted)', fontSize: '0.85rem', marginBottom: '0.35rem' }}>
+                    Dirección
+                  </label>
+                  <input
+                    id="address"
+                    name="address"
+                    type="text"
+                    value={formData.address}
+                    onChange={handleChange}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem 0.85rem',
+                      background: 'rgba(255,255,255,0.04)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '0.65rem',
+                      color: 'var(--fg)',
+                      fontSize: '0.92rem',
+                    }}
+                    placeholder="Cra. 37 #8A-29, Medellín"
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="primary-button"
+                    style={{ padding: '0.6rem 1.25rem', fontSize: '0.9rem' }}
+                  >
+                    {saving ? 'Guardando...' : 'Guardar Cambios'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditing(false);
+                      if (user?.profile) {
+                        setFormData({
+                          name: user.profile.name || '',
+                          phone: user.profile.phone || '',
+                          address: user.profile.address || '',
+                        });
+                      }
+                    }}
+                    className="secondary-button"
+                    style={{ padding: '0.6rem 1.25rem', fontSize: '0.9rem' }}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div style={{ display: 'grid', gap: '1rem' }}>
+                <div>
+                  <label style={{ display: 'block', color: 'var(--muted)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>
+                    Nombre completo
+                  </label>
+                  <div style={{ color: user.profile?.name ? 'var(--fg)' : 'var(--muted)' }}>
+                    {user.profile?.name || 'No especificado'}
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', color: 'var(--muted)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>
+                    Teléfono
+                  </label>
+                  <div style={{ color: user.profile?.phone ? 'var(--fg)' : 'var(--muted)' }}>
+                    {user.profile?.phone || 'No especificado'}
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', color: 'var(--muted)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>
+                    Dirección
+                  </label>
+                  <div style={{ color: user.profile?.address ? 'var(--fg)' : 'var(--muted)' }}>
+                    {user.profile?.address || 'No especificada'}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+      </main>
     </div>
   );
 }
