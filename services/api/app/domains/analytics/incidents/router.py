@@ -1,8 +1,16 @@
+"""
+router.py — Brasaland · Incident analysis endpoints
+
+POST   /api/incidents/analyze        Analyze CSV     (PROTECTED)
+GET    /api/incidents/results/export  Export results  (PROTECTED)
+"""
+
 from __future__ import annotations
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import Response
 
+from app.domains.auth.dependencies import get_current_user
 from app.domains.analytics.incidents.schemas import IncidentAnalysisResponse
 from app.domains.analytics.incidents.service import analyze_incidents_csv, get_latest_analysis
 
@@ -10,7 +18,11 @@ router = APIRouter(prefix="/api/incidents", tags=["incidents"])
 
 
 @router.post("/analyze", response_model=IncidentAnalysisResponse)
-async def analyze_incidents(file: UploadFile = File(...)) -> IncidentAnalysisResponse:
+async def analyze_incidents(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user),
+) -> IncidentAnalysisResponse:
+    """Analyze an uploaded CSV of incidents. Requires authentication."""
     if not file.filename:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -48,7 +60,10 @@ async def analyze_incidents(file: UploadFile = File(...)) -> IncidentAnalysisRes
 
 
 @router.get("/results/export")
-def export_latest_results() -> Response:
+def export_latest_results(
+    current_user: dict = Depends(get_current_user),
+) -> Response:
+    """Export latest analysis results as CSV. Requires authentication."""
     latest = get_latest_analysis()
     if latest is None:
         raise HTTPException(

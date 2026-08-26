@@ -1,1 +1,37 @@
-node_modules
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# Build outputs
+dist/
+build/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Environment files
+.env
+.env.local
+!.env.example
+!**/.env.example
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Debug logs
+npm-debug.log*
+
+# Vercel
+.vercel/
