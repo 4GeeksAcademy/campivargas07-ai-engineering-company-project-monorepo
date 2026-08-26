@@ -1,20 +1,2 @@
 # Dependencies
-node_modules/
-
-# Environment and secrets
-.env
-.env.*
-*.env
-
-# Python caches and coverage
-__pycache__/
-*.py[cod]
-*$py.class
-*.egg-info/
-.pytest_cache/
-.coverage
-htmlcov/
-
-# Next.js build output
-.next/
-out/
+node_modules
