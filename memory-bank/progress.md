@@ -1,5 +1,20 @@
 # Brasaland Progress
 
+## Hito: Backend de Inventario con ORM y Doble BD (rama `feature/db-inventario`)
+
+- **Fase 0-1**: `docker-compose.yml` (postgres 16, mongo, pgadmin), `.env` raíz,
+  modelos SQLAlchemy en `services/backend/app/domains/*` y migración Alembic inicial.
+- **Fase 2-3**: API REST con patrón router → service → repository; JWT Bearer en
+  escrituras; 28 operaciones / 18 rutas bajo `/api/v1/`; errores de negocio → 400.
+- **Fase 4**: seed idempotente (`scripts/seed.py`) — 6 locales, 5 proveedores,
+  10 ingredientes, 22 filas de inventario, 15 movimientos, 3 recetas Mongo y 3
+  usuarios demo; claves naturales evitan duplicados al re-ejecutar.
+- **Fase 5**: suite pytest (23 tests verdes) con PostgreSQL/MongoDB efímeros en
+  `tests/conftest.py`; cubre CRUD, transacciones de inventario, kardex, alertas,
+  regla moneda-país, borrado lógico y documentos anidados de Mongo.
+- **Fase 6**: README del backend con flujo de arranque, tabla de endpoints, reglas
+  de negocio y guion del video de 5 min (7 puntos).
+
 ## Estado actual
 - Contexto de empresa definido y foco validado en pedidos inteligentes de ingredientes.
 - Lógica TypeScript del Hito 2 incorporada al branch main (src/types + src/utils).
