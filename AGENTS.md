@@ -11,7 +11,7 @@ Antes de cualquier cambio, todo agente debe leer en este orden:
 2. Planificar impacto: identificar archivos objetivo y validar que no se rompen restricciones de arquitectura.
 3. Implementar y verificar: aplicar cambios mínimos, ejecutar typecheck/build y revisar errores.
 4. Actualizar contexto: registrar decisiones y estado en memory-bank/progress.md.
-5. Preparar entrega: redactar resumen de cambios, riesgos y evidencias de validación.
+5. Preparar entrega: redactar resumen de cambios, riesgos y evidencias de validación, registrando el walkthrough en tasks/walkthrough.md.
 
 ## Zonas protegidas (no modificar sin confirmación explícita)
 - CONTEXT.md
@@ -26,3 +26,4 @@ Antes de cualquier cambio, todo agente debe leer en este orden:
 - Mantener APIs y workers dentro de services/.
 - Mantener separación visual y de layout entre apps públicas e internas.
 - Si una decisión cambia arquitectura o alcance, detenerse y pedir confirmación.
+- Documentar cada hito nuevo agregando o actualizando su walkthrough en tasks/walkthrough.md para conservar la trazabilidad histórica de cambios y validaciones.

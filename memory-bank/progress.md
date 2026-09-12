@@ -44,3 +44,12 @@
 - `uv run pytest --cov=app.domains.auth --cov-report=term-missing --cov-fail-under=70` en `services/api` con 45 pruebas verdes y 100% de cobertura en `app.domains.auth`.
 - Verificación de aislamiento estricto de TinyDB (sin modificaciones en `services/data/suppliers.json`).
 - `npm run test:uis` en raíz con 14 pruebas de frontend/backoffice verdes (10 en backoffice, 4 en website).
+
+## Hito: Dominio de Inventario en `services/api` (Doble Base de Datos y SQLModel)
+- **Doble BD Activa**: TinyDB preservado para usuarios/perfiles/proveedores + PostgreSQL vía SQLModel para catálogo de ingredientes y movimientos de inventario.
+- **Stock Dinámico**: `current_stock` nunca persistido en columna; calculado como `SUM(inbound) - SUM(outbound)` por ingrediente y restaurante (`local_id`).
+- **Trazabilidad de Identidad**: Toda entrada y salida almacena `user_uuid` estable del usuario TinyDB autenticado (`Depends(get_current_user)`).
+- **Control de Concurrencia**: Bloqueo pesimista `SELECT ... FOR UPDATE` a nivel de fila en PostgreSQL para salidas de inventario; rechazo `400 Bad Request` sin persistencia ante saldos insuficientes.
+- **Consultas Constantes (Sin N+1)**: Listado de productos y órdenes optimizados mediante consultas de agregación y joins unificados ($O(1)$).
+- **Siembra Idempotente**: `seed.py` validando usuario real en TinyDB, sembrando `ING-001` a `ING-007` y movimientos en `MED-001` y `MIA-001` con balance neto idéntico a `src/demo.ts`.
+- **Suite de Pruebas**: 65 pruebas automatizadas pasando al 100% (unitarias en SQLite aislado y de integración/concurrencia en PostgreSQL con `TEST_DATABASE_URL`), con 94% de cobertura en `app.domains.operations.inventory`.

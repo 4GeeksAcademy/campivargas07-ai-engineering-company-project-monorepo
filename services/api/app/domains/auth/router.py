@@ -49,6 +49,7 @@ def get_me(current_user: dict = Depends(get_current_user)) -> AuthMeResponse:
     """Return the authenticated user's credentials and linked profile."""
     user_out = UserOut(
         id=str(current_user.doc_id),
+        uuid=current_user.get("uuid"),
         email=current_user["email"],
         role=current_user["role"],
         is_active=current_user["is_active"],

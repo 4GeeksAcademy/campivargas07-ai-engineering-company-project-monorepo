@@ -4,6 +4,7 @@ service.py — Brasaland · User CRUD + TinyDB persistence
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -21,6 +22,7 @@ def _doc_to_response(doc) -> UserResponse:
     """Convert a TinyDB document to a UserResponse."""
     return UserResponse(
         id=str(doc.doc_id),
+        uuid=doc.get("uuid"),
         email=doc["email"],
         role=doc["role"],
         is_active=doc.get("is_active", True),
@@ -30,7 +32,7 @@ def _doc_to_response(doc) -> UserResponse:
 
 def create_user(data: UserCreate) -> UserResponse:
     """
-    Create a new user with hashed password.
+    Create a new user with hashed password and stable UUID.
     Also creates a linked Profile if name/phone/address are provided.
     """
     from app.domains.auth.service import hash_password
@@ -43,7 +45,9 @@ def create_user(data: UserCreate) -> UserResponse:
         )
 
     now = datetime.now(timezone.utc).isoformat()
+    user_uuid = str(uuid.uuid4())
     doc = {
+        "uuid": user_uuid,
         "email": data.email,
         "hashed_password": hash_password(data.password),
         "role": data.role.value,

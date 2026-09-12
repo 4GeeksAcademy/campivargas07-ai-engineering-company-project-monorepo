@@ -31,6 +31,7 @@ class UserUpdate(BaseModel):
 
 class UserResponse(BaseModel):
     id: str
+    uuid: str | None = None
     email: str
     role: str
     is_active: bool

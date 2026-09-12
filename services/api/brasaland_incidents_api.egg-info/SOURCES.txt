@@ -11,6 +11,13 @@ app/domains/auth/dependencies.py
 app/domains/auth/router.py
 app/domains/auth/schemas.py
 app/domains/auth/service.py
+app/domains/operations/inventory/__init__.py
+app/domains/operations/inventory/models.py
+app/domains/operations/inventory/repository.py
+app/domains/operations/inventory/router.py
+app/domains/operations/inventory/schemas.py
+app/domains/operations/inventory/seed.py
+app/domains/operations/inventory/service.py
 app/domains/procurement/suppliers/__init__.py
 app/domains/procurement/suppliers/router.py
 app/domains/procurement/suppliers/schemas.py
@@ -30,6 +37,8 @@ brasaland_incidents_api.egg-info/requires.txt
 brasaland_incidents_api.egg-info/top_level.txt
 tests/test_auth_dependency.py
 tests/test_incidents_api.py
+tests/test_inventory_domain.py
+tests/test_inventory_postgres.py
 tests/test_login.py
 tests/test_me.py
 tests/test_password_service.py
