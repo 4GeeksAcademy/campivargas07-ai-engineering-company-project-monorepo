@@ -16,9 +16,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app import mongo
 from app.config import settings
+from app.domains.auth.router import router as auth_router
 from app.domains.ingredients.router import router as ingredientes_router
+from app.domains.inventory.router import router as inventory_router
 from app.domains.locations.router import router as locales_router
 from app.domains.procurement.router import router as proveedores_router
+from app.domains.recipes.router import router as recipes_router
 
 logging.basicConfig(level=logging.INFO)
 
@@ -56,9 +59,12 @@ app.add_middleware(
 )
 
 # Routers por dominio (cada uno con su prefijo /api/v1/...)
+app.include_router(auth_router)
 app.include_router(locales_router)
 app.include_router(ingredientes_router)
+app.include_router(inventory_router)
 app.include_router(proveedores_router)
+app.include_router(recipes_router)
 
 
 @app.get("/health", tags=["health"])
