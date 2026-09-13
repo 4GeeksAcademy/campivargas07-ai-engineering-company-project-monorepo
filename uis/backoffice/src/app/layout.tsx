@@ -12,6 +12,8 @@ const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
 });
 
+import { AuthProviderWrapper } from "@/components/auth-provider";
+
 export const metadata: Metadata = {
   title: "Brasaland Backoffice",
   description:
@@ -25,7 +27,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" className={`${inter.variable} ${jakarta.variable}`}>
-      <body>{children}</body>
+      <body>
+        <AuthProviderWrapper>{children}</AuthProviderWrapper>
+      </body>
     </html>
   );
 }

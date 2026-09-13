@@ -30,5 +30,17 @@ describe("BackofficeHeader Component", () => {
     expect(incidentsLink).toHaveClass("nav-link-active");
     expect(overviewLink).not.toHaveClass("nav-link-active");
   });
+
+  it("marks inventory link as active when activeView is 'inventory'", () => {
+    render(<BackofficeHeader activeView="inventory" badge="Hito 5" />);
+
+    const overviewLink = screen.getByRole("link", { name: "Resumen" });
+    const inventoryLink = screen.getByRole("link", { name: "Inventario" });
+    const incidentsLink = screen.getByRole("link", { name: "Incidencias" });
+
+    expect(inventoryLink).toHaveClass("nav-link-active");
+    expect(overviewLink).not.toHaveClass("nav-link-active");
+    expect(incidentsLink).not.toHaveClass("nav-link-active");
+  });
 });
 

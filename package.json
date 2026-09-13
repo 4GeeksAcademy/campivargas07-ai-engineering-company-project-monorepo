@@ -11,6 +11,8 @@
     "typecheck": "tsc --noEmit",
     "demo": "npx tsx src/demo.ts",
     "serve": "npx serve src -p 3000",
+    "dev": "npm run dev --workspace uis/backoffice",
+    "dev:all": "./scripts/start-all.sh",
     "dev:website": "npm run dev --workspace uis/website",
     "dev:backoffice": "npm run dev --workspace uis/backoffice",
     "dev:loyalty": "npm run dev --workspace uis/loyalty-app",

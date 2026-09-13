@@ -53,3 +53,29 @@
 - **Consultas Constantes (Sin N+1)**: Listado de productos y órdenes optimizados mediante consultas de agregación y joins unificados ($O(1)$).
 - **Siembra Idempotente**: `seed.py` validando usuario real en TinyDB, sembrando `ING-001` a `ING-007` y movimientos en `MED-001` y `MIA-001` con balance neto idéntico a `src/demo.ts`.
 - **Suite de Pruebas**: 65 pruebas automatizadas pasando al 100% (unitarias en SQLite aislado y de integración/concurrencia en PostgreSQL con `TEST_DATABASE_URL`), con 94% de cobertura en `app.domains.operations.inventory`.
+
+## Hito 5: Backoffice de Gestión de Inventario (`uis/backoffice`, rama `feature/backoffice-inventario`)
+- **Capa API Normalizada**: `src/lib/inventory.ts` centralizando llamadas hacia `services/api` (`/inventory/*`), construcción segura de URLs sin doble slash, `URLSearchParams`, inyección de `Authorization: Bearer <token>`, parseo robusto de respuestas no-JSON, formateo de validaciones 422 de Pydantic y logout limpio desacoplado ante 401 sin fugar tokens en consola.
+- **Configuración Temporal de Locales**: `src/lib/constants/restaurants.ts` restringido a las sedes con datos activos en el seed del backend (`MED-001` y `MIA-001`), documentado como módulo temporal y protegido con fallbacks para identificadores arbitrarios devueltos por la API.
+- **Rutas y Navegación Limpias**: Eliminado el rewrite confuso `/inventory/:path*` de `next.config.ts`. Todas las páginas y enlaces de frontend residen exclusivamente bajo `/backoffice/inventory/*`.
+- **Actualización Dinámica e Inmediata de Stock**:
+  - `InboundOrderForm`: incremento reactivo e inmediato del stock en memoria tras HTTP 201, reseteo de input de cantidad y mensaje de éxito persistente con botón de descarte.
+  - `OutboundOrderForm`: consulta reactiva con estado de carga ("Consultando..."), cancelación de peticiones desfasadas, bloqueo preventivo del botón de envío si la cantidad supera el stock disponible, captura inline del `HTTP 400 InsufficientStockError` junto al input de cantidad y decremento inmediato del saldo en memoria tras HTTP 201.
+- **Experiencia de Usuario y Accesibilidad**:
+  - Semáforos textuales normalizados: `Agotado` ($\le 0$), `Stock bajo` ($\le min$), `Saludable` ($> min$).
+  - Historial `OrdersLedger` con badges textuales legibles (`📥 ENTRADA` / `📤 SALIDA`), sede descriptiva (`nombre (id)`), fecha localizada `DD/MM/YYYY HH:mm` y `user_uuid`.
+  - Manejo completo de estados en todas las vistas: carga accesible, error con botón de `Reintentar` y estado vacío con botones de llamada a la acción (CTA).
+- **Protección de Rutas sin Destello**: `AuthGuard` bloqueando el render de componentes protegidos mientras el estado de autenticación no esté confirmado, redirigiendo a `/login` a usuarios anónimos.
+- **Suite de Pruebas y Calidad de Código**:
+  - `TEST_DATABASE_URL=... uv run --directory services/api pytest`: 65 pruebas pasando al 100% (0 omitidas, 0 fallos).
+  - `npm --prefix uis/backoffice run test`: 39 pruebas verdes en 8 suites (incluyendo precedencia de URL, incremento/decremento de stock y fallback de reconciliación).
+  - `npm --prefix uis/backoffice run typecheck`: 0 errores TypeScript.
+  - `npm --prefix uis/backoffice run lint`: 0 errores, 0 advertencias ESLint.
+  - `npm --prefix uis/backoffice run build`: compilación de producción exitosa (10/10 rutas estáticas prerenderizadas con Next.js 16 y Turbopack).
+  - `npm run test:uis`: 43 pruebas verdes en el monorepo (39 backoffice + 4 website).
+- **Estado de la Verificación Visual**: Marcada como pendiente de inspección manual por el usuario en navegador real (el entorno de ejecución carece de binarios de navegadores para automatización).
+- **Estado de Integración con PR #8**: Pendiente de resolución de divergencias en `src/lib/auth/api.ts` y `src/app/login/page.tsx` al momento de fusionar ramas.
+- **Higiene de Repositorio**: Limpieza estricta de artefactos (`.env.local`, `__pycache__`, `.coverage`) y restauración de `services/api/data/suppliers.json` al estado limpio original (sin usuarios demo ni hashes).
+
+
+

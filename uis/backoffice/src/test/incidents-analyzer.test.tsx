@@ -49,7 +49,7 @@ describe("IncidentsAnalyzer Component", () => {
 
     render(<IncidentsAnalyzer />);
 
-    const fileInput = screen.getByLabelElement ? screen.getByLabelElement() : document.querySelector('input[type="file"]')!;
+    const fileInput = screen.getByLabelText(/Arrastra el archivo aquí o selecciónalo desde tu equipo/i);
     const file = new File(["test-content"], "incidents-sample.csv", { type: "text/csv" });
 
     fireEvent.change(fileInput, { target: { files: [file] } });
