@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
 
+const internalApiUrl = (process.env.INTERNAL_API_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
+
 const nextConfig: NextConfig = {
   experimental: {
     externalDir: true,
@@ -8,7 +10,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/api/:path*",
-        destination: "http://127.0.0.1:8000/:path*",
+        destination: `${internalApiUrl}/:path*`,
       },
     ];
   },

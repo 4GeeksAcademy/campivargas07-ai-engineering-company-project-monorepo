@@ -274,3 +274,65 @@ El hito no se considera completamente integrado con la base principal debido a l
 3. **Dependencia de integración**:
    - La rama actual opera en su propio espacio de trabajo. La unificación con la rama de autenticación formal (PR #8) requerirá resolver estas discrepancias de integración.
    - No se realizarán merges, cherry-picks ni rebases sin previa autorización.
+
+---
+
+# Walkthrough: Hito de Infraestructura — Dockerizar el Entorno Completo de Desarrollo
+
+Se ha completado la dockerización del entorno local de desarrollo para el monorepo Brasaland sobre la base de la PR #12 (`feature/backoffice-inventario`), permitiendo que un desarrollador ejecute `docker compose up --build` desde la raíz y obtenga Website, Backoffice y la API de FastAPI corriendo con hot reload, comunicación interna por red Docker y configuración desacoplada vía variables de entorno.
+
+## 1. Arquitectura y Componentes Implementados
+
+- **Servicio `interfaces` (`uis/Dockerfile`)**:
+  - Imagen: `brasaland-interfaces:dev` (basada en `node:22-alpine`, usuario `node:node`).
+  - Puerto `3000`: Website (`uis/website`).
+  - Puerto `3001`: Backoffice (`uis/backoffice`).
+  - Script supervisor `uis/start.sh`: levanta concurrentemente ambos servicios Next.js con soporte para dependencias externas monorepo (`--webpack`), captura señales `SIGTERM`/`SIGINT` y previene procesos huérfanos.
+  - Volúmenes anónimos `/app/website/node_modules`, `/app/website/.next`, `/app/backoffice/node_modules`, `/app/backoffice/.next` para aislar dependencias del contenedor de las del host.
+- **Servicio `backend` (`services/Dockerfile`)**:
+  - Imagen: `brasaland-backend:dev` (basada en `python:3.12-slim`, usuario `appuser:appuser`).
+  - Puerto `8000`: FastAPI Backend (`services/api`).
+  - Gestor de dependencias: `uv` oficial. Virtualenv aislado en `/opt/venv` para que el bind mount `./services:/app` no sobrescriba ni contamine las librerías instaladas.
+  - Healthcheck HTTP integrado: `curl -f http://localhost:8000/health || exit 1`.
+  - Preservación íntegra de TinyDB: `SUPPLIERS_DB_PATH=/app/api/data/suppliers.json`.
+- **Red Docker**:
+  - `brasaland-dev` (bridge), permitiendo resolución interna de nombres de servicio (`http://backend:8000`).
+
+## 2. Configuración y Proxies
+
+- **Proxy Rewrite en Backoffice (`uis/backoffice/next.config.ts`)**:
+  - Configurado para admitir la variable `INTERNAL_API_URL`, permitiendo que el navegador llame a `/api/*` en el mismo origen (`localhost:3001`) y el servidor Next.js lo reenvíe hacia el backend dentro de la red Docker (`http://backend:8000`).
+- **Variables de Entorno (`.env.example`)**:
+  - Se preservaron intactas todas las variables de PostgreSQL, MongoDB, pgAdmin y backend existentes, agregando únicamente las requeridas para Docker (`DATABASE_URL`, `SUPPLIERS_DB_PATH`, `INTERNAL_API_URL`).
+
+## 3. Evidencias de Validación Automatizada y Operativa
+
+- **Construcción de Imágenes Docker**:
+  - `docker build -f uis/Dockerfile -t brasaland-interfaces:dev uis`
+  - `docker build -f services/Dockerfile -t brasaland-backend:dev services`
+  - Contexto de `uis`: Reducido a <10 KB mediante exclusiones recursivas en `uis/.dockerignore` (`**/node_modules`, `**/.next`).
+- **Estado de Contenedores (`docker compose ps`)**:
+  - `interfaces`: Up (puertos 3000 y 3001).
+  - `backend`: Up (healthy, puerto 8000).
+- **Endpoints Verificados**:
+  - `http://localhost:8000/health` $\to$ `{"status":"ok"}` (200)
+  - `http://localhost:8000/docs` $\to$ 200 OK
+  - `http://localhost:3000` $\to$ 200 OK
+  - `http://localhost:3001` $\to$ 200 OK
+  - `http://localhost:3001/api/health` (vía rewrite Next.js) $\to$ `{"status":"ok"}` (200)
+- **Comunicación Inter-Contenedor**:
+  - `docker compose exec -T interfaces wget -qO- http://backend:8000/health` $\to$ `{"status":"ok"}`
+- **Hot Reload Verificado en Vivo**:
+  - Website (`uis/website/src/app/page.tsx`): Recompilación inmediata en 409ms detectada en logs.
+  - Backoffice (`uis/backoffice/src/app/page.tsx`): Recompilación inmediata en 654ms detectada en logs.
+  - Backend (`services/api/app/main.py`): StatReload de Uvicorn detectado y reiniciado limpiamente.
+  - Working tree Git completamente limpio tras revertir ediciones de prueba.
+- **Suites de Pruebas**:
+  - Frontend: `npm run test:uis` $\to$ 46/46 pruebas pasando (42 en backoffice, 4 en website), incluyendo `next-config-rewrites.test.ts`.
+  - Backend: `TEST_DATABASE_URL=... uv run --directory services/api pytest` $\to$ 65/65 pruebas pasando.
+  - Builds: Website (5/5 rutas estáticas) y Backoffice (10/10 rutas estáticas) compilan limpiamente.
+
+## 4. Flujo de Operación
+- **Arranque**: `docker compose up --build`
+- **Parada segura**: `docker compose down` (no destructivo, protege datos)
+

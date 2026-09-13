@@ -77,5 +77,37 @@
 - **Estado de Integración con PR #8**: Pendiente de resolución de divergencias en `src/lib/auth/api.ts` y `src/app/login/page.tsx` al momento de fusionar ramas.
 - **Higiene de Repositorio**: Limpieza estricta de artefactos (`.env.local`, `__pycache__`, `.coverage`) y restauración de `services/api/data/suppliers.json` al estado limpio original (sin usuarios demo ni hashes).
 
+## Hito de Infraestructura: Dockerizar el Entorno Completo de Desarrollo
+- **Orquestación en Raíz (`docker-compose.yml`)**:
+  - Exactamente dos servicios definidos: `interfaces` (Website + Backoffice en un solo contenedor) y `backend` (`services/api` con FastAPI).
+  - Red dedicada tipo bridge `brasaland-dev`.
+  - Bind mounts de desarrollo (`./uis:/app`, `./services:/app`) con volúmenes anónimos para preservar `node_modules` y directorios de compilación (`.next`).
+  - Configuración estricta por variables de entorno sin secretos versionados; Compose configurado con sustitución obligatoria `${DATABASE_URL:?DATABASE_URL is required}` y `${SECRET_KEY:?SECRET_KEY is required}`.
+- **Contenerización de Interfaces (`uis/Dockerfile`, `uis/start.sh`, `uis/.dockerignore`)**:
+  - Imagen base `node:22-alpine` con usuario no-root `node`.
+  - Instalación limpia con `npm ci` (o fallback resiliente `npm install --legacy-peer-deps`).
+  - Contexto optimizado con `**/node_modules` y `**/.next` reduciendo la transferencia a <10 KB.
+  - Script supervisor `uis/start.sh` en POSIX `/bin/sh` con manejo de señales `SIGINT`/`SIGTERM`, monitoreo concurrente y Next.js dev server con `--webpack` para resolución de módulos del monorepo (`externalDir`).
+- **Contenerización de Backend (`services/Dockerfile`, `services/.dockerignore`)**:
+  - Imagen base `python:3.12-slim` con usuario no-root `appuser`.
+  - Entorno virtual aislado en `/opt/venv` garantizando que los bind mounts del host no sobrescriban ni corrompan las dependencias.
+  - Gestión rápida y determinista de dependencias con `uv sync --active --frozen --no-dev`.
+  - `WORKDIR /app/api` respetando la ubicación real de `pyproject.toml` y `uv.lock`.
+  - Preservación íntegra de `services/api/data/suppliers.json` (TinyDB) sin duplicaciones ni movimientos.
+- **Resolución Interna y Proxies**:
+  - Configuración de `uis/backoffice/next.config.ts` para reescribir `/api/:path*` dinámicamente hacia `process.env.INTERNAL_API_URL` (valor en Compose: `http://backend:8000`).
+  - Suite Vitest (`uis/backoffice/src/test/next-config-rewrites.test.ts`) validando al 100% el comportamiento de rewrites y sanitización de URLs.
+  - Validación de conectividad inter-contenedor: `curl http://backend:8000/health` desde `interfaces` respondiendo `{"status":"ok"}`.
+- **Recarga en Caliente (Hot Reload)**:
+  - Verificado en Website (`uis/website/src/app/page.tsx`), Backoffice (`uis/backoffice/src/app/page.tsx`) y FastAPI (`services/api/app/main.py`).
+  - Recompilación instantánea sin reconstrucción de contenedores.
+  - Árbol de trabajo Git restaurado al 100% de limpieza tras pruebas.
+- **Calidad y Verificación**:
+  - `npm run test:uis`: 46/46 pruebas pasando (42 en backoffice, 4 en website).
+  - `npm --prefix uis/website run typecheck && lint && build`: 5/5 páginas estáticas prerenderizadas.
+  - `npm --prefix uis/backoffice run typecheck && lint && build`: 10/10 páginas estáticas prerenderizadas.
+  - Backend Pytest: 65/65 pruebas pasando contra PostgreSQL (`TEST_DATABASE_URL`).
+  - Documentación de inicio, puertos y parada segura en `README.md` y `README.es.md`.
+
 
 
