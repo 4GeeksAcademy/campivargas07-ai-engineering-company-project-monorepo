@@ -11,17 +11,17 @@ export const metadata = {
 
 export default function OutboundOrderPage() {
   return (
-    <div className="backoffice-page">
-      <BackofficeHeader activeView="inventory" badge="Gestión de Inventario" />
+    <AuthGuard>
+      <div className="backoffice-page">
+        <BackofficeHeader activeView="inventory" badge="Gestión de Inventario" />
 
-      <main className="container bo-main">
-        <AuthGuard>
+        <main className="container bo-main">
           <InventoryNav />
           <Suspense fallback={<div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted)' }}>Cargando formulario de salida...</div>}>
             <OutboundOrderForm />
           </Suspense>
-        </AuthGuard>
-      </main>
-    </div>
+        </main>
+      </div>
+    </AuthGuard>
   );
 }

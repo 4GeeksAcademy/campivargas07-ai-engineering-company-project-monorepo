@@ -18,13 +18,13 @@ export function BackofficeHeader({ activeView, badge }: BackofficeHeaderProps) {
         </div>
 
         <nav className="bo-nav" aria-label="Secciones del backoffice">
-          <Link className={activeView === "overview" ? "nav-link nav-link-active" : "nav-link"} href="/">
+          <Link className={activeView === "overview" ? "nav-link nav-link-active" : "nav-link"} href="/backoffice/overview">
             Resumen
           </Link>
           <Link className={activeView === "inventory" ? "nav-link nav-link-active" : "nav-link"} href="/backoffice/inventory/products">
             Inventario
           </Link>
-          <Link className={activeView === "incidents" ? "nav-link nav-link-active" : "nav-link"} href="/incidents">
+          <Link className={activeView === "incidents" ? "nav-link nav-link-active" : "nav-link"} href="/backoffice/incidents">
             Incidencias
           </Link>
         </nav>

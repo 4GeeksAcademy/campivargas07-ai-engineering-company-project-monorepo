@@ -119,3 +119,16 @@
   - **Preservación Estricta de PRs y Datos**: Bases de datos PostgreSQL y MongoDB (`brasaland_brasaland_pgdata`, `brasaland_brasaland_mongodata`), archivos `.env` y TinyDB intactos. Cero modificaciones a ramas de Pull Requests abiertas.
   - Script automatizado preventivo incorporado en `scripts/clean-env.sh`.
   - Verificación de integridad: `npm run test:uis` (46/46 pruebas verdes) y `npm run typecheck:uis` (0 errores).
+
+## Corrección de Autenticación Previa en Backoffice
+- **Feedback atendido**: El backoffice ya no expone el resumen operativo al abrir la app sin autenticación. La ruta pública `/` redirige a `/login` sin renderizar KPIs, ventas, alertas de stock ni navegación interna.
+- **Rutas internas protegidas**: Resumen movido a `/backoffice/overview`; incidencias movidas a `/backoffice/incidents`; inventario mantiene `/backoffice/inventory/*`.
+- **Sin destello de consola interna**: `AuthGuard` envuelve el header y contenido completo de Resumen, Incidencias e Inventario antes de renderizar datos o navegación.
+- **Navegación adaptada**: `BackofficeHeader` apunta solo a rutas internas protegidas y el login exitoso redirige al resumen autenticado.
+- **Compatibilidad**: `/incidents` se conserva como redirección a `/backoffice/incidents` sin mostrar el analizador públicamente.
+- **Calidad adicional**: Corregidos dos avisos de lint React hooks en filtros de inventario (`ProductsTable` y `OrdersLedger`) para mantener una validación limpia.
+- **Validaciones ejecutadas**:
+  - `npm --prefix uis/backoffice run test`: 49/49 pruebas pasando en 10 suites.
+  - `npm --prefix uis/backoffice run typecheck`: 0 errores TypeScript.
+  - `npm --prefix uis/backoffice run lint`: 0 errores ESLint.
+  - `npm --prefix uis/backoffice run build`: build exitoso tras apartar un artefacto `.next` previo con ownership `root:root`.

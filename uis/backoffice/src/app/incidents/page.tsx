@@ -1,14 +1,5 @@
-import { BackofficeHeader } from "@/components/backoffice-header";
-import { IncidentsAnalyzer } from "@/components/incidents-analyzer";
+import { redirect } from "next/navigation";
 
 export default function IncidentsPage() {
-  return (
-    <div className="backoffice-page">
-      <BackofficeHeader activeView="incidents" badge="Incidents analysis online" />
-
-      <main className="container bo-main">
-        <IncidentsAnalyzer />
-      </main>
-    </div>
-  );
+  redirect("/backoffice/incidents");
 }

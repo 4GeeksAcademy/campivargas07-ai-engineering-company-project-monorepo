@@ -18,6 +18,7 @@ describe("BackofficeHeader Component", () => {
     const incidentsLink = screen.getByRole("link", { name: "Incidencias" });
 
     expect(overviewLink).toHaveClass("nav-link-active");
+    expect(overviewLink).toHaveAttribute("href", "/backoffice/overview");
     expect(incidentsLink).not.toHaveClass("nav-link-active");
   });
 
@@ -28,6 +29,7 @@ describe("BackofficeHeader Component", () => {
     const incidentsLink = screen.getByRole("link", { name: "Incidencias" });
 
     expect(incidentsLink).toHaveClass("nav-link-active");
+    expect(incidentsLink).toHaveAttribute("href", "/backoffice/incidents");
     expect(overviewLink).not.toHaveClass("nav-link-active");
   });
 
@@ -39,6 +41,7 @@ describe("BackofficeHeader Component", () => {
     const incidentsLink = screen.getByRole("link", { name: "Incidencias" });
 
     expect(inventoryLink).toHaveClass("nav-link-active");
+    expect(inventoryLink).toHaveAttribute("href", "/backoffice/inventory/products");
     expect(overviewLink).not.toHaveClass("nav-link-active");
     expect(incidentsLink).not.toHaveClass("nav-link-active");
   });

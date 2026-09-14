@@ -75,6 +75,18 @@ export function OrdersLedger() {
     };
   }, [selectedRestaurant, selectedType]);
 
+  const handleRestaurantChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setLoading(true);
+    setError(null);
+    setSelectedRestaurant(e.target.value);
+  };
+
+  const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setLoading(true);
+    setError(null);
+    setSelectedType(e.target.value as 'ALL' | 'inbound' | 'outbound');
+  };
+
   const formatDate = (isoString: string) => {
     try {
       const d = new Date(isoString);
@@ -117,10 +129,7 @@ export function OrdersLedger() {
             <select
               id="ledger-local-filter"
               value={selectedRestaurant}
-              onChange={(e) => {
-                setSelectedRestaurant(e.target.value);
-                setLoading(true);
-              }}
+              onChange={handleRestaurantChange}
               style={{
                 padding: '0.4rem 0.75rem',
                 borderRadius: '0.5rem',
@@ -147,10 +156,7 @@ export function OrdersLedger() {
             <select
               id="ledger-type-filter"
               value={selectedType}
-              onChange={(e) => {
-                setSelectedType(e.target.value as 'ALL' | 'inbound' | 'outbound');
-                setLoading(true);
-              }}
+              onChange={handleTypeChange}
               style={{
                 padding: '0.4rem 0.75rem',
                 borderRadius: '0.5rem',

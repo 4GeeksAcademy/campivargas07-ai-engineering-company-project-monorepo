@@ -384,3 +384,36 @@ Se identificó y resolvió la saturación de almacenamiento en el entorno de Git
 - **Ejecución del Script Preventivo (`./scripts/clean-env.sh`)**:
   - Código de salida 0, confirmando reporte de 13 GB libres.
 
+---
+
+# Walkthrough: Corrección de Autenticación Previa en Backoffice
+
+Se corrigió el flujo inicial del backoffice a partir del feedback de revisión: la consola no debe mostrar información operativa antes de verificar autenticación. La aplicación ahora arranca en login y todas las vistas internas quedan bajo rutas protegidas.
+
+## 1. Cambios Implementados
+- **Entrada pública segura**: `uis/backoffice/src/app/page.tsx` dejó de renderizar el dashboard operativo y ahora redirige directamente a `/login`.
+- **Resumen interno protegido**: El contenido anterior del dashboard se movió a `uis/backoffice/src/app/backoffice/overview/page.tsx`, envuelto por `AuthGuard` antes de mostrar `BackofficeHeader`, KPIs, ventas, validaciones o alertas.
+- **Incidencias protegidas**: El analizador se movió a `uis/backoffice/src/app/backoffice/incidents/page.tsx`, también bajo `AuthGuard`. La ruta pública `/incidents` queda solo como redirección a `/backoffice/incidents`.
+- **Inventario sin destello parcial**: Las páginas `/backoffice/inventory/*` ahora envuelven header y contenido completo dentro de `AuthGuard`, evitando mostrar navegación interna a usuarios anónimos.
+- **Navegación interna coherente**: `BackofficeHeader` enlaza a `/backoffice/overview`, `/backoffice/inventory/products` y `/backoffice/incidents`.
+- **Login alineado al flujo**: Tras iniciar sesión correctamente, `uis/backoffice/src/app/login/page.tsx` redirige al resumen protegido. Si el usuario ya tiene sesión activa, se lo envía a `/backoffice/overview`.
+- **Lint de filtros corregido**: Se ajustaron `ProductsTable` y `OrdersLedger` para evitar `setState` síncrono dentro de `useEffect`, manteniendo tests y lint limpios.
+
+## 2. Cobertura Agregada
+- Nueva suite `uis/backoffice/src/test/backoffice-route-protection.test.tsx`:
+  - Verifica que `/` redirige a `/login` sin datos operativos.
+  - Verifica que `/incidents` redirige a `/backoffice/incidents` sin renderizar el analizador.
+  - Verifica que usuarios anónimos no ven Resumen, Incidencias, header interno ni navegación de Inventario.
+  - Verifica redirección de usuarios autenticados desde login al resumen.
+  - Verifica redirección post-login a `/backoffice/overview`.
+- `uis/backoffice/src/test/backoffice-header.test.tsx` ahora valida los `href` internos protegidos.
+
+## 3. Evidencias de Validación
+- `npm --prefix uis/backoffice run test` → 10 suites y 49 pruebas pasando.
+- `npm --prefix uis/backoffice run typecheck` → 0 errores.
+- `npm --prefix uis/backoffice run lint` → 0 errores.
+- `npm --prefix uis/backoffice run build` → build exitoso; rutas generadas incluyen `/`, `/login`, `/incidents` como redirección y las rutas protegidas bajo `/backoffice/*`.
+
+## 4. Nota Operativa
+El primer intento de build falló por permisos de un artefacto local `.next` propiedad de `root:root`. Se apartó ese directorio generado y Next.js creó un nuevo `.next` con permisos del usuario actual. No se modificaron datos ni archivos protegidos de infraestructura.
+

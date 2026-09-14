@@ -25,3 +25,5 @@ coverage/
 # Local data
 *.sqlite3
 *.db
+.agents/hooks.json
+.cursor/hooks.json

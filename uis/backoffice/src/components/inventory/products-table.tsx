@@ -63,8 +63,9 @@ export function ProductsTable() {
 
   const handleRestaurantChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newId = e.target.value;
-    setSelectedRestaurant(newId);
     setLoading(true);
+    setError(null);
+    setSelectedRestaurant(newId);
     localStorage.setItem(RESTAURANT_STORAGE_KEY, newId);
   };
 

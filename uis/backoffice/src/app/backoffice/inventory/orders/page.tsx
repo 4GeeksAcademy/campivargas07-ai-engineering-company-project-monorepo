@@ -10,15 +10,15 @@ export const metadata = {
 
 export default function InventoryOrdersPage() {
   return (
-    <div className="backoffice-page">
-      <BackofficeHeader activeView="inventory" badge="Gestión de Inventario" />
+    <AuthGuard>
+      <div className="backoffice-page">
+        <BackofficeHeader activeView="inventory" badge="Gestión de Inventario" />
 
-      <main className="container bo-main">
-        <AuthGuard>
+        <main className="container bo-main">
           <InventoryNav />
           <OrdersLedger />
-        </AuthGuard>
-      </main>
-    </div>
+        </main>
+      </div>
+    </AuthGuard>
   );
 }
