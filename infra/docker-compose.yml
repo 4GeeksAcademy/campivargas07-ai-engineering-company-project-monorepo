@@ -1,0 +1,67 @@
+# =============================================================================
+#  Brasaland — Infraestructura de bases de datos (Hito: ORM + Doble BD)
+#  Uso:  docker compose -f infra/docker-compose.yml up -d
+#  Nota: lee las credenciales del .env de la RAÍZ del monorepo.
+#        Si no existe .env, usa los valores por defecto de este archivo.
+# =============================================================================
+name: brasaland
+
+services:
+  # PostgreSQL — persistencia relacional transaccional (SQLAlchemy + Alembic)
+  postgres:
+    image: postgres:16-alpine
+    container_name: brasaland-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-brasaland_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - brasaland_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-brasaland_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # MongoDB — persistencia flexible (recetas anidadas, logs de auditoría)
+  mongo:
+    image: mongo:7
+    container_name: brasaland-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-brasaland}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-brasaland}
+      MONGO_INITDB_DATABASE: ${MONGO_DB:-brasaland}
+    ports:
+      - "27017:27017"
+    volumes:
+      - brasaland_mongodata:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # pgAdmin — GUI opcional para inspeccionar PostgreSQL (útil para el video)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: brasaland-pgadmin
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@brasaland.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: "True"
+      # Necesario en Codespaces: evita el error 400/loop de login detrás del proxy
+      PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION: "False"
+    ports:
+      - "5050:80"
+
+volumes:
+  brasaland_pgdata:
+  brasaland_mongodata:

@@ -54,13 +54,36 @@ ai-engineering-company-project-monorepo/
 
 ---
 
-## How to start
+## Docker Development Environment
 
-1. **Use this repository as a template** and create your own project repo.
-2. **Clone** your repository (or open it in Codespaces).
-3. **Replace** `CONTEXT.md` with the full context for your assigned company.
-4. **Review** each top-level folder `README.md` to understand intended responsibilities (`uis/`, `services/`, `data/`, `skills/`, etc.).
-5. **Start implementing** milestone deliverables in `uis/` and `services/`, reusing `packages/shared/` and `data/` as needed.
+The entire development stack can be started with a single Docker Compose command from the repository root:
+
+```bash
+# 1. Prepare environment variables
+cp .env.example .env
+# Edit .env with your accessible PostgreSQL DATABASE_URL and SECRET_KEY
+
+# 2. Build and start services
+docker compose up --build
+```
+
+### Services and Ports
+
+| Service | Technology | Internal Port | Published Port | Description |
+|---|---|---|---|---|
+| `interfaces` | Next.js 16 (Node 22 Alpine) | 3000, 3001 | `http://localhost:3000`<br>`http://localhost:3001` | Single container running Website (3000) and Backoffice (3001) |
+| `backend` | FastAPI (Python 3.12 Slim, uv) | 8000 | `http://localhost:8000` | Operations, inventory, auth, and analytics API (`/health`, `/docs`) |
+
+### Key Characteristics
+
+- **Internal Networking**: Services communicate over the `brasaland-dev` bridge network using Docker service hostnames (`http://backend:8000`).
+- **Client Proxy Rewrites**: The browser communicates with `/api/*` through Next.js server-side rewrites targeting `INTERNAL_API_URL`.
+- **Hot Reload**: Live code changes in `uis/` and `services/` trigger instant reloads via bind mounts without rebuilding containers.
+- **Stop Services Safely**:
+  ```bash
+  docker compose down
+  ```
+  *(Avoid `docker compose down -v` to prevent accidental volume deletion).*
 
 ---
 

@@ -4,6 +4,31 @@
 
 ---
 
+## **`🗄️ Backend de Inventario — ORM + Doble Base de Datos`**
+
+### 🧠 ¿Qué hice?
+
+Construí el backend de inventario de Brasaland en `services/backend` (rama
+`feature/db-inventario`): FastAPI + SQLAlchemy sobre PostgreSQL para el inventario
+transaccional, y MongoDB para documentos anidados (recetas y auditoría) — el
+requisito de "doble base de datos" del hito.
+
+### Lo que incluye
+
+1. **Modelos ORM** (Local, Proveedor, Ingrediente, InventarioLocal, Movimiento,
+   Usuario) con migraciones **Alembic** (`alembic upgrade head`).
+2. **28 endpoints REST** bajo `/api/v1/` con patrón router → service → repository,
+   paginado, búsqueda, JWT Bearer en escrituras y errores de negocio → 400.
+3. **Reglas de negocio**: movimientos atómicos (entrada/salida/ajuste con rollback),
+   alertas de reposición con déficit, borrado lógico de ingredientes con stock,
+   moneda derivada del país (CO→COP, US→USD).
+4. **MongoDB**: recetas con ingredientes y pasos anidados + auditoría de operaciones.
+5. **Seed idempotente** (re-ejecutar no duplica: claves naturales).
+6. **23 tests pytest verdes** con PostgreSQL/MongoDB efímeros.
+7. **README con guion del video de 5 min** (7 puntos del hito).
+
+---
+
 ## **`</> Propuesta de Arquitectura de Backend`**
 
 ### 🧠 ¿Qué hice?

@@ -54,13 +54,36 @@ ai-engineering-company-project-monorepo/
 
 ---
 
-## Cómo empezar
+## Entorno de Desarrollo con Docker
 
-1. **Usa este repositorio como plantilla** y crea tu propio repo de proyecto.
-2. **Clona** tu repositorio (o ábrelo en Codespaces).
-3. **Reemplaza** `CONTEXT.md` con el contexto completo de tu empresa asignada.
-4. **Revisa** los `README.md` de cada carpeta raíz para entender responsabilidades (`uis/`, `services/`, `data/`, `skills/`, etc.).
-5. **Empieza a implementar** entregables por hito en `uis/` y `services/`, reutilizando `packages/shared/` y `data/` según corresponda.
+Todo el stack de desarrollo se inicia con un único comando de Docker Compose desde la raíz del repositorio:
+
+```bash
+# 1. Preparar las variables de entorno
+cp .env.example .env
+# Configura en .env tu DATABASE_URL de PostgreSQL accesible y tu SECRET_KEY
+
+# 2. Construir e iniciar los servicios
+docker compose up --build
+```
+
+### Servicios y Puertos Publicados
+
+| Servicio | Tecnología | Puerto Interno | Puerto Publicado | Descripción |
+|---|---|---|---|---|
+| `interfaces` | Next.js 16 (Node 22 Alpine) | 3000, 3001 | `http://localhost:3000`<br>`http://localhost:3001` | Contenedor único ejecutando Website (3000) y Backoffice (3001) |
+| `backend` | FastAPI (Python 3.12 Slim, uv) | 8000 | `http://localhost:8000` | API de operaciones, inventario, autenticación e incidencias (`/health`, `/docs`) |
+
+### Características Principales
+
+- **Red Interna**: Los servicios se comunican a través de la red bridge `brasaland-dev` utilizando los nombres de host de servicio Docker (`http://backend:8000`).
+- **Proxy Rewrites de Cliente**: El navegador interactúa con `/api/*` mediante reescrituras en el servidor Next.js orientadas a `INTERNAL_API_URL`.
+- **Recarga en Caliente (Hot Reload)**: Los cambios en tiempo real en `uis/` y `services/` disparan recargas instantáneas vía bind mounts sin reconstruir contenedores.
+- **Detención Segura de Servicios**:
+  ```bash
+  docker compose down
+  ```
+  *(Evita `docker compose down -v` para no eliminar accidentalmente los volúmenes de datos).*
 
 ---
 
