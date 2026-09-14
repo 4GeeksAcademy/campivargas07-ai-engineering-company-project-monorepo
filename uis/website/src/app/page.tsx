@@ -172,14 +172,14 @@ export default function Home() {
                 <li>
                   <strong>01</strong>
                   <div>
-                    <h4>Misma Brasa, Dos Paises</h4>
+                    <h3>Misma Brasa, Dos Paises</h3>
                     <p>La misma experiencia sin importar donde te sientes.</p>
                   </div>
                 </li>
                 <li>
                   <strong>02</strong>
                   <div>
-                    <h4>115 Personas Apasionadas</h4>
+                    <h3>115 Personas Apasionadas</h3>
                     <p>Equipo enfocado en rapidez, consistencia y hospitalidad.</p>
                   </div>
                 </li>

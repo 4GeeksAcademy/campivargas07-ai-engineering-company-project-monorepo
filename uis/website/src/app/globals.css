@@ -5,6 +5,7 @@
   --card: rgba(255, 255, 255, 0.04);
   --border: rgba(255, 255, 255, 0.1);
   --red: #ff2a5f;
+  --red-cta: #d91e4d;
   --gold: #ff6b00;
   --orange: #ff3300;
   --max: 1120px;
@@ -177,7 +178,7 @@ a {
 }
 
 .btn-primary {
-  background: var(--red);
+  background: var(--red-cta);
 }
 
 .btn-ghost {

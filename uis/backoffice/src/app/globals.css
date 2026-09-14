@@ -135,7 +135,8 @@ a {
   padding: 1rem;
 }
 
-.card h3 {
+.card h3,
+.kpi-grid h2 {
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
