@@ -147,3 +147,26 @@ backoffice.
 4. Extraer el selector reutilizable sin cambiar reglas de dominio.
 5. Ejecutar la medición final bajo la misma matriz y documentarla en
    `REPORT.md`.
+
+## Estado de cierre
+
+Los cuatro hallazgos quedaron corregidos y verificados el 14 de septiembre de
+2026:
+
+- **AUD-01 resuelto:** el primer render de `AuthProvider` es determinista y la
+  consulta de sesión ocurre tras el montaje. Lighthouse dejó de registrar el
+  error React de hidratación; el TBT móvil bajó de 1.310 ms a 580 ms.
+- **AUD-02 resuelto:** las imágenes ahora se sirven localmente mediante
+  `next/image`, con tamaños responsivos; el hero es descubrible desde el HTML,
+  carga de forma eager y declara `fetchpriority=high`.
+- **AUD-03 resuelto:** el CTA con texto blanco usa un rojo de contraste 4,95:1
+  y los botones conservan explícitamente el color de texto. Accessibility en
+  la home y Careers quedó en 100.
+- **AUD-04 resuelto:** se repararon los saltos de encabezado sin cambios de
+  presentación.
+- **Reutilización aplicada:** `RestaurantSelect` sustituyó la duplicación en
+  productos y órdenes, manteniendo las reglas de filtrado fuera del componente.
+
+La comparación completa, las limitaciones y las validaciones están en
+`REPORT.md`. Los reportes originales permanecen en `audit/before/` y
+`audit/after/`.

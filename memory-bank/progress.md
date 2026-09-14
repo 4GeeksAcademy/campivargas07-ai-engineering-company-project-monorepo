@@ -132,3 +132,27 @@
   - `npm --prefix uis/backoffice run typecheck`: 0 errores TypeScript.
   - `npm --prefix uis/backoffice run lint`: 0 errores ESLint.
   - `npm --prefix uis/backoffice run build`: build exitoso tras apartar un artefacto `.next` previo con ownership `root:root`.
+
+## Auditoría de Rendimiento Frontend
+
+- **Cobertura:** Lighthouse 13.4.1 en builds de producción para Website `/` y
+  `/careers`, y Backoffice autenticado `/backoffice/overview`, en móvil y
+  escritorio. Se versionaron reportes HTML/JSON y capturas antes/después.
+- **Mejora principal:** Backoffice móvil pasó de Performance 73 a 85, LCP 2,4 s
+  a 1,5 s y TBT 1.310 ms a 580 ms. El trabajo de hilo principal bajó de 2,9 s a
+  1,6 s, el arranque JS de 1,8 s a 0,9 s y las tareas largas de 12 a 5.
+- **Hidratación:** `AuthProvider` inicia de forma determinista en SSR y cliente;
+  la sesión se resuelve tras el montaje. Eliminado React #418 y Best Practices
+  queda en 100.
+- **Imágenes:** hero, menú y collage migrados de fondos remotos a `next/image`
+  con WebP locales, `sizes` y prioridad explícita para el LCP. Home móvil final:
+  Performance 98, LCP 1,1 s y TBT 160 ms.
+- **Accesibilidad:** corregidos contraste de CTA y orden de encabezados en ambas
+  interfaces. Las seis mediciones finales quedan en Accessibility 100.
+- **Reutilización:** nuevo `RestaurantSelect` integrado en productos y órdenes,
+  sin mover filtrado, persistencia ni reglas de dominio al componente.
+- **Validaciones:** `npm run test:uis` con 58/58 pruebas; `npm run typecheck:uis`,
+  lint de Website y Backoffice, y builds de producción de ambas apps sin errores.
+  Verificación final en navegador sin errores de página.
+- **Documentación:** diagnóstico en `AUDIT.md`, comparativa en `REPORT.md` y
+  evidencia completa en `audit/before/` y `audit/after/`.
