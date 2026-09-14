@@ -179,6 +179,8 @@ a {
 
 .btn-primary {
   background: var(--red-cta);
+  color: #fff;
+  border: 0;
 }
 
 .btn-ghost {
