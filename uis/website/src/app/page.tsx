@@ -4,16 +4,14 @@ import { SectionTitle } from "@/components/website/SectionTitle";
 import { TopNav } from "@/components/website/TopNav";
 import type { LocationItem, MenuItem } from "@/components/website/types";
 
-const heroImage =
-  "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=1920&q=80";
+const heroImage = "/images/hero-grill.webp";
 
 const menuItems: MenuItem[] = [
   {
     title: "Costillas Signature",
     description:
       "Marinadas 24h, cocidas lentamente y glaseadas con neón-BBQ.",
-    image:
-      "https://images.unsplash.com/photo-1544025162-d76694265947?w=1200&q=80",
+    image: "/images/menu-ribs.webp",
     accent: "red",
     tag: "#1 VENTAS",
   },
@@ -21,16 +19,14 @@ const menuItems: MenuItem[] = [
     title: "Smash Brasa",
     description:
       "Doble carne angus sellada a fuego vivo y pan brioche tostado.",
-    image:
-      "https://images.unsplash.com/photo-1558030006-450675393462?w=1200&q=80",
+    image: "/images/menu-burger.webp",
     accent: "gold",
   },
   {
     title: "Alitas Inferno",
     description:
       "Glaseado de miel ahumada y habanero con cinco niveles de intensidad.",
-    image:
-      "https://images.unsplash.com/photo-1529193591184-b1d58069ecdd?w=1200&q=80",
+    image: "/images/menu-wings.webp",
     accent: "orange",
     tag: "SPICY",
   },
@@ -43,19 +39,19 @@ const locations: LocationItem[] = [
 
 const aboutImages = [
   {
-    src: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=900&q=80",
+    src: "/images/about-interior.webp",
     alt: "Interior de un restaurante Brasaland",
   },
   {
-    src: "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=900&q=80",
+    src: "/images/about-table.webp",
     alt: "Mesa preparada para el servicio",
   },
   {
-    src: "https://images.unsplash.com/photo-1552566626-52f8b828add9?w=900&q=80",
+    src: "/images/about-dining-room.webp",
     alt: "Salón de restaurante con iluminación cálida",
   },
   {
-    src: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=900&q=80",
+    src: "/images/about-fire-dish.webp",
     alt: "Plato preparado al fuego",
   },
 ];
@@ -73,6 +69,7 @@ export default function Home() {
             fill
             sizes="100vw"
             fetchPriority="high"
+            loading="eager"
           />
           <div className="hero-overlay" />
           <div className="container hero-content">
