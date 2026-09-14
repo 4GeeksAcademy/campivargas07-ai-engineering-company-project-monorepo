@@ -1,7 +1,11 @@
+import Image from "next/image";
 import { Footer } from "@/components/website/Footer";
 import { SectionTitle } from "@/components/website/SectionTitle";
 import { TopNav } from "@/components/website/TopNav";
 import type { LocationItem, MenuItem } from "@/components/website/types";
+
+const heroImage =
+  "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=1920&q=80";
 
 const menuItems: MenuItem[] = [
   {
@@ -37,12 +41,39 @@ const locations: LocationItem[] = [
   { city: "Miami - Brickell", address: "801 Brickell Ave", flag: "🇺🇸" },
 ];
 
+const aboutImages = [
+  {
+    src: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=900&q=80",
+    alt: "Interior de un restaurante Brasaland",
+  },
+  {
+    src: "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=900&q=80",
+    alt: "Mesa preparada para el servicio",
+  },
+  {
+    src: "https://images.unsplash.com/photo-1552566626-52f8b828add9?w=900&q=80",
+    alt: "Salón de restaurante con iluminación cálida",
+  },
+  {
+    src: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=900&q=80",
+    alt: "Plato preparado al fuego",
+  },
+];
+
 export default function Home() {
   return (
     <div id="inicio" className="website-shell">
       <TopNav />
       <main>
         <section className="hero">
+          <Image
+            className="hero-image"
+            src={heroImage}
+            alt=""
+            fill
+            sizes="100vw"
+            fetchPriority="high"
+          />
           <div className="hero-overlay" />
           <div className="container hero-content">
             <p className="chip">Nueva Generacion a la Brasa</p>
@@ -78,10 +109,14 @@ export default function Home() {
             <div className="menu-grid">
               {menuItems.map((item) => (
                 <article className="glass-card menu-card" key={item.title}>
-                  <div
-                    className="menu-image"
-                    style={{ backgroundImage: `url(${item.image})` }}
-                  >
+                  <div className="menu-image">
+                    <Image
+                      className="menu-card-image"
+                      src={item.image}
+                      alt={item.title}
+                      fill
+                      sizes="(max-width: 768px) 92vw, 33vw"
+                    />
                     {item.tag ? <span className={`tag ${item.accent}`}>{item.tag}</span> : null}
                   </div>
                   <div className="menu-copy">
@@ -151,10 +186,17 @@ export default function Home() {
               </ul>
             </article>
             <article className="about-collage">
-              <div className="img a" />
-              <div className="img b" />
-              <div className="img c" />
-              <div className="img d" />
+              {aboutImages.map((image) => (
+                <div className="img" key={image.src}>
+                  <Image
+                    className="about-image"
+                    src={image.src}
+                    alt={image.alt}
+                    fill
+                    sizes="(max-width: 760px) 46vw, 25vw"
+                  />
+                </div>
+              ))}
             </article>
           </div>
         </section>

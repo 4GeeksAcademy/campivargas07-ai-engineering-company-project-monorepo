@@ -108,20 +108,23 @@ a {
   min-height: calc(100vh - 76px);
   display: grid;
   align-items: center;
-  background-image: url("https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=1920&q=80");
-  background-size: cover;
-  background-position: center;
+  overflow: hidden;
+}
+
+.hero-image {
+  object-fit: cover;
 }
 
 .hero-overlay {
   position: absolute;
   inset: 0;
+  z-index: 1;
   background: linear-gradient(180deg, rgba(5, 5, 5, 0.45), rgba(5, 5, 5, 0.92));
 }
 
 .hero-content {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   text-align: center;
   display: grid;
   gap: 1.3rem;
@@ -230,13 +233,17 @@ a {
 
 .menu-image {
   height: 240px;
-  background-size: cover;
-  background-position: center;
   position: relative;
+}
+
+.menu-card-image,
+.about-image {
+  object-fit: cover;
 }
 
 .tag {
   position: absolute;
+  z-index: 1;
   right: 12px;
   bottom: 12px;
   font-size: 0.7rem;
@@ -378,27 +385,11 @@ a {
 }
 
 .about-collage .img {
+  position: relative;
+  overflow: hidden;
   border-radius: 0.95rem;
   min-height: 140px;
-  background-size: cover;
-  background-position: center;
   border: 1px solid var(--border);
-}
-
-.about-collage .a {
-  background-image: url("https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=900&q=80");
-}
-
-.about-collage .b {
-  background-image: url("https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=900&q=80");
-}
-
-.about-collage .c {
-  background-image: url("https://images.unsplash.com/photo-1552566626-52f8b828add9?w=900&q=80");
-}
-
-.about-collage .d {
-  background-image: url("https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=900&q=80");
 }
 
 .rewards-shell {
