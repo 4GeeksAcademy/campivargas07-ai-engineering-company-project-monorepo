@@ -336,3 +336,51 @@ Se ha completado la dockerización del entorno local de desarrollo para el monor
 - **Arranque**: `docker compose up --build`
 - **Parada segura**: `docker compose down` (no destructivo, protege datos)
 
+---
+
+# Walkthrough: Remediación de Almacenamiento Crítico en GitHub Codespaces (<1% Libre)
+
+Se identificó y resolvió la saturación de almacenamiento en el entorno de GitHub Codespaces (alerta de sistema `<1% disk space remaining`), recuperando **~12.5 GB de almacenamiento libre** (reduciendo la ocupación de 100% a 59%) sin modificar ninguna Pull Request, rama de Git ni datos persistidos de bases de datos.
+
+## 1. Diagnóstico y Hallazgos
+- **Espacio Inicial**: 32 GB totales, 30 GB en uso (100%), solo 293 MB disponibles.
+- **Causas Principales**:
+  1. Docker BuildKit/Buildx: 3.54 GB de capas de compilación en caché.
+  2. Volúmenes anónimos huérfanos de Docker: 3.78 GB acumulados en 12 volúmenes tras ejecuciones previas de contenedores.
+  3. Contenedores y capas huérfanas: Contenedor `amazing_keller` e imagen no utilizada `brasaland-interfaces:dev` (3.65 GB).
+  4. Cachés globales de usuario: Playwright Chromium (`656 MB`), NPM (`~1.0 GB`), uv y pip (`~180 MB`).
+  5. Monorepo: `uis/*/.next` (~334 MB) y dependencias redundantes duplicadas en subdirectorios `uis/*/node_modules` en lugar de utilizar el árbol hoisted de npm workspaces.
+
+## 2. Acciones de Remediación Ejecutadas
+- **Docker**:
+  - `docker container prune -f` (eliminado contenedor huérfano `amazing_keller`).
+  - `docker volume prune -f` (recuperados 3.778 GB de volúmenes dangling; volúmenes con datos de MongoDB y Postgres intactos).
+  - `docker builder prune -a -f` (recuperados 3.542 GB de capas de construcción intermedias).
+  - `docker rmi brasaland-interfaces:dev` (recuperados 3.65 GB de imagen local huérfana).
+- **Cachés de Sistema / Entorno**:
+  - `npm cache clean --force`
+  - `rm -rf /home/codespace/.cache/ms-playwright`
+  - `uv cache clean && pip cache purge`
+  - `sudo apt-get clean`
+- **Monorepo**:
+  - `rm -rf uis/*/.next`
+  - Deduplicación limpia de `node_modules` en sub-apps de `uis/*` y ejecución de `npm install` en la raíz para vincular limpiamente las dependencias en npm workspaces.
+  - Limpieza de `.pytest_cache` y archivos temporales de Python.
+- **Automatización Preventiva**:
+  - Creación del script ejecutable `scripts/clean-env.sh` para mantenimiento preventivo en un solo paso.
+
+## 3. Garantía y Protección de Datos
+- **Pull Requests y Git**: Cero commits alterados, ramas intactas, archivos rastreados protegidos.
+- **Bases de Datos**: Contenedores `brasaland-postgres` y `brasaland-mongo` en ejecución y saludables; volúmenes `brasaland_brasaland_pgdata` y `brasaland_brasaland_mongodata` 100% conservados.
+- **Archivos de Configuración**: Todos los archivos `.env`, `.env.example` y TinyDB (`suppliers.json`) preservados sin alteración.
+
+## 4. Evidencias de Validación
+- **Almacenamiento Final (`df -h /workspaces`)**:
+  - Tamaño: 32 GB | Usado: 18 GB (59%) | **Disponible: 13 GB (~41% libre)**.
+- **Frontend Tests (`npm run test:uis`)**:
+  - 46/46 pruebas pasando al 100% (42 en Backoffice, 4 en Website).
+- **Typecheck (`npm run typecheck:uis`)**:
+  - 0 errores TypeScript en `website`, `backoffice`, `loyalty-app` y `operations-ui`.
+- **Ejecución del Script Preventivo (`./scripts/clean-env.sh`)**:
+  - Código de salida 0, confirmando reporte de 13 GB libres.
+

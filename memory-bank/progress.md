@@ -109,5 +109,13 @@
   - Backend Pytest: 65/65 pruebas pasando contra PostgreSQL (`TEST_DATABASE_URL`).
   - Documentación de inicio, puertos y parada segura en `README.md` y `README.es.md`.
 
-
-
+## Mantenimiento y Optimización de Entorno (GitHub Codespaces)
+- **Remediación de Espacio Crítico (<1% restante)**:
+  - Recuperados **~12.5 GB** de almacenamiento (reduciendo el uso de 100% a 59%, dejando ~13 GB disponibles).
+  - Purgado seguro de caché BuildKit de Docker (`3.54 GB`), volúmenes anónimos huérfanos (`3.78 GB`) y contenedor huérfano (`amazing_keller`).
+  - Limpieza de cachés globales de usuario: Playwright Chromium (`656 MB`), NPM cache (`1.0 GB`), uv y pip (`~180 MB`).
+  - Deduplicación y consolidación de dependencias del monorepo en `node_modules` raíz de npm workspaces.
+  - Limpieza de artefactos transitorios de compilación (`uis/*/.next`) y cachés de Python (`.pytest_cache`, `__pycache__`).
+  - **Preservación Estricta de PRs y Datos**: Bases de datos PostgreSQL y MongoDB (`brasaland_brasaland_pgdata`, `brasaland_brasaland_mongodata`), archivos `.env` y TinyDB intactos. Cero modificaciones a ramas de Pull Requests abiertas.
+  - Script automatizado preventivo incorporado en `scripts/clean-env.sh`.
+  - Verificación de integridad: `npm run test:uis` (46/46 pruebas verdes) y `npm run typecheck:uis` (0 errores).
