@@ -156,3 +156,21 @@
   Verificación final en navegador sin errores de página.
 - **Documentación:** diagnóstico en `AUDIT.md`, comparativa en `REPORT.md` y
   evidencia completa en `audit/before/` y `audit/after/`.
+
+## Implementación: Auditoría de serialización del backend (`feature/serialization-audit`)
+
+- **Alcance confirmado:** `services/api` es el backend activo; `services/backend`
+  permanece fuera de alcance por pertenecer a un hito anterior.
+- **Contratos añadidos:** `HealthResponse` para `GET /health` y `DeleteResponse`
+  para `DELETE /users/{user_id}` y `DELETE /api/suppliers/{supplier_id}`.
+- **Seguridad:** se conservan respuestas de usuarios sin `password` ni
+  `hashed_password`; el JWT de login sigue siendo el único token contractual
+  expuesto. Se conserva `user_uuid` en movimientos por trazabilidad del ledger.
+- **Frontend:** `AuthMeResponse` en `uis/backoffice` se alineó con la respuesta
+  anidada `{ user, profile }` del backend.
+- **Pruebas agregadas:** `services/api/tests/test_serialization_contracts.py`
+  cubre health, filtrado de hashes, borrado y presencia de modelos en OpenAPI.
+- **Auditoría:** creada `docs/serialization-audit.md`, conservando diagnóstico
+  inicial, estado final, contratos especiales, riesgos y validaciones pendientes.
+- **Estado:** implementación funcional aplicada; pruebas completas, typecheck,
+  lint y verificación manual mediante `/docs` quedan pendientes de ejecución.

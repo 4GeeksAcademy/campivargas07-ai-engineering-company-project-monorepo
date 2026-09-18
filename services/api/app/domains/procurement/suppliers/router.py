@@ -18,6 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from app.domains.auth.dependencies import get_current_user
 
 from .schemas import (
+    DeleteResponse,
     SupplierCreate,
     SupplierListResponse,
     SupplierRateUpdate,
@@ -89,13 +90,13 @@ def update_supplier_status(
 
 
 # ── DELETE /api/suppliers/{id} ────────────────────────────────
-@router.delete("/{supplier_id}")
+@router.delete("/{supplier_id}", response_model=DeleteResponse)
 def delete_supplier(
     supplier_id: str,
     current_user: dict = Depends(get_current_user),
-) -> dict:
+) -> DeleteResponse:
     """Delete a supplier. Returns 404 if not found."""
     deleted = service.delete_supplier(supplier_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Supplier not found")
-    return {"detail": "Supplier deleted"}
+    return DeleteResponse(detail="Supplier deleted")

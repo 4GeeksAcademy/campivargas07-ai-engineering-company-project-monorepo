@@ -100,3 +100,7 @@ class SupplierListResponse(BaseModel):
     suppliers: List[SupplierResponse]
     total: int
 
+
+class DeleteResponse(BaseModel):
+    detail: str
+
