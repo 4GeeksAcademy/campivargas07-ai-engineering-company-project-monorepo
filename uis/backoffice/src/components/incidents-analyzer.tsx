@@ -1,12 +1,36 @@
 "use client";
 
+/**
+ * incidents-analyzer.tsx — Brasaland · Incidents analyzer (upload + orchestration)
+ *
+ * Lazy loading (task spec, Phase 2):
+ * - This component itself is dynamically imported by the /incidents server
+ *   page via `next/dynamic` (see src/app/backoffice/incidents/page.tsx).
+ * - The heavy results panel (`IncidentsResults`) is ALSO code-split from here:
+ *   its chunk downloads only when an analysis exists, with an inline fallback.
+ * - `next/dynamic` without `ssr: false` works in both server and client
+ *   components (React.lazy + Suspense under the hood).
+ */
+
 import { ChangeEvent, DragEvent, useId, useState, useTransition } from "react";
+import dynamic from "next/dynamic";
 
 import { analyzeIncidentsFile, getIncidentsExportUrl, type IncidentAnalysisResponse } from "@/lib/incidents-api";
 
-function percentageLabel(value?: number | null) {
-  return value === undefined || value === null ? null : `${value.toFixed(1)}%`;
-}
+// Lazy-loaded results panel: downloaded only when `analysis` is set.
+// The `loading` fallback keeps the UI responsive while the chunk arrives.
+const IncidentsResults = dynamic(
+  () => import("@/components/incidents-results").then((mod) => mod.IncidentsResults),
+  {
+    loading: () => (
+      <section className="card empty-state" role="status" aria-live="polite">
+        <p className="eyebrow">Preparando resultados</p>
+        <h3>Cargando panel de resultados…</h3>
+        <p className="muted">El análisis terminó; estamos cargando el resumen visual.</p>
+      </section>
+    ),
+  },
+);
 
 export function IncidentsAnalyzer() {
   const inputId = useId();
@@ -143,145 +167,7 @@ export function IncidentsAnalyzer() {
       </section>
 
       {analysis ? (
-        <>
-          <section className="kpi-grid incidents-kpis">
-            <article className="card">
-              <h3>Total procesado</h3>
-              <p className="kpi-number">{analysis.total_records}</p>
-              <p className="kpi-sub">Incluye validos e invalidos</p>
-            </article>
-            <article className="card">
-              <h3>Registros validos</h3>
-              <p className="kpi-number kpi-good">{analysis.valid_records}</p>
-              <p className="kpi-sub">Base del resumen principal</p>
-            </article>
-            <article className="card">
-              <h3>Registros invalidos</h3>
-              <p className="kpi-number kpi-warn">{analysis.invalid_records}</p>
-              <p className="kpi-sub">Marcados y excluidos del analisis</p>
-            </article>
-            <article className="card">
-              <h3>Satisfaccion media</h3>
-              <p className="kpi-number">{analysis.satisfaction.average_score.toFixed(2)}</p>
-              <p className="kpi-sub">Solo casos CLOSED con score</p>
-            </article>
-          </section>
-
-          <section className="panel-grid incidents-panels">
-            <article className="card">
-              <div className="section-heading">
-                <div>
-                  <p className="eyebrow">Calidad del archivo</p>
-                  <h3>Desglose de registros invalidos</h3>
-                </div>
-                <span className="chip chip-danger">{analysis.invalid_records} invalidos</span>
-              </div>
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Regla</th>
-                    <th>Cantidad</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {analysis.invalid_breakdown.map((item) => (
-                    <tr key={item.code}>
-                      <td>{item.label}</td>
-                      <td>{item.count}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </article>
-
-            <article className="card">
-              <div className="section-heading">
-                <div>
-                  <p className="eyebrow">Casos cerrados</p>
-                  <h3>Indice de satisfaccion</h3>
-                </div>
-                <span className="chip chip-ok">
-                  {analysis.satisfaction.scored_closed_cases}/{analysis.satisfaction.total_closed_cases} con score
-                </span>
-              </div>
-              <p className="score-highlight">{analysis.satisfaction.average_score.toFixed(2)} / 5.00</p>
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Score</th>
-                    <th>Etiqueta</th>
-                    <th>Cantidad</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {analysis.satisfaction.score_breakdown.map((item) => (
-                    <tr key={item.code}>
-                      <td>{item.code}</td>
-                      <td>{item.label}</td>
-                      <td>{item.count}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </article>
-          </section>
-
-          <section className="panel-grid incidents-panels">
-            <article className="card">
-              <div className="section-heading">
-                <div>
-                  <p className="eyebrow">Distribucion principal</p>
-                  <h3>Incidencias por categoria</h3>
-                </div>
-              </div>
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Categoria</th>
-                    <th>Cantidad</th>
-                    <th>Porcentaje</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {analysis.category_breakdown.map((item) => (
-                    <tr key={item.code}>
-                      <td>{item.label}</td>
-                      <td>{item.count}</td>
-                      <td>{percentageLabel(item.percentage)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </article>
-
-            <article className="card">
-              <div className="section-heading">
-                <div>
-                  <p className="eyebrow">Seguimiento operativo</p>
-                  <h3>Incidencias por estado</h3>
-                </div>
-              </div>
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Estado</th>
-                    <th>Cantidad</th>
-                    <th>Porcentaje</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {analysis.status_breakdown.map((item) => (
-                    <tr key={item.code}>
-                      <td>{item.label}</td>
-                      <td>{item.count}</td>
-                      <td>{percentageLabel(item.percentage)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </article>
-          </section>
-        </>
+        <IncidentsResults analysis={analysis} />
       ) : (
         <section className="card empty-state">
           <p className="eyebrow">Pendiente de analisis</p>

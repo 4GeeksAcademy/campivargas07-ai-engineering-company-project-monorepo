@@ -41,3 +41,7 @@ class UserResponse(BaseModel):
 class UserListResponse(BaseModel):
     users: list[UserResponse]
     total: int
+
+
+class DeleteResponse(BaseModel):
+    detail: str

@@ -1,9 +1,11 @@
 import os
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.common.timing import RequestTimingMiddleware
 from app.database import backfill_users_uuid, init_db
 from app.domains.analytics.incidents.router import router as incidents_router
 from app.domains.auth.router import router as auth_router
@@ -11,6 +13,11 @@ from app.domains.operations.inventory.router import router as inventory_router
 from app.domains.procurement.suppliers.router import router as suppliers_router
 from app.domains.profiles.router import router as profiles_router
 from app.domains.users.router import router as users_router
+from pydantic import BaseModel
+
+
+class HealthResponse(BaseModel):
+    status: str
 
 
 @asynccontextmanager
@@ -30,6 +37,11 @@ app = FastAPI(
     version="0.5.0",
     lifespan=lifespan,
 )
+
+# ── Request timing middleware ────────────────────────────────
+# Logs: method, route path, status code and duration (ms) via logging.
+# Never logs query strings, headers or bodies (no sensitive data).
+app.add_middleware(RequestTimingMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -53,6 +65,6 @@ app.include_router(incidents_router)
 app.include_router(inventory_router)
 
 
-@app.get("/health", tags=["health"])
-def healthcheck() -> dict[str, str]:
-    return {"status": "ok"}
+@app.get("/health", response_model=HealthResponse, tags=["health"])
+def healthcheck() -> HealthResponse:
+    return HealthResponse(status="ok")
