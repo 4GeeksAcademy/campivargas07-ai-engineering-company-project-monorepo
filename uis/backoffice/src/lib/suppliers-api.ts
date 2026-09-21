@@ -2,6 +2,8 @@
  * suppliers-api.ts — Brasaland · Supplier directory API client
  */
 
+import { authApi } from "./auth";
+
 export type Supplier = {
   id: string;
   nombre: string;
@@ -24,14 +26,32 @@ export type SupplierListResponse = {
 
 export type SupplierCreatePayload = Omit<Supplier, "id" | "updated_at">;
 
-const API_BASE_URL = (
-  process.env.NEXT_PUBLIC_SUPPLIERS_API_BASE_URL ||
-  process.env.NEXT_PUBLIC_INCIDENTS_API_BASE_URL ||
-  "http://127.0.0.1:8000"
-).replace(/\/$/, "");
+function getBaseUrl(): string {
+  const configured = process.env.NEXT_PUBLIC_SUPPLIERS_API_BASE_URL;
+  if (configured?.trim()) {
+    return configured.trim().replace(/\/+$/, "");
+  }
+
+  // In the browser, Next.js proxies /api/* to the backend container. The
+  // supplier router is itself mounted at /api/suppliers, hence /api/api/*.
+  return typeof window !== "undefined" ? "/api" : "http://localhost:8000";
+}
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, options);
+  const token = authApi.getToken();
+  const response = await fetch(`${getBaseUrl()}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options?.headers || {}),
+    },
+  });
+
+  if (response.status === 401) {
+    authApi.logout();
+    throw new Error("La sesión expiró. Inicia sesión nuevamente.");
+  }
 
   if (!response.ok) {
     const fallbackMessage = `API error (${response.status})`;

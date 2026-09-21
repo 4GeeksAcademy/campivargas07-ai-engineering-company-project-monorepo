@@ -1,5 +1,5 @@
-import { SuppliersDirectory } from "@/components/suppliers-directory";
+import { redirect } from "next/navigation";
 
 export default function SuppliersPage() {
-  return <SuppliersDirectory />;
+  redirect("/backoffice/suppliers");
 }

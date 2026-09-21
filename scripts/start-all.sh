@@ -33,7 +33,11 @@ echo ""
 # --- API ---
 echo -e "${GREEN}▸ Starting API (FastAPI)...${NC}"
 cd "$API_DIR"
-uvicorn app.main:app --reload --port 8000 &
+if command -v uv &> /dev/null; then
+  uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 &
+else
+  uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 &
+fi
 API_PID=$!
 echo -e "  PID: $API_PID"
 

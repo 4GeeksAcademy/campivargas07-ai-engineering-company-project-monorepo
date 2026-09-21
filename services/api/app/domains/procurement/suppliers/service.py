@@ -69,7 +69,10 @@ def get_all_suppliers(
 
 def get_supplier_by_id(doc_id: str) -> Optional[SupplierResponse]:
     """Retrieve a single supplier by TinyDB doc_id."""
-    resolved = int(doc_id)
+    try:
+        resolved = int(doc_id)
+    except (ValueError, TypeError):
+        return None
     doc = suppliers_table.get(_Q.doc_id == resolved)
     if doc is None:
         return None
@@ -78,7 +81,10 @@ def get_supplier_by_id(doc_id: str) -> Optional[SupplierResponse]:
 
 def update_rate(doc_id: str, data: SupplierRateUpdate) -> Optional[SupplierResponse]:
     """Update montoMinimoOrden and set updated_at timestamp."""
-    resolved = int(doc_id)
+    try:
+        resolved = int(doc_id)
+    except (ValueError, TypeError):
+        return None
     doc = suppliers_table.get(_Q.doc_id == resolved)
     if doc is None:
         return None
@@ -99,7 +105,10 @@ def update_status(
     doc_id: str, data: SupplierStatusUpdate
 ) -> Optional[SupplierResponse]:
     """Update supplier status (activo / suspendido)."""
-    resolved = int(doc_id)
+    try:
+        resolved = int(doc_id)
+    except (ValueError, TypeError):
+        return None
     doc = suppliers_table.get(_Q.doc_id == resolved)
     if doc is None:
         return None
@@ -112,7 +121,10 @@ def update_status(
 
 def delete_supplier(doc_id: str) -> bool:
     """Delete a supplier. Returns True if deleted, False if not found."""
-    resolved = int(doc_id)
+    try:
+        resolved = int(doc_id)
+    except (ValueError, TypeError):
+        return False
     doc = suppliers_table.get(_Q.doc_id == resolved)
     if doc is None:
         return False
@@ -131,3 +143,4 @@ def supplier_exists_by_business_id(business_id: str) -> bool:
 def count_suppliers() -> int:
     """Return total number of suppliers in the database."""
     return len(suppliers_table.all())
+
