@@ -25,16 +25,23 @@ if not _db_path.is_absolute():
 
 _db_path.parent.mkdir(parents=True, exist_ok=True)
 
-_db = TinyDB(str(_db_path))
-_TABLE = _db.table("incidents")
 _Q = Query()
+_db: TinyDB | None = None
+
+
+def _get_default_table() -> Any:
+    """Open the production store only when the incident service is first used."""
+    global _db
+    if _db is None:
+        _db = TinyDB(str(_db_path))
+    return _db.table("incidents")
 
 
 class IncidentRepository:
     """TinyDB-backed repository for incident CRUD + queries."""
 
     def __init__(self, table: Any | None = None):
-        self._table = table or _TABLE
+        self._table = table if table is not None else _get_default_table()
 
     # ------------------------------------------------------------------
     # Read

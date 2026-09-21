@@ -28,23 +28,43 @@ export function useIncidentList(filters?: {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const status = filters?.status;
+  const category = filters?.category;
+  const branch = filters?.branch;
 
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await listIncidents(filters);
+      const data = await listIncidents({ status, category, branch });
       setIncidents(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error loading incidents');
     } finally {
       setLoading(false);
     }
-  }, [filters?.status, filters?.category, filters?.branch]);
+  }, [status, category, branch]);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    let active = true;
+    listIncidents({ status, category, branch })
+      .then((data) => {
+        if (active) {
+          setIncidents(data);
+          setError(null);
+        }
+      })
+      .catch((err: unknown) => {
+        if (active) setError(err instanceof Error ? err.message : 'Error loading incidents');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [status, category, branch]);
 
   return { incidents, loading, error, refresh };
 }
@@ -76,10 +96,34 @@ export function useIncidentDetail(id: string | null) {
   }, [id]);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    if (!id) return;
+    let active = true;
 
-  return { incident, loading, error, refresh };
+    getIncident(id)
+      .then((data) => {
+        if (active) {
+          setIncident(data);
+          setError(null);
+        }
+      })
+      .catch((err: unknown) => {
+        if (active) setError(err instanceof Error ? err.message : 'Error loading incident');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [id]);
+
+  return {
+    incident: id ? incident : null,
+    loading: id ? loading : false,
+    error,
+    refresh,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -147,8 +191,25 @@ export function useIncidentSummary() {
   }, []);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    let active = true;
+    getIncidentsSummary()
+      .then((data) => {
+        if (active) {
+          setSummary(data);
+          setError(null);
+        }
+      })
+      .catch((err: unknown) => {
+        if (active) setError(err instanceof Error ? err.message : 'Error loading summary');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return { summary, loading, error, refresh };
 }

@@ -4,6 +4,8 @@ dependencies.py — Brasaland · FastAPI dependency for current user authenticat
 
 from __future__ import annotations
 
+import uuid
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 
@@ -20,7 +22,8 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
     1. Extracts the Bearer token from the Authorization header.
     2. Decodes and validates the JWT.
     3. Looks up the user in TinyDB by the 'sub' claim (user doc_id).
-    4. Returns the user document or raises 401.
+    4. Ensures the user document contains a stable 'uuid'.
+    5. Returns the user document or raises 401/403.
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -49,5 +52,11 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Inactive user account",
         )
+
+    # Defensive fallback for existing/fixture records without uuid
+    if "uuid" not in user_doc:
+        stable_uuid = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"brasaland-user-{user_doc.doc_id}"))
+        users_table.update({"uuid": stable_uuid}, doc_ids=[user_doc.doc_id])
+        user_doc["uuid"] = stable_uuid
 
     return user_doc

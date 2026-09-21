@@ -4,10 +4,7 @@
 'use client';
 
 import {
-  STATUS_LABELS,
-  CATEGORY_LABELS,
   BRANCH_LABELS,
-  ORIGIN_LABELS,
   type IncidentSummary as IncidentSummaryType,
 } from '@/lib/incidents-api';
 import styles from './IncidentSummary.module.css';
@@ -96,7 +93,7 @@ export function IncidentSummary({ summary, loading, error }: Props) {
         <div className={styles.section}>
           <h4 className={styles.sectionTitle}>Por sede</h4>
           <div className={styles.branchGrid}>
-            {summary.by_branch
+            {[...summary.by_branch]
               .sort((a, b) => b.count - a.count)
               .map((item) => (
                 <div key={item.branch} className={styles.branchItem}>
