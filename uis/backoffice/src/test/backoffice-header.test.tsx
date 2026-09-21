@@ -45,5 +45,12 @@ describe("BackofficeHeader Component", () => {
     expect(overviewLink).not.toHaveClass("nav-link-active");
     expect(incidentsLink).not.toHaveClass("nav-link-active");
   });
-});
 
+  it("links to the protected supplier directory", () => {
+    render(<BackofficeHeader activeView="suppliers" badge="Compras" />);
+
+    const suppliersLink = screen.getByRole("link", { name: "Proveedores" });
+    expect(suppliersLink).toHaveClass("nav-link-active");
+    expect(suppliersLink).toHaveAttribute("href", "/backoffice/suppliers");
+  });
+});
