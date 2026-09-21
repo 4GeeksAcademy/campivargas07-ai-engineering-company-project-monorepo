@@ -1,0 +1,50 @@
+# Lista de Verificación: Dominio de Inventario de Brasaland
+
+- [x] Auditoría Base y Reconciliación de Dependencias
+  - [x] Declarar todas las dependencias utilizadas en `services/api/pyproject.toml`
+  - [x] Crear `services/api/.env.example` sin secretos
+  - [x] Verificar que `.gitignore` excluya `.env` y `*.env`
+  - [x] Ejecutar `uv sync` en `services/api`
+- [x] Registro de Routers y Pruebas Base
+  - [x] Verificar `incidents_router` y todos los routers en `services/api/app/main.py`
+  - [x] Verificar que las pruebas existentes en `test_incidents_api.py` pasen
+- [x] UUID Estable de Usuario en TinyDB
+  - [x] Implementar `backfill_users_uuid` en `services/api/app/database.py`
+  - [x] Añadir `uuid = str(uuid.uuid4())` al registrar usuarios en `users/service.py`
+  - [x] Añadir campo `uuid` a los schemas `UserResponse` y `UserOut`
+  - [x] Asegurar que `get_current_user` devuelva `uuid` en el dict de usuario conservando `sub` como doc_id
+- [x] Motor de Doble Base de Datos y Ciclo de Vida
+  - [x] Configurar `DATABASE_URL` mediante entorno en `services/api/app/database.py`
+  - [x] Implementar generador de sesión `get_db`
+  - [x] Implementar `init_db` importando primero todos los modelos SQLModel
+  - [x] Conectar `init_db` y `backfill_users_uuid` al `lifespan` de FastAPI
+- [x] Modelos de Dominio y Constraints de PostgreSQL
+  - [x] Crear modelo `Ingredient` con `sku` único, `minimum_stock >= 0`, `created_at` UTC
+  - [x] Crear modelo `IngredientEntry` con FK `ingredient_id`, `local_id`, `quantity > 0`, `user_uuid`, `created_at` UTC
+  - [x] Crear modelo `IngredientExit` con FK `ingredient_id`, `local_id`, `quantity > 0`, `user_uuid`, `created_at` UTC
+  - [x] Añadir CheckConstraints e índices para PostgreSQL
+- [x] Schemas Pydantic
+  - [x] Crear `IngredientCreate`, `IngredientResponse`, `IngredientWithStockResponse`
+  - [x] Crear `InboundOrderCreate`, `OutboundOrderCreate`, `OrderResponse`, `OrderListResponse`
+  - [x] Separación estricta entre modelos ORM y schemas Pydantic
+- [x] Endpoints de Inventario
+  - [x] `GET /inventory/products?local_id=...` con `local_id` obligatorio
+  - [x] `POST /inventory/products` con validación de unicidad de SKU
+  - [x] `GET /inventory/products/{id}?local_id=...` con `local_id` obligatorio
+  - [x] `POST /inventory/orders/inbound` guardando `user_uuid`
+  - [x] `POST /inventory/orders/outbound` con bloqueo de fila (`SELECT ... FOR UPDATE`), 400 por saldo insuficiente
+  - [x] `GET /inventory/orders` con consultas constantes $O(1)$ (sin N+1)
+- [x] Datos Semilla Idempotentes
+  - [x] Implementar script de siembra validando usuario real en TinyDB
+  - [x] Sembrar `ING-001` a `ING-007` desde `src/demo.ts`
+  - [x] Sembrar movimientos para `MED-001` y `MIA-001` que coincidan con el stock neto
+  - [x] Verificar idempotencia en ejecuciones repetidas
+- [x] Pruebas y Verificación
+  - [x] Crear `services/api/tests/conftest.py`
+  - [x] Pruebas unitarias y funcionales en SQLite (`test_inventory_domain.py`)
+  - [x] Pruebas de integración en PostgreSQL con concurrencia real (`test_inventory_postgres.py`)
+  - [x] Verificar no regresión en pruebas previas (65 pruebas verdes)
+- [x] Documentación y Entrega
+  - [x] Documentar walkthrough en `tasks/walkthrough.md`
+  - [x] Actualizar `memory-bank/progress.md`
+  - [x] Resumen de cambios y resultados de validación

@@ -1,37 +1,29 @@
 # Dependencies
-node_modules/
+node_modules
 
-# Next.js
-.next/
-out/
-
-# Build outputs
-dist/
-build/
+# Environments — NUNCA subir credenciales (requisito del hito)
+.env
+*.env
+.env.bak-hito5
+.venv/
+venv/
 
 # Python
 __pycache__/
 *.pyc
 .pytest_cache/
+.coverage
+*.egg-info/
+dist/
+build/
 
-# Environment files
-.env
-.env.local
-.env.*.local
-!.env.example
+# Node
+.next/
+out/
+coverage/
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Debug logs
-npm-debug.log*
-
-# Vercel
-.vercel/
+# Local data
+*.sqlite3
+*.db
+.agents/hooks.json
+.cursor/hooks.json

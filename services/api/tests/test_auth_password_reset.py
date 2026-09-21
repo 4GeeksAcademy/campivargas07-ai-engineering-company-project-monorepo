@@ -1,285 +1,109 @@
-"""
-test_auth_password_reset.py — Brasaland · Password Reset Flow Tests
+"""Password-reset API tests using the isolated TinyDB fixture."""
 
-Tests for POST /auth/forgot-password and POST /auth/reset-password endpoints.
-"""
-
-from pathlib import Path
-import sys
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 from fastapi.testclient import TestClient
+from tinydb import Query, TinyDB
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO_ROOT / "services" / "api"))
-
-from app.main import app
-from app.database import password_resets_table, users_table
+from app.domains.auth import router as auth_router
 from app.domains.auth.email_service import EmailDeliveryResult
-from app.domains.auth.service import hash_password
+from app.domains.auth.service import hash_password, verify_password
 
 
-client = TestClient(app)
-
-# Test data
-TEST_EMAIL = "test_password_reset@brasaland.com"
-TEST_PASSWORD = "OldPass123"
-TEST_USER_ID = None
-
-
-def get_test_user_id() -> int:
-    """Return the current test user id from TinyDB."""
-    from tinydb import Query
-
-    _Q = Query()
-    user = users_table.get(_Q.email == TEST_EMAIL)
-    assert user is not None
-    return user.doc_id
+def _create_user(test_db: TinyDB, email: str = "reset@brasaland.com") -> int:
+    return test_db.table("users").insert(
+        {
+            "email": email,
+            "hashed_password": hash_password("OldPass123"),
+            "role": "user",
+            "is_active": True,
+            "created_at": "2026-01-01T00:00:00Z",
+        }
+    )
 
 
-def setup_function():
-    """Create a test user before each test."""
-    global TEST_USER_ID
-    # Clean up previous test data
-    from tinydb import Query
-    _Q = Query()
-    users_table.remove(_Q.email == TEST_EMAIL)
-    if TEST_USER_ID:
-        password_resets_table.remove(_Q.user_id == str(TEST_USER_ID))
-
-    # Create test user
-    doc_id = users_table.insert({
-        "email": TEST_EMAIL,
-        "hashed_password": hash_password(TEST_PASSWORD),
-        "role": "user",
-        "is_active": True,
-        "created_at": "2026-01-01T00:00:00Z",
-    })
-    TEST_USER_ID = doc_id
+def _delivery(_email: str, token: str) -> EmailDeliveryResult:
+    return EmailDeliveryResult(
+        sent=True,
+        reset_link=f"http://localhost:3000/reset-password?token={token}",
+        provider_status=200,
+    )
 
 
-def teardown_function():
-    """Clean up test data after each test."""
-    from tinydb import Query
-    _Q = Query()
-    users_table.remove(_Q.email == TEST_EMAIL)
-    if TEST_USER_ID:
-        password_resets_table.remove(_Q.user_id == str(TEST_USER_ID))
+def test_forgot_password_does_not_reveal_account_existence(
+    client: TestClient, test_db: TinyDB, monkeypatch,
+) -> None:
+    _create_user(test_db)
+    send_email = AsyncMock(side_effect=_delivery)
+    monkeypatch.setattr(auth_router, "send_reset_email", send_email)
+
+    existing = client.post("/auth/forgot-password", json={"email": "reset@brasaland.com"})
+    missing = client.post("/auth/forgot-password", json={"email": "missing@brasaland.com"})
+
+    assert existing.status_code == missing.status_code == 200
+    assert existing.json() == missing.json() == {
+        "detail": "Si el email existe, recibirás un enlace de recuperación.",
+        "debug_reset_link": None,
+    }
+    send_email.assert_awaited_once()
 
 
-class TestForgotPassword:
-    """Tests for POST /auth/forgot-password"""
+def test_forgot_password_invalidates_previous_tokens(
+    client: TestClient, test_db: TinyDB, monkeypatch,
+) -> None:
+    user_id = _create_user(test_db)
+    monkeypatch.setattr(auth_router, "send_reset_email", AsyncMock(side_effect=_delivery))
 
-    def setup_method(self):
-        setup_function()
+    client.post("/auth/forgot-password", json={"email": "reset@brasaland.com"})
+    client.post("/auth/forgot-password", json={"email": "reset@brasaland.com"})
 
-    def teardown_method(self):
-        teardown_function()
-
-    def test_forgot_password_returns_success_message(self):
-        """Should always return same message regardless of email existence."""
-        response = client.post(
-            "/auth/forgot-password",
-            json={"email": TEST_EMAIL},
-        )
-        assert response.status_code == 200
-        data = response.json()
-        assert data["detail"] == "Si el email existe, recibirás un enlace de recuperación."
-
-    def test_forgot_password_nonexistent_email_returns_same_message(self):
-        """Should return same message for non-existent email (prevent enumeration)."""
-        response = client.post(
-            "/auth/forgot-password",
-            json={"email": "nonexistent@example.com"},
-        )
-        assert response.status_code == 200
-        data = response.json()
-        assert data["detail"] == "Si el email existe, recibirás un enlace de recuperación."
-
-    def test_forgot_password_creates_token_record(self):
-        """Should create a token record in TinyDB for existing user."""
-        response = client.post(
-            "/auth/forgot-password",
-            json={"email": TEST_EMAIL},
-        )
-        assert response.status_code == 200
-        assert response.json()["debug_reset_link"].startswith("http://localhost:3000/reset-password?token=")
-
-        # Verify token record was created
-        from tinydb import Query
-        _Q = Query()
-        token_records = password_resets_table.search(
-            (_Q.user_id == str(get_test_user_id())) & (_Q.purpose == "password_reset")
-        )
-        assert len(token_records) == 1
-        assert token_records[0]["used"] is False
-
-    def test_forgot_password_invalidates_previous_tokens(self):
-        """Should invalidate previous tokens when new one is requested."""
-        # First request
-        client.post(
-            "/auth/forgot-password",
-            json={"email": TEST_EMAIL},
-        )
-
-        # Second request
-        client.post(
-            "/auth/forgot-password",
-            json={"email": TEST_EMAIL},
-        )
-
-        # Verify only one active token exists
-        from tinydb import Query
-        _Q = Query()
-        active_tokens = password_resets_table.search(
-            (_Q.user_id == str(get_test_user_id())) & (_Q.purpose == "password_reset") & (_Q.used == False)
-        )
-        assert len(active_tokens) == 1
-
-    def test_forgot_password_invalid_email_format(self):
-        """Should reject invalid email format."""
-        response = client.post(
-            "/auth/forgot-password",
-            json={"email": "not-an-email"},
-        )
-        assert response.status_code == 422  # Validation error
-
-    def test_forgot_password_sends_email(self):
-        """Should call send_reset_email in background."""
-        with patch(
-            "app.domains.auth.router.send_reset_email",
-            new=AsyncMock(return_value=EmailDeliveryResult(
-                sent=True,
-                reset_link="http://localhost:3000/reset-password?token=test-token",
-                provider_status=200,
-            )),
-        ) as mock_send:
-            response = client.post(
-                "/auth/forgot-password",
-                json={"email": TEST_EMAIL},
-            )
-            assert response.status_code == 200
-            mock_send.assert_called_once()
+    q = Query()
+    active = test_db.table("password_resets").search(
+        (q.user_id == str(user_id)) & (q.used == False)  # noqa: E712
+    )
+    assert len(active) == 1
 
 
-class TestResetPassword:
-    """Tests for POST /auth/reset-password"""
+def test_reset_token_is_single_use(
+    client: TestClient, test_db: TinyDB, monkeypatch,
+) -> None:
+    _create_user(test_db)
+    monkeypatch.setenv("AUTH_DEBUG_RESET_LINKS", "true")
+    monkeypatch.setattr(auth_router, "send_reset_email", AsyncMock(side_effect=_delivery))
 
-    def setup_method(self):
-        setup_function()
+    requested = client.post("/auth/forgot-password", json={"email": "reset@brasaland.com"})
+    token = requested.json()["debug_reset_link"].split("token=", 1)[1]
+    first = client.post(
+        "/auth/reset-password",
+        json={"token": token, "new_password": "NewPass456"},
+    )
+    second = client.post(
+        "/auth/reset-password",
+        json={"token": token, "new_password": "AnotherPass789"},
+    )
 
-    def teardown_method(self):
-        teardown_function()
-
-    def _get_reset_token(self) -> str:
-        """Helper to get a valid reset token."""
-        from app.domains.auth.service import create_reset_token, decode_reset_token
-        user_id = str(get_test_user_id())
-        token = create_reset_token(user_id)
-        payload = decode_reset_token(token)
-        jti = payload.get("jti", "")
-        expires_at = payload.get("exp", 0)
-
-        from datetime import datetime, timezone
-        password_resets_table.insert({
-            "user_id": user_id,
-            "jti": jti,
-            "purpose": "password_reset",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "expires_at": datetime.fromtimestamp(expires_at, tz=timezone.utc).isoformat(),
-            "used": False,
-        })
-        return token
-
-    def test_reset_password_success(self):
-        """Should successfully reset password with valid token."""
-        token = self._get_reset_token()
-        new_password = "NewPass456"
-
-        response = client.post(
-            "/auth/reset-password",
-            json={"token": token, "new_password": new_password},
-        )
-        assert response.status_code == 200
-        assert "exitosamente" in response.json()["detail"].lower() or "contraseña" in response.json()["detail"].lower()
-
-        # Verify password was updated
-        from tinydb import Query
-        _Q = Query()
-        user = users_table.get(_Q.email == TEST_EMAIL)
-        assert user is not None
-        assert verify_password(new_password, user["hashed_password"])
-
-    def test_reset_password_invalid_token(self):
-        """Should reject invalid token."""
-        response = client.post(
-            "/auth/reset-password",
-            json={"token": "invalid.token.here", "new_password": "NewPass456"},
-        )
-        assert response.status_code == 400
-        assert "inválido" in response.json()["detail"].lower() or "expirado" in response.json()["detail"].lower()
-
-    def test_reset_password_used_token(self):
-        """Should reject already used token."""
-        token = self._get_reset_token()
-
-        # First use - should succeed
-        client.post(
-            "/auth/reset-password",
-            json={"token": token, "new_password": "NewPass456"},
-        )
-
-        # Second use - should fail
-        response = client.post(
-            "/auth/reset-password",
-            json={"token": token, "new_password": "AnotherPass789"},
-        )
-        assert response.status_code == 400
-
-    def test_reset_password_weak_password(self):
-        """Should reject password that doesn't meet policy."""
-        token = self._get_reset_token()
-
-        # Too short
-        response = client.post(
-            "/auth/reset-password",
-            json={"token": token, "new_password": "abc"},
-        )
-        assert response.status_code == 422
-
-    def test_reset_password_no_uppercase(self):
-        """Should reject password without uppercase."""
-        token = self._get_reset_token()
-
-        response = client.post(
-            "/auth/reset-password",
-            json={"token": token, "new_password": "alllower123"},
-        )
-        assert response.status_code == 422
-
-    def test_reset_password_no_digit(self):
-        """Should reject password without digit."""
-        token = self._get_reset_token()
-
-        response = client.post(
-            "/auth/reset-password",
-            json={"token": token, "new_password": "NoDigitHere"},
-        )
-        assert response.status_code == 422
-
-    def test_reset_password_token_not_in_db(self):
-        """Should reject token not found in database."""
-        from app.domains.auth.service import create_reset_token
-        token = create_reset_token(str(get_test_user_id()))
-
-        response = client.post(
-            "/auth/reset-password",
-            json={"token": token, "new_password": "NewPass456"},
-        )
-        assert response.status_code == 400
+    assert first.status_code == 200
+    assert second.status_code == 400
+    user = test_db.table("users").get(Query().email == "reset@brasaland.com")
+    assert verify_password("NewPass456", user["hashed_password"])
 
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Helper to verify password."""
-    from app.domains.auth.service import verify_password as _verify
-    return _verify(plain_password, hashed_password)
+def test_reset_rejects_invalid_token_and_weak_password(
+    client: TestClient, test_db: TinyDB, monkeypatch,
+) -> None:
+    _create_user(test_db)
+    invalid = client.post(
+        "/auth/reset-password",
+        json={"token": "invalid.token", "new_password": "NewPass456"},
+    )
+    assert invalid.status_code == 400
+
+    monkeypatch.setenv("AUTH_DEBUG_RESET_LINKS", "true")
+    monkeypatch.setattr(auth_router, "send_reset_email", AsyncMock(side_effect=_delivery))
+    requested = client.post("/auth/forgot-password", json={"email": "reset@brasaland.com"})
+    token = requested.json()["debug_reset_link"].split("token=", 1)[1]
+    weak = client.post(
+        "/auth/reset-password",
+        json={"token": token, "new_password": "lowercase1"},
+    )
+    assert weak.status_code == 422

@@ -30,6 +30,7 @@ class TokenResponse(BaseModel):
 
 class UserOut(BaseModel):
     id: str
+    uuid: str | None = None
     email: str
     role: str
     is_active: bool
@@ -66,4 +67,3 @@ class ChangePasswordRequest(BaseModel):
 class MessageResponse(BaseModel):
     detail: str
     debug_reset_link: str | None = None
-    email_delivery: str | None = None

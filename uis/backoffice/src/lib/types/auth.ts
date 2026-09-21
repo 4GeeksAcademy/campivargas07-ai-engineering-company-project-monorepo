@@ -9,6 +9,7 @@ export interface LoginRequest {
 
 export interface TokenResponse {
   access_token: string;
+  token_type?: string;
 }
 
 export interface RegisterRequest {
@@ -66,5 +67,4 @@ export interface ChangePasswordRequest {
 export interface MessageResponse {
   detail: string;
   debug_reset_link?: string | null;
-  email_delivery?: string | null;
 }

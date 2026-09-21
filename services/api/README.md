@@ -29,13 +29,13 @@ uvicorn app.main:app --reload
 - GET /api/incidents/results/export
 
 ### Authentication
-- POST /api/auth/login - User login
-- POST /api/auth/register - User registration
+- POST /auth/login - User login
+- POST /users - User registration
 
 ### Password Recovery
-- POST /api/auth/forgot-password - Request password reset (sends email via Resend)
-- POST /api/auth/reset-password - Reset password using token from email
-- POST /api/auth/change-password - Change password (requires authentication)
+- POST /auth/forgot-password - Request password reset (sends email via Resend)
+- POST /auth/reset-password - Reset password using token from email
+- POST /auth/change-password - Change password (requires authentication)
 
 ## Environment Variables
 
@@ -46,6 +46,7 @@ See `.env.example` for all required environment variables. Key variables:
 - `RESEND_API_KEY` - API key for Resend email service
 - `RESEND_FROM_EMAIL` - Sender email (must be verified in Resend)
 - `FRONTEND_URL` - Frontend URL for password reset links
+- `AUTH_DEBUG_RESET_LINKS` - Development-only opt-in to return reset links in responses
 
 ## Password Policy
 

@@ -8,11 +8,11 @@ Custom exceptions + global FastAPI exception handlers that:
 
 from __future__ import annotations
 
-import traceback
 import uuid
 from typing import Any
 
 from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -124,6 +124,12 @@ def register_incident_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
         """Convert FastAPI 422 validation errors into our 400 format."""
+        if not request.url.path.startswith("/api/incidents"):
+            return JSONResponse(
+                status_code=422,
+                content=jsonable_encoder({"detail": exc.errors()}),
+            )
+
         req_id = request.state.request_id if hasattr(request.state, "request_id") else uuid.uuid4().hex[:12]
         errors = exc.errors()
         messages: list[str] = []
@@ -139,17 +145,3 @@ def register_incident_error_handlers(app: FastAPI) -> None:
             request_id=req_id,
         )
         return JSONResponse(status_code=400, content=body.model_dump())
-
-    @app.exception_handler(Exception)
-    async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-        """Catch-all: never expose stack traces."""
-        req_id = request.state.request_id if hasattr(request.state, "request_id") else uuid.uuid4().hex[:12]
-        # Log internally (in production, use proper logging)
-        traceback.print_exc()
-        body = IncidentErrorResponse(
-            code=500,
-            message="An internal error occurred. Please try again later.",
-            field=None,
-            request_id=req_id,
-        )
-        return JSONResponse(status_code=500, content=body.model_dump())

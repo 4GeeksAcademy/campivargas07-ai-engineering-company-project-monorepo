@@ -826,7 +826,7 @@ const publicRoutes = [
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  
+
   // Allow public routes
   if (publicRoutes.some(route => pathname.startsWith(route))) {
     return NextResponse.next();
@@ -834,7 +834,7 @@ export function middleware(request: NextRequest) {
 
   // Check for auth token
   const token = request.cookies.get('auth-token')?.value;
-  
+
   if (!token) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
@@ -1062,7 +1062,7 @@ export default function ForgotPasswordPage() {
           <div style={styles.logoIcon}>🔥</div>
           <span style={styles.title}>Brasaland</span>
         </div>
-        
+
         <h1 style={styles.title}>¿Olvidaste tu contraseña?</h1>
         <p style={styles.subtitle}>
           Ingresa tu correo electrónico y te enviaremos un enlace para restablecerla.
@@ -1419,7 +1419,7 @@ function ResetPasswordForm() {
           <div style={styles.logoIcon}>🔥</div>
           <span style={styles.title}>Brasaland</span>
         </div>
-        
+
         <h1 style={styles.title}>Nueva contraseña</h1>
         <p style={styles.subtitle}>
           Ingresa tu nueva contraseña a continuación.
@@ -1443,7 +1443,7 @@ function ResetPasswordForm() {
                   autoFocus
                 />
               </div>
-              
+
               {password && (
                 <>
                   <div style={styles.strengthMeter}>
@@ -1821,7 +1821,7 @@ export default function ChangePasswordPage() {
           <div style={styles.logoIcon}>🔥</div>
           <span style={styles.title}>Brasaland</span>
         </div>
-        
+
         <h1 style={styles.title}>Cambiar contraseña</h1>
         <p style={styles.subtitle}>
           Actualiza tu contraseña para mantener tu cuenta segura.
@@ -1860,7 +1860,7 @@ export default function ChangePasswordPage() {
                   style={styles.input}
                 />
               </div>
-              
+
               {newPassword && (
                 <>
                   <div style={styles.strengthMeter}>

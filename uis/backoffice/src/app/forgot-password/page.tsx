@@ -44,7 +44,7 @@ export default function ForgotPasswordPage() {
           <p style={styles.subtitle}>
             Si el email {email} está registrado, recibirás un enlace para restablecer tu contraseña.
           </p>
-          <div style={styles.successBanner}>
+          <div role="status" style={styles.successBanner}>
             {response?.detail || 'Revisa tu bandeja de entrada y sigue las instrucciones.'}
           </div>
           {response?.debug_reset_link && (
@@ -81,7 +81,7 @@ export default function ForgotPasswordPage() {
         <h1 style={styles.title}>Olvidaste tu contraseña</h1>
         <p style={styles.subtitle}>Ingresa tu email y te enviaremos un enlace para restablecerla.</p>
 
-        {error && <div style={styles.errorBanner}>{error}</div>}
+        {error && <div role="alert" style={styles.errorBanner}>{error}</div>}
 
         <form onSubmit={handleSubmit}>
           <div style={styles.fieldGroup}>
@@ -102,6 +102,7 @@ export default function ForgotPasswordPage() {
 
           <button
             type="submit"
+            disabled={loading}
             style={{...styles.submitButton, ...(loading ? styles.submitButtonDisabled : {})}}
           >
             {loading ? 'Enviando...' : 'Enviar enlace de recuperación'}

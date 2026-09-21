@@ -88,13 +88,13 @@ export default function ChangePasswordPage() {
         <h1 className="text-2xl font-bold text-gray-900 mb-6">Cambiar Contraseña</h1>
 
         {success && (
-          <div className="mb-4 p-4 rounded-md text-sm bg-green-50 text-green-700 border border-green-200">
+          <div role="status" className="mb-4 p-4 rounded-md text-sm bg-green-50 text-green-700 border border-green-200">
             Contraseña cambiada correctamente.
           </div>
         )}
 
         {error && (
-          <div className="mb-4 p-4 rounded-md text-sm bg-red-50 text-red-700 border border-red-200">
+          <div role="alert" className="mb-4 p-4 rounded-md text-sm bg-red-50 text-red-700 border border-red-200">
             {error}
           </div>
         )}

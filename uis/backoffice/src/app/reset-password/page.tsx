@@ -69,7 +69,7 @@ function ResetPasswordForm() {
         <div style={styles.card}>
           <h1 style={styles.title}>¡Contraseña actualizada!</h1>
           <p style={styles.subtitle}>Redirigiendo al login...</p>
-          <div style={styles.successBanner}>
+          <div role="status" style={styles.successBanner}>
             Tu contraseña ha sido cambiada exitosamente.
           </div>
         </div>
@@ -92,7 +92,7 @@ function ResetPasswordForm() {
         <h1 style={styles.title}>Restablecer contraseña</h1>
         <p style={styles.subtitle}>Ingresa tu nueva contraseña.</p>
 
-        {(error || tokenError) && <div style={styles.errorBanner}>{error || tokenError}</div>}
+        {(error || tokenError) && <div role="alert" style={styles.errorBanner}>{error || tokenError}</div>}
 
         {token && (
           <form onSubmit={handleSubmit}>

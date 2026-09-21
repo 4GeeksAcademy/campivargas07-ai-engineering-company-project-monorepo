@@ -1,3 +1,4 @@
 """
-suppliers — Brasaland · Supplier directory module
+__init__.py — Brasaland · Procurement suppliers domain
 """
+

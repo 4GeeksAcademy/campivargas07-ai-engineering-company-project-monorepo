@@ -8,6 +8,8 @@ import { useIncidentList, useIncidentMutations, useIncidentSummary } from '@/lib
 import { IncidentForm } from './IncidentForm';
 import { IncidentList } from './IncidentList';
 import { IncidentSummary } from './IncidentSummary';
+import { IncidentsAnalyzer } from '@/components/incidents-analyzer';
+import type { IncidentBranch, IncidentCategory, IncidentStatus } from '@/lib/incidents-api';
 import styles from './IncidentBoard.module.css';
 
 type Tab = 'board' | 'create' | 'analysis';
@@ -18,8 +20,8 @@ export function IncidentBoard() {
   const { incidents, loading: listLoading, error: listError, refresh: refreshList } = useIncidentList();
   const { create, transition, loading: mutationLoading, error: mutationError } = useIncidentMutations();
 
-  async function handleCreate(data: { title: string; description: string; category: string; branch: string }) {
-    const result = await create(data as any);
+  async function handleCreate(data: { title: string; description: string; category: IncidentCategory; branch: IncidentBranch }) {
+    const result = await create(data);
     if (result) {
       refreshList();
       refreshSummary();
@@ -28,8 +30,8 @@ export function IncidentBoard() {
     return false;
   }
 
-  async function handleTransition(id: string, newStatus: string): Promise<boolean> {
-    const result = await transition(id, newStatus as any);
+  async function handleTransition(id: string, newStatus: IncidentStatus): Promise<boolean> {
+    const result = await transition(id, newStatus);
     if (result) {
       refreshList();
       refreshSummary();
@@ -62,7 +64,7 @@ export function IncidentBoard() {
       </div>
 
       {mutationError && (
-        <div className={styles.globalError}>{mutationError}</div>
+        <div className={styles.globalError} role="alert">{mutationError}</div>
       )}
 
       {tab === 'board' && (
@@ -90,9 +92,7 @@ export function IncidentBoard() {
 
       {tab === 'analysis' && (
         <div className={styles.analysisView}>
-          <p style={{ color: 'var(--muted, #a6b5cc)' }}>
-            El módulo de análisis CSV está disponible en la pestaña de análisis existente.
-          </p>
+          <IncidentsAnalyzer />
         </div>
       )}
     </div>

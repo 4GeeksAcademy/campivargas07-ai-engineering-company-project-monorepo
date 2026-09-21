@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import os
 from datetime import datetime, timezone
-from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from tinydb import Query
@@ -46,13 +45,8 @@ _Q = Query()
 
 
 def _should_expose_reset_link() -> bool:
-    """Expose reset links during local development or when explicitly enabled."""
-    if os.environ.get("AUTH_DEBUG_RESET_LINKS", "").lower() == "true":
-        return True
-
-    frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000")
-    host = urlparse(frontend_url).hostname or ""
-    return host in {"localhost", "127.0.0.1"}
+    """Expose reset links only through an explicit development opt-in."""
+    return os.environ.get("AUTH_DEBUG_RESET_LINKS", "").lower() == "true"
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -84,6 +78,7 @@ def get_me(current_user: dict = Depends(get_current_user)) -> AuthMeResponse:
     """Return the authenticated user's credentials and linked profile."""
     user_out = UserOut(
         id=str(current_user.doc_id),
+        uuid=current_user.get("uuid"),
         email=current_user["email"],
         role=current_user["role"],
         is_active=current_user["is_active"],
@@ -148,7 +143,6 @@ async def forgot_password(
         return MessageResponse(
             detail="Si el email existe, recibirás un enlace de recuperación.",
             debug_reset_link=delivery.reset_link if _should_expose_reset_link() else None,
-            email_delivery="sent" if delivery.sent else "failed",
         )
 
     # Always return the same message regardless of email existence

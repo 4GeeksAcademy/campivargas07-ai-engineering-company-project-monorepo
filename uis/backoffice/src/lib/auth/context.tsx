@@ -17,9 +17,11 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthMeResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  // The first server and client renders must match. Browser storage is only
+  // consulted after hydration, so both environments start in a loading state.
+  const [loading, setLoading] = useState<boolean>(true);
 
-  const refreshUser = async () => {
+  const refreshUser = React.useCallback(async () => {
     if (!authApi.isAuthenticated()) {
       setUser(null);
       setLoading(false);
@@ -36,10 +38,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    refreshUser();
+    let ignore = false;
+    const userRequest = authApi.isAuthenticated()
+      ? authApi.getMe()
+      : Promise.resolve(null);
+
+    userRequest
+      .then((userData) => {
+        if (!ignore) {
+          setUser(userData);
+          setLoading(false);
+        }
+      })
+      .catch((error) => {
+        if (!ignore) {
+          console.error('Error fetching user:', error);
+          setUser(null);
+          authApi.setToken(null);
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   const login = async (email: string, password: string) => {
@@ -47,11 +72,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await refreshUser();
   };
 
-  const register = async (data: { email: string; password: string; name?: string; phone?: string; address?: string }) => {
-    await authApi.register({
-      ...data,
-      role: 'employee',
-    });
+  const register = async (data: { email: string; password: string; name?: string; phone?: string; address?: string; role?: string }) => {
+    await authApi.register(data);
     await login(data.email, data.password);
   };
 

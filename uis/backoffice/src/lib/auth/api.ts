@@ -11,23 +11,33 @@ import type {
   TokenResponse,
 } from '../types/auth';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-
 export class AuthApiClient {
   private token: string | null = null;
 
+  private getBaseUrl(): string {
+    if (typeof window !== 'undefined') {
+      return '/api';
+    }
+    const raw = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    return raw.replace(/\/+$/, '');
+  }
+
   setToken(token: string | null) {
     this.token = token;
-    if (token) {
-      localStorage.setItem('brasaland_token', token);
-    } else {
-      localStorage.removeItem('brasaland_token');
+    if (typeof window !== 'undefined') {
+      if (token) {
+        localStorage.setItem('brasaland_token', token);
+      } else {
+        localStorage.removeItem('brasaland_token');
+      }
     }
   }
 
   getToken(): string | null {
     if (this.token) return this.token;
-    this.token = localStorage.getItem('brasaland_token');
+    if (typeof window !== 'undefined') {
+      this.token = localStorage.getItem('brasaland_token');
+    }
     return this.token;
   }
 
@@ -62,7 +72,7 @@ export class AuthApiClient {
   }
 
   async login(data: LoginRequest): Promise<TokenResponse> {
-    const response = await fetch(`${API_BASE}/auth/login`, {
+    const response = await fetch(`${this.getBaseUrl()}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -74,7 +84,7 @@ export class AuthApiClient {
   }
 
   async register(data: RegisterRequest): Promise<{ id: string; email: string; role: string; is_active: boolean }> {
-    const response = await fetch(`${API_BASE}/users`, {
+    const response = await fetch(`${this.getBaseUrl()}/users`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -84,7 +94,7 @@ export class AuthApiClient {
   }
 
   async getMe(): Promise<AuthMeResponse> {
-    const response = await fetch(`${API_BASE}/auth/me`, {
+    const response = await fetch(`${this.getBaseUrl()}/auth/me`, {
       headers: this.getHeaders(),
     });
     
@@ -92,7 +102,7 @@ export class AuthApiClient {
   }
 
   async getProfile(): Promise<ProfileOut> {
-    const response = await fetch(`${API_BASE}/profiles/me`, {
+    const response = await fetch(`${this.getBaseUrl()}/profiles/me`, {
       headers: this.getHeaders(),
     });
     
@@ -100,7 +110,7 @@ export class AuthApiClient {
   }
 
   async updateProfile(data: ProfileUpdate): Promise<ProfileOut> {
-    const response = await fetch(`${API_BASE}/profiles/me`, {
+    const response = await fetch(`${this.getBaseUrl()}/profiles/me`, {
       method: 'PUT',
       headers: this.getHeaders(),
       body: JSON.stringify(data),
@@ -110,7 +120,7 @@ export class AuthApiClient {
   }
 
   async forgotPassword(data: ForgotPasswordRequest): Promise<MessageResponse> {
-    const response = await fetch(`${API_BASE}/auth/forgot-password`, {
+    const response = await fetch(`${this.getBaseUrl()}/auth/forgot-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -119,7 +129,7 @@ export class AuthApiClient {
   }
 
   async resetPassword(data: ResetPasswordRequest): Promise<MessageResponse> {
-    const response = await fetch(`${API_BASE}/auth/reset-password`, {
+    const response = await fetch(`${this.getBaseUrl()}/auth/reset-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -128,7 +138,7 @@ export class AuthApiClient {
   }
 
   async changePassword(data: ChangePasswordRequest): Promise<MessageResponse> {
-    const response = await fetch(`${API_BASE}/auth/change-password`, {
+    const response = await fetch(`${this.getBaseUrl()}/auth/change-password`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(data),
