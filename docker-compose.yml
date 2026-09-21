@@ -1,0 +1,54 @@
+services:
+  backend:
+    build:
+      context: ./services
+      dockerfile: Dockerfile
+    container_name: brasaland-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL:?DATABASE_URL is required. Configure a valid accessible PostgreSQL connection URL in .env}
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY is required. Set a secure secret key in .env}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-60}
+      - SUPPLIERS_DB_PATH=${SUPPLIERS_DB_PATH:-/app/api/data/suppliers.json}
+    volumes:
+      - ./services:/app
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    networks:
+      - brasaland-dev
+
+  interfaces:
+    build:
+      context: ./uis
+      dockerfile: Dockerfile
+    container_name: brasaland-interfaces
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+    environment:
+      - INTERNAL_API_URL=http://backend:8000
+      - WATCHPACK_POLLING=true
+    volumes:
+      - ./uis:/app/uis
+      - ./src:/app/src:ro
+      - /app/uis/website/node_modules
+      - /app/uis/backoffice/node_modules
+      - /app/uis/website/.next
+      - /app/uis/backoffice/.next
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - brasaland-dev
+
+networks:
+  brasaland-dev:
+    name: brasaland-dev
+    driver: bridge

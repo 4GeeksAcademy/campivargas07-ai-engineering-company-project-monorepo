@@ -9,6 +9,7 @@ export interface LoginRequest {
 
 export interface TokenResponse {
   access_token: string;
+  token_type?: string;
 }
 
 export interface RegisterRequest {
@@ -48,3 +49,4 @@ export interface ProfileUpdate {
   phone?: string;
   address?: string;
 }
+

@@ -19,6 +19,7 @@ class TokenResponse(BaseModel):
 
 class UserOut(BaseModel):
     id: str
+    uuid: str | None = None
     email: str
     role: str
     is_active: bool

@@ -19,7 +19,7 @@ class UserRole(str, Enum):
 class UserCreate(BaseModel):
     email: str = Field(..., description="User email address (unique)")
     password: str = Field(..., min_length=6, description="User password (min 6 chars)")
-    role: UserRole = Field(default=UserRole.admin, description="User role")
+    role: UserRole = Field(default=UserRole.user, description="User role")
     name: str | None = Field(default=None, description="Display name for linked profile")
     phone: str | None = Field(default=None, description="Phone for linked profile")
     address: str | None = Field(default=None, description="Address for linked profile")
@@ -32,6 +32,7 @@ class UserUpdate(BaseModel):
 
 class UserResponse(BaseModel):
     id: str
+    uuid: str | None = None
     email: str
     role: str
     is_active: bool

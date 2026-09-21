@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 
@@ -249,7 +250,7 @@ export default function RegisterPage() {
         phone: formData.phone || undefined,
         address: formData.address || undefined,
       });
-      router.push('/');
+      router.push('/backoffice/overview');
     } catch (err) {
       setErrors({ general: err instanceof Error ? err.message : 'Error al registrar' });
     } finally {
@@ -290,7 +291,7 @@ export default function RegisterPage() {
 
         {/* Error Banner */}
         {errors.general && (
-          <div style={styles.errorBanner}>{errors.general}</div>
+          <div role="alert" style={styles.errorBanner}>{errors.general}</div>
         )}
 
         <form onSubmit={handleSubmit}>
@@ -430,7 +431,7 @@ export default function RegisterPage() {
         {/* Login Link */}
         <p style={styles.footerText}>
           ¿Ya tienes cuenta?{' '}
-          <a href="/login" style={styles.footerLink}>Inicia sesión</a>
+          <Link href="/login" style={styles.footerLink}>Inicia sesión</Link>
         </p>
 
         <p style={styles.copyright}>© 2026 Brasaland Digital</p>

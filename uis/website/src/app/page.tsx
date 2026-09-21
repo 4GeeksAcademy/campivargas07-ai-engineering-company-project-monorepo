@@ -1,15 +1,17 @@
+import Image from "next/image";
 import { Footer } from "@/components/website/Footer";
 import { SectionTitle } from "@/components/website/SectionTitle";
 import { TopNav } from "@/components/website/TopNav";
 import type { LocationItem, MenuItem } from "@/components/website/types";
+
+const heroImage = "/images/hero-grill.webp";
 
 const menuItems: MenuItem[] = [
   {
     title: "Costillas Signature",
     description:
       "Marinadas 24h, cocidas lentamente y glaseadas con neón-BBQ.",
-    image:
-      "https://images.unsplash.com/photo-1544025162-d76694265947?w=1200&q=80",
+    image: "/images/menu-ribs.webp",
     accent: "red",
     tag: "#1 VENTAS",
   },
@@ -17,16 +19,14 @@ const menuItems: MenuItem[] = [
     title: "Smash Brasa",
     description:
       "Doble carne angus sellada a fuego vivo y pan brioche tostado.",
-    image:
-      "https://images.unsplash.com/photo-1558030006-450675393462?w=1200&q=80",
+    image: "/images/menu-burger.webp",
     accent: "gold",
   },
   {
     title: "Alitas Inferno",
     description:
       "Glaseado de miel ahumada y habanero con cinco niveles de intensidad.",
-    image:
-      "https://images.unsplash.com/photo-1529193591184-b1d58069ecdd?w=1200&q=80",
+    image: "/images/menu-wings.webp",
     accent: "orange",
     tag: "SPICY",
   },
@@ -37,12 +37,40 @@ const locations: LocationItem[] = [
   { city: "Miami - Brickell", address: "801 Brickell Ave", flag: "🇺🇸" },
 ];
 
+const aboutImages = [
+  {
+    src: "/images/about-interior.webp",
+    alt: "Interior de un restaurante Brasaland",
+  },
+  {
+    src: "/images/about-table.webp",
+    alt: "Mesa preparada para el servicio",
+  },
+  {
+    src: "/images/about-dining-room.webp",
+    alt: "Salón de restaurante con iluminación cálida",
+  },
+  {
+    src: "/images/about-fire-dish.webp",
+    alt: "Plato preparado al fuego",
+  },
+];
+
 export default function Home() {
   return (
     <div id="inicio" className="website-shell">
       <TopNav />
       <main>
         <section className="hero">
+          <Image
+            className="hero-image"
+            src={heroImage}
+            alt=""
+            fill
+            sizes="100vw"
+            fetchPriority="high"
+            loading="eager"
+          />
           <div className="hero-overlay" />
           <div className="container hero-content">
             <p className="chip">Nueva Generacion a la Brasa</p>
@@ -78,10 +106,14 @@ export default function Home() {
             <div className="menu-grid">
               {menuItems.map((item) => (
                 <article className="glass-card menu-card" key={item.title}>
-                  <div
-                    className="menu-image"
-                    style={{ backgroundImage: `url(${item.image})` }}
-                  >
+                  <div className="menu-image">
+                    <Image
+                      className="menu-card-image"
+                      src={item.image}
+                      alt={item.title}
+                      fill
+                      sizes="(max-width: 768px) 92vw, 33vw"
+                    />
                     {item.tag ? <span className={`tag ${item.accent}`}>{item.tag}</span> : null}
                   </div>
                   <div className="menu-copy">
@@ -137,24 +169,31 @@ export default function Home() {
                 <li>
                   <strong>01</strong>
                   <div>
-                    <h4>Misma Brasa, Dos Paises</h4>
+                    <h3>Misma Brasa, Dos Paises</h3>
                     <p>La misma experiencia sin importar donde te sientes.</p>
                   </div>
                 </li>
                 <li>
                   <strong>02</strong>
                   <div>
-                    <h4>115 Personas Apasionadas</h4>
+                    <h3>115 Personas Apasionadas</h3>
                     <p>Equipo enfocado en rapidez, consistencia y hospitalidad.</p>
                   </div>
                 </li>
               </ul>
             </article>
             <article className="about-collage">
-              <div className="img a" />
-              <div className="img b" />
-              <div className="img c" />
-              <div className="img d" />
+              {aboutImages.map((image) => (
+                <div className="img" key={image.src}>
+                  <Image
+                    className="about-image"
+                    src={image.src}
+                    alt={image.alt}
+                    fill
+                    sizes="(max-width: 760px) 46vw, 25vw"
+                  />
+                </div>
+              ))}
             </article>
           </div>
         </section>

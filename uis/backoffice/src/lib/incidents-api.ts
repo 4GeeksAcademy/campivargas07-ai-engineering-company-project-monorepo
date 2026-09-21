@@ -21,13 +21,20 @@ export type IncidentAnalysisResponse = {
   };
 };
 
-const API_BASE_URL = (process.env.NEXT_PUBLIC_INCIDENTS_API_BASE_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
+function getBaseUrl(): string {
+  const configured = process.env.NEXT_PUBLIC_INCIDENTS_API_BASE_URL;
+  if (configured?.trim()) {
+    return configured.trim().replace(/\/+$/, "");
+  }
+
+  return typeof window !== "undefined" ? "/api" : "http://localhost:8000";
+}
 
 export async function analyzeIncidentsFile(file: File): Promise<IncidentAnalysisResponse> {
   const formData = new FormData();
   formData.append("file", file);
 
-  const response = await fetch(`${API_BASE_URL}/api/incidents/analyze`, {
+  const response = await fetch(`${getBaseUrl()}/api/incidents/analyze`, {
     method: "POST",
     body: formData,
   });
@@ -45,6 +52,12 @@ export async function analyzeIncidentsFile(file: File): Promise<IncidentAnalysis
   return (await response.json()) as IncidentAnalysisResponse;
 }
 
+export async function analyzeIncidentsText(csvText: string, filename: string = "pasted.csv"): Promise<IncidentAnalysisResponse> {
+  const blob = new Blob([csvText], { type: "text/csv" });
+  const file = new File([blob], filename, { type: "text/csv" });
+  return analyzeIncidentsFile(file);
+}
+
 export function getIncidentsExportUrl(): string {
-  return `${API_BASE_URL}/api/incidents/results/export`;
+  return `${getBaseUrl()}/api/incidents/results/export`;
 }

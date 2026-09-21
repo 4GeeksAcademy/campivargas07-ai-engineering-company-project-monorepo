@@ -1,15 +1,22 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/auth';
 import { authApi } from '@/lib/auth/api';
+import { AuthGuard } from '@/components/auth-guard';
 import { BackofficeHeader } from '@/components/backoffice-header';
 
 export default function ProfilePage() {
-  const { user, loading: authLoading, refreshUser } = useAuth();
-  const router = useRouter();
+  return (
+    <AuthGuard>
+      <ProfileContent />
+    </AuthGuard>
+  );
+}
+
+function ProfileContent() {
+  const { user, refreshUser } = useAuth();
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
@@ -18,22 +25,6 @@ export default function ProfilePage() {
     phone: '',
     address: '',
   });
-
-  useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/login');
-    }
-  }, [authLoading, user, router]);
-
-  useEffect(() => {
-    if (user?.profile) {
-      setFormData({
-        name: user.profile.name || '',
-        phone: user.profile.phone || '',
-        address: user.profile.address || '',
-      });
-    }
-  }, [user]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -60,14 +51,6 @@ export default function ProfilePage() {
     }
   };
 
-  if (authLoading) {
-    return (
-      <div className="backoffice-page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
-        <p className="muted">Cargando perfil...</p>
-      </div>
-    );
-  }
-
   if (!user) {
     return null;
   }
@@ -78,7 +61,7 @@ export default function ProfilePage() {
 
       <main className="container bo-main" style={{ maxWidth: '720px', margin: '0 auto', paddingTop: '2rem' }}>
         <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Link href="/" className="nav-link" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.88rem' }}>
+          <Link href="/backoffice/overview" className="nav-link" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.88rem' }}>
             ← Volver al panel
           </Link>
         </div>
@@ -91,7 +74,14 @@ export default function ProfilePage() {
             </div>
             {!editing && (
               <button
-                onClick={() => setEditing(true)}
+                onClick={() => {
+                  setFormData({
+                    name: user.profile?.name || '',
+                    phone: user.profile?.phone || '',
+                    address: user.profile?.address || '',
+                  });
+                  setEditing(true);
+                }}
                 className="secondary-button"
                 style={{ padding: '0.45rem 1rem', fontSize: '0.85rem' }}
               >
@@ -101,7 +91,7 @@ export default function ProfilePage() {
           </div>
 
           {message.text && (
-            <div className={message.type === 'success' ? 'feedback feedback-ok' : 'feedback feedback-error'} style={{ marginBottom: '1.25rem' }}>
+            <div role="status" className={message.type === 'success' ? 'feedback feedback-ok' : 'feedback feedback-error'} style={{ marginBottom: '1.25rem' }}>
               {message.text}
             </div>
           )}
