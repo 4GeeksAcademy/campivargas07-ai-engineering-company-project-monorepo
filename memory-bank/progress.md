@@ -38,6 +38,44 @@
 3. Definir persistencia o histórico si el área operativa necesita conservar múltiples análisis.
 4. Revisar con producto la política de auto-asignación de roles en el registro público (`POST /users`).
 
+## Hito: Optimización de rendimiento — Lazy Loading, useMemo y caché TTL (rama `feature/caching-optimisation`)
+
+- **Fase 0 (línea base)**: registrada antes de tocar código — pytest 64 passed/5 skipped;
+  backoffice: typecheck PASS, vitest 54 tests, build PASS; JS inicial de
+  `/backoffice/incidents` = 644 997 bytes (9 chunks). Fallos preexistentes: ninguno.
+- **Fase 1 (timing)**: `app/common/timing.py` — middleware ASGI que registra
+  `método ruta → status (ms)` con `time.perf_counter()`, sin query strings/headers
+  (sin datos sensibles); cableado en `app/main.py` antes de CORS.
+- **Fase 2 (lazy loading)**: 2 niveles con `next/dynamic` — página server
+  (`incidents/page.tsx`) → `IncidentsAnalyzer`, y el analizador → nuevo
+  `IncidentsResults` (panel completo de tablas/KPIs) con fallback `loading` y sin
+  `ssr:false`. El panel queda en chunk propio (`1f6cd-uud07yr.js`, 6 830 B) fuera del
+  HTML/RSC inicial; payload inicial casi sin cambio (644 070 B) porque domina el shell.
+- **Fase 3 (useMemo)**: `src/lib/incidents-derive.ts` (derivación pura: ranking
+  consolidado de 4 tablas con % por tabla y % acumulado, Pareto 80 %, códigos únicos)
+  memoizada en `IncidentsResults` con `useMemo([analysis])`; 10 tests unitarios.
+- **Fase 4 (caché TTL)**: `app/common/cache.py` — `TTLCache` stdlib-only: claves
+  deterministas (`build_key` + `normalize_filter`), TTL por entrada, expiración con
+  reloj monotónico inyectable, LRU con `max_size=256`, copias profundas de valores,
+  estadísticas (hits/misses/evictions/expired/size/hit_rate) y logs `brasaland.cache`.
+  En suppliers: listas TTL 60 s, detalle TTL 120 s, 404 nunca cacheado, y
+  POST/rate/status/delete invalidan por prefijo `suppliers:` (lista + todas las
+  variantes + detalle).
+- **Fase 5 (tests backend)**: `tests/test_suppliers_cache.py` — 22 tests: MISS→HIT,
+  variantes de filtros → claves distintas, expiración con reloj inyectado (sin sleeps),
+  invalidación tras cada escritura, 404 sin cachear, copias defensivas, eviction LRU,
+  ttl<=0, sanity de TTLs y middleware de timing (estado/cuerpo intactos + regex del
+  formato de log + sin fuga de password/Authorization).
+- **Fase 6 (medición)**: dataset de 5 000 proveedores en `/tmp/brasa-seed/` generado
+  con `scripts/seed_suppliers.py` (nunca toca `services/api/data/`); escenario
+  cold/warm/invalidación/expiración (n=25 por variante) con
+  `scripts/measure_cache.py`. Detalle: 2.2→1.5 ms mediana (−32 %). En listas domina la
+  serialización/transporte de ~2 MB (HIT ≈ MISS en mediana; el cache elimina consulta
+  TinyDB y refiltrado). Expiración de 60/120 s observada en tiempo real con logs
+  EXPIRED. Detalle completo en `CACHING_REPORT.md`.
+- **Verificación final**: pytest 86 passed/5 skipped (+22 tests); typecheck:uis PASS;
+  test:uis 64+4 passed; lint backoffice PASS; build:uis 4/4 PASS.
+
 ## Validaciones ejecutadas
 - `python3 /workspaces/campivargas07-ai-engineering-company-project-monorepo/scripts/analyze.py /workspaces/campivargas07-ai-engineering-company-project-monorepo/docs/incidents-brasaland.csv` con conteos esperados: 100 totales, 96 válidos, 4 inválidos y promedio 3.46.
 - Exportación interactiva del script con generación de `results.csv`.

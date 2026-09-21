@@ -1,9 +1,11 @@
 import os
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.common.timing import RequestTimingMiddleware
 from app.database import backfill_users_uuid, init_db
 from app.domains.analytics.incidents.router import router as incidents_router
 from app.domains.auth.router import router as auth_router
@@ -35,6 +37,11 @@ app = FastAPI(
     version="0.5.0",
     lifespan=lifespan,
 )
+
+# ── Request timing middleware ────────────────────────────────
+# Logs: method, route path, status code and duration (ms) via logging.
+# Never logs query strings, headers or bodies (no sensitive data).
+app.add_middleware(RequestTimingMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
