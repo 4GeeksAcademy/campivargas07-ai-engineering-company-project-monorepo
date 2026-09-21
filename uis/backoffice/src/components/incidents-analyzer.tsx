@@ -157,6 +157,7 @@ export function IncidentsAnalyzer() {
         ) : (
           <div className="paste-area">
             <textarea
+              aria-label="Contenido CSV de incidencias"
               className="paste-textarea"
               placeholder="Pega aquí el contenido del CSV..."
               value={pastedText}
@@ -176,7 +177,7 @@ export function IncidentsAnalyzer() {
           </button>
         </div>
 
-        {errorMessage ? <p className="feedback feedback-error">{errorMessage}</p> : null}
+        {errorMessage ? <p className="feedback feedback-error" role="alert">{errorMessage}</p> : null}
         {!errorMessage && analysis ? (
           <p className="feedback feedback-ok">
             Analisis disponible para {analysis.source_file}. Registros invalidos detectados: {analysis.invalid_records}.

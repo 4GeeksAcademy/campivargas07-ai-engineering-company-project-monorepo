@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   type Supplier,
   type SupplierCreatePayload,
@@ -51,7 +51,7 @@ export function SuppliersDirectory() {
   const [editingRateValue, setEditingRateValue] = useState("");
 
   // ── data loading ──
-  async function loadSuppliers() {
+  const loadSuppliers = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -65,10 +65,30 @@ export function SuppliersDirectory() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [filterCountry, filterCategory]);
 
   useEffect(() => {
-    loadSuppliers();
+    let active = true;
+
+    listSuppliers(filterCountry || undefined, filterCategory || undefined)
+      .then((data) => {
+        if (active) {
+          setSuppliers(data.suppliers);
+          setError(null);
+        }
+      })
+      .catch((err: unknown) => {
+        if (active) {
+          setError(err instanceof Error ? err.message : "Error loading suppliers");
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
   }, [filterCountry, filterCategory]);
 
   // ── create ──
@@ -292,7 +312,7 @@ export function SuppliersDirectory() {
                 ))}
               </div>
             </div>
-            {formError && <p className="feedback feedback-error">{formError}</p>}
+            {formError && <p className="feedback feedback-error" role="alert">{formError}</p>}
             <div className="actions-row">
               <button className="primary-button" type="submit" disabled={formBusy}>
                 {formBusy ? "Creando..." : "Crear proveedor"}
@@ -305,7 +325,7 @@ export function SuppliersDirectory() {
           </form>
         )}
 
-        {error && <p className="feedback feedback-error">{error}</p>}
+        {error && <p className="feedback feedback-error" role="alert">{error}</p>}
 
         {/* Table */}
         {loading ? (
@@ -313,6 +333,7 @@ export function SuppliersDirectory() {
         ) : suppliers.length === 0 ? (
           <p className="muted" style={{ padding: "1rem 0" }}>No hay proveedores para los filtros seleccionados.</p>
         ) : (
+          <div className="table-scroll" tabIndex={0} aria-label="Directorio de proveedores">
           <table className="table suppliers-table">
             <thead>
               <tr>
@@ -391,6 +412,7 @@ export function SuppliersDirectory() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </section>
     </div>

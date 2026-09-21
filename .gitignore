@@ -1,12 +1,29 @@
-node_modules/
-scripts/pr-body.md
+# Dependencies
+node_modules
+
+# Environments — NUNCA subir credenciales (requisito del hito)
+.env
+*.env
+.env.bak-hito5
+.venv/
+venv/
+
+# Python
 __pycache__/
 *.pyc
-*.pyo
-*.egg-info/
 .pytest_cache/
+.coverage
+*.egg-info/
 dist/
 build/
-.env
+
+# Node
 .next/
 out/
+coverage/
+
+# Local data
+*.sqlite3
+*.db
+.agents/hooks.json
+.cursor/hooks.json

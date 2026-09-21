@@ -99,3 +99,4 @@ class SupplierResponse(SupplierBase):
 class SupplierListResponse(BaseModel):
     suppliers: List[SupplierResponse]
     total: int
+
