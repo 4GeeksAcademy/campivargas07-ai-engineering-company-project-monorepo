@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { analyzeIncidentsFile, getIncidentsExportUrl, type IncidentAnalysisResponse } from "@/lib/incidents-api";
+import { analyzeIncidentsFile, analyzeIncidentsText, getIncidentsExportUrl, type IncidentAnalysisResponse } from "@/lib/incidents-api";
 
 describe("incidents-api client library", () => {
   beforeEach(() => {
@@ -42,7 +42,35 @@ describe("incidents-api client library", () => {
     const result = await analyzeIncidentsFile(file);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/api/incidents/analyze");
     expect(result).toEqual(mockData);
+  });
+
+  it("analyzeIncidentsText converts pasted CSV into an uploaded file", async () => {
+    const mockData: IncidentAnalysisResponse = {
+      source_file: "pasted.csv",
+      total_records: 1,
+      valid_records: 1,
+      invalid_records: 0,
+      invalid_breakdown: [],
+      category_breakdown: [],
+      status_breakdown: [],
+      satisfaction: {
+        scored_closed_cases: 0,
+        total_closed_cases: 0,
+        average_score: 0,
+        score_breakdown: [],
+      },
+    };
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => mockData,
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(analyzeIncidentsText("id,status\n1,OPEN", "pasted.csv")).resolves.toEqual(mockData);
+    const body = fetchMock.mock.calls[0][1]?.body as FormData;
+    expect((body.get("file") as File).name).toBe("pasted.csv");
   });
 
   it("analyzeIncidentsFile throws server error detail when response is not ok", async () => {
@@ -76,4 +104,3 @@ describe("incidents-api client library", () => {
     await expect(analyzeIncidentsFile(file)).rejects.toThrow("No se pudo analizar el archivo (500).");
   });
 });
-
