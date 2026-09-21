@@ -1,13 +1,98 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { analyzeIncidentsFile, analyzeIncidentsText, getIncidentsExportUrl, type IncidentAnalysisResponse } from "@/lib/incidents-api";
+import {
+  analyzeIncidentsFile,
+  analyzeIncidentsText,
+  createIncident,
+  getIncidentsExportUrl,
+  getIncidentsSummary,
+  listIncidents,
+  updateIncidentStatus,
+  type Incident,
+  type IncidentAnalysisResponse,
+} from "@/lib/incidents-api";
+import { authApi } from "@/lib/auth";
 
 describe("incidents-api client library", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    authApi.setToken(null);
   });
 
   afterEach(() => {
+    authApi.setToken(null);
     vi.unstubAllGlobals();
+  });
+
+  it("listIncidents sends filters and the bearer token through the Next proxy", async () => {
+    const incidents: Incident[] = [];
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => incidents,
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    authApi.setToken("test-token");
+
+    await expect(listIncidents({ status: "open", branch: "COL-01" })).resolves.toEqual(incidents);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/api/incidents?status=open&branch=COL-01",
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: "Bearer test-token" }),
+      }),
+    );
+  });
+
+  it("createIncident and updateIncidentStatus use the manager write contract", async () => {
+    const incident = {
+      id: "INC-001",
+      title: "Falla de equipo",
+      description: "La parrilla no enciende",
+      category: "EQUIPMENT",
+      branch: "COL-01",
+      origin: "manual",
+      status: "open",
+      reported_at: "2026-09-21T00:00:00Z",
+      updated_at: "2026-09-21T00:00:00Z",
+    } satisfies Incident;
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: true, status: 201, json: async () => incident })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ ...incident, status: "in_progress" }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await createIncident({
+      title: incident.title,
+      description: incident.description,
+      category: incident.category,
+      branch: incident.branch,
+    });
+    await updateIncidentStatus(incident.id, { status: "in_progress" });
+
+    expect(fetchMock.mock.calls[0]).toEqual([
+      "/api/api/incidents",
+      expect.objectContaining({ method: "POST" }),
+    ]);
+    expect(fetchMock.mock.calls[1]).toEqual([
+      "/api/api/incidents/INC-001/status",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ status: "in_progress" }),
+      }),
+    ]);
+  });
+
+  it("getIncidentsSummary exposes API error messages", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({ message: "No se pudo calcular el resumen" }),
+    }));
+
+    await expect(getIncidentsSummary()).rejects.toThrow("No se pudo calcular el resumen");
   });
 
   it("getIncidentsExportUrl returns the correct export URL", () => {

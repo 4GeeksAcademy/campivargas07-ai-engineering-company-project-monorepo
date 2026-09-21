@@ -173,3 +173,27 @@
   Verificación final en navegador sin errores de página.
 - **Documentación:** diagnóstico en `AUDIT.md`, comparativa en `REPORT.md` y
   evidencia completa en `audit/before/` y `audit/after/`.
+
+## Integración PR #10: Gestor de Incidentes
+
+- **Conflictos resueltos:** se conservó el analizador CSV ya integrado en
+  `app.domains.analytics.incidents` y se añadió el dominio CRUD independiente
+  `app.domains.incidents`, registrando primero las rutas estáticas de análisis
+  para evitar colisiones con `/{incident_id}`.
+- **Persistencia segura:** el repositorio TinyDB abre su archivo de producción
+  de forma diferida; las pruebas inyectan una tabla temporal y no crean ni
+  modifican datos reales del repositorio.
+- **Contrato compartido:** tipos, etiquetas y transiciones de incidencias viven
+  en `packages/shared`; el backoffice consume el paquete en vez de duplicar el
+  modelo de dominio.
+- **Backoffice protegido:** `/backoffice/incidents` integra tablero, alta,
+  filtros, resumen, transiciones de estado y el analizador CSV existente bajo
+  `AuthGuard`. `/incidents` continúa siendo sólo una redirección.
+- **Compatibilidad de pruebas:** se agregó `httpx2` al grupo de desarrollo,
+  requerido por el `TestClient` de Starlette 1.6, y se impidió que una variable
+  `DATABASE_URL` local conecte las pruebas unitarias a recursos externos.
+- **Validación:** 77 pruebas backend verdes y 5 integraciones PostgreSQL
+  omitidas sin `TEST_DATABASE_URL`; 65 pruebas frontend, typecheck y lint sin
+  errores; build de producción exitoso con 16 rutas estáticas.
+- **Higiene:** se excluyeron `.env`, archivos TinyDB locales, bytecode,
+  cobertura y metadatos generados. Las PR #15 y #16 permanecen intactas.

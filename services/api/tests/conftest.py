@@ -39,6 +39,10 @@ from app.main import app
 @pytest.fixture(autouse=True)
 def test_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[TinyDB, None, None]:
     """Creates a temporary isolated TinyDB database for every test."""
+    # A developer's root .env may point at a real PostgreSQL instance. Tests use
+    # the SQLite fixture below and must never connect to that external database.
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+
     db_file = tmp_path / "isolated_test_db.json"
     isolated_db = TinyDB(db_file)
 

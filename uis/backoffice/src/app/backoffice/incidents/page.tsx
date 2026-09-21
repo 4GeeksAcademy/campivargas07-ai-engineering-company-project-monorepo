@@ -1,20 +1,20 @@
 import { AuthGuard } from "@/components/auth-guard";
 import { BackofficeHeader } from "@/components/backoffice-header";
-import { IncidentsAnalyzer } from "@/components/incidents-analyzer";
+import { IncidentBoard } from "@/components/incidents/IncidentBoard";
 
 export const metadata = {
   title: "Incidencias — Brasaland Backoffice",
-  description: "Analizador interno protegido para incidencias operativas de Brasaland.",
+  description: "Gestor interno protegido de incidencias operativas de Brasaland.",
 };
 
 export default function BackofficeIncidentsPage() {
   return (
     <AuthGuard>
       <div className="backoffice-page">
-        <BackofficeHeader activeView="incidents" badge="Incidents analysis online" />
+        <BackofficeHeader activeView="incidents" badge="Gestor de incidencias" />
 
         <main className="container bo-main">
-          <IncidentsAnalyzer />
+          <IncidentBoard />
         </main>
       </div>
     </AuthGuard>

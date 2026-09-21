@@ -497,3 +497,61 @@ Lighthouse es laboratorio; INP requiere interacciones reales y no se deriva de
 una navegación. Se usó TBT como señal. El siguiente ciclo debe instrumentar Web
 Vitals de campo y perfilar las cinco tareas largas restantes del backoffice
 móvil, sin convertir esta auditoría en una reestructuración arquitectónica.
+
+---
+
+# Walkthrough: Integración del Gestor de Incidentes (PR #10)
+
+Se resolvió la divergencia de la rama del gestor contra `main` conservando el
+análisis CSV existente y sumando el flujo operativo CRUD sin mezclar ambos
+dominios ni sobrescribir autenticación, proveedores o inventario.
+
+## 1. Resolución de conflictos
+
+- Se mantuvo `app.domains.analytics.incidents` para carga, análisis y
+  exportación CSV.
+- Se incorporó `app.domains.incidents` para crear, listar, consultar, resumir y
+  cambiar el estado de incidencias autenticadas.
+- `app/main.py` registra el router de análisis antes del router CRUD para que
+  `/analyze` y `/results/export` tengan precedencia sobre la ruta dinámica.
+- El manejador de validación personalizado devuelve 400 únicamente bajo
+  `/api/incidents`; el resto de FastAPI conserva su contrato 422.
+- Se preservaron íntegramente las implementaciones actuales de autenticación,
+  proveedores e inventario provenientes de `main`.
+
+## 2. Correcciones de seguridad e aislamiento
+
+- `IncidentRepository` distingue correctamente una tabla TinyDB vacía de la
+  ausencia de una dependencia inyectada.
+- La base por defecto se abre de forma diferida, evitando crear un JSON local al
+  importar el módulo.
+- La suite usa TinyDB temporal por prueba y elimina `DATABASE_URL` del entorno
+  de test para no contactar una base configurada por el desarrollador.
+- No se integraron `.env`, bases JSON locales, cachés Python, cobertura ni
+  metadatos de paquete presentes en la rama de trabajo.
+
+## 3. Integración frontend
+
+- El paquete `@repo/shared-types` exporta el contrato de incidencias desde su
+  punto de entrada.
+- El cliente web centraliza autenticación Bearer, filtros, altas, consultas,
+  resumen, cambios de estado y análisis CSV a través del proxy de Next.js.
+- El tablero protegido reúne listado, formulario, resumen y analizador; los
+  hooks evitan actualizaciones después del desmontaje y exponen errores de
+  mutación accesibles.
+
+## 4. Evidencias de validación
+
+- `uv run --directory services/api --extra dev pytest -q`: 77 pruebas pasando y
+  5 pruebas PostgreSQL omitidas al no definir `TEST_DATABASE_URL`.
+- `npm --prefix uis/backoffice test`: 65 pruebas pasando en 14 suites.
+- `npm --prefix uis/backoffice run typecheck`: sin errores.
+- `npm --prefix uis/backoffice run lint`: sin errores.
+- `npm --prefix uis/backoffice run build`: compilación exitosa y 16 rutas
+  estáticas generadas.
+
+## 5. Alcance protegido
+
+La integración no modificó ni fusionó las PR #15 y #16. Los archivos de
+infraestructura y la memoria arquitectónica protegida se conservaron desde
+`main`.

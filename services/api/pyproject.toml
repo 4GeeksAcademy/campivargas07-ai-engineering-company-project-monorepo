@@ -35,3 +35,8 @@ packages = { find = { where = ["."], include = ["app*"] } }
 markers = [
   "postgres: PostgreSQL integration tests requiring TEST_DATABASE_URL",
 ]
+
+[dependency-groups]
+dev = [
+    "httpx2>=2.13.0",
+]
