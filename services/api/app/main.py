@@ -11,6 +11,11 @@ from app.domains.operations.inventory.router import router as inventory_router
 from app.domains.procurement.suppliers.router import router as suppliers_router
 from app.domains.profiles.router import router as profiles_router
 from app.domains.users.router import router as users_router
+from pydantic import BaseModel
+
+
+class HealthResponse(BaseModel):
+    status: str
 
 
 @asynccontextmanager
@@ -53,6 +58,6 @@ app.include_router(incidents_router)
 app.include_router(inventory_router)
 
 
-@app.get("/health", tags=["health"])
-def healthcheck() -> dict[str, str]:
-    return {"status": "ok"}
+@app.get("/health", response_model=HealthResponse, tags=["health"])
+def healthcheck() -> HealthResponse:
+    return HealthResponse(status="ok")

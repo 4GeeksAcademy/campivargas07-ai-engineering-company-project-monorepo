@@ -497,3 +497,46 @@ Lighthouse es laboratorio; INP requiere interacciones reales y no se deriva de
 una navegación. Se usó TBT como señal. El siguiente ciclo debe instrumentar Web
 Vitals de campo y perfilar las cinco tareas largas restantes del backoffice
 móvil, sin convertir esta auditoría en una reestructuración arquitectónica.
+
+---
+
+# Walkthrough: Implementación de contratos de serialización
+
+## Estado
+
+Implementación aplicada en la rama `feature/serialization-audit`. Este hito no
+reescribe el backend ni modifica `services/backend`; trabaja únicamente sobre
+el backend activo `services/api` y su consumidor de autenticación en el
+backoffice.
+
+## Cambios
+
+- `GET /health` ahora tiene el esquema explícito `HealthResponse`.
+- Las respuestas de `DELETE /users/{user_id}` y
+  `DELETE /api/suppliers/{supplier_id}` usan `DeleteResponse`, manteniendo el
+  código `200` y el cuerpo `{detail}` por compatibilidad.
+- Se alineó `AuthMeResponse` de TypeScript con el contrato backend anidado.
+- Se añadieron pruebas de contratos, OpenAPI y ausencia de contraseñas/hashes.
+- Se creó `docs/serialization-audit.md` con el inventario, diagnóstico inicial,
+  estado final, contratos CSV, riesgos y plan restante.
+
+## Seguridad y compatibilidad
+
+Las respuestas siguen sin incluir `password` ni `hashed_password`. El
+`access_token` de login se conserva porque forma parte del contrato del cliente.
+La exportación de incidencias continúa siendo CSV con `Content-Disposition`; no
+se transformó a JSON. `user_uuid` permanece en las órdenes porque el ledger lo
+usa para trazabilidad.
+
+## Validaciones pendientes
+
+En el momento de documentar este walkthrough todavía queda por ejecutar:
+
+```bash
+uv run --directory services/api pytest
+npm --prefix uis/backoffice run test
+npm --prefix uis/backoffice run typecheck
+npm --prefix uis/backoffice run lint
+```
+
+También debe verificarse manualmente `/docs` con al menos tres endpoints.
