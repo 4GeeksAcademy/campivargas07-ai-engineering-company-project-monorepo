@@ -73,10 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const register = async (data: { email: string; password: string; name?: string; phone?: string; address?: string; role?: string }) => {
-    await authApi.register({
-      ...data,
-      role: data.role || 'admin',
-    });
+    await authApi.register(data);
     await login(data.email, data.password);
   };
 

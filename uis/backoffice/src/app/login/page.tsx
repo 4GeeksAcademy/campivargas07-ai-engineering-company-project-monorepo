@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 
@@ -88,8 +89,11 @@ export default function LoginPage() {
             {loading ? 'Iniciando sesión...' : 'Entrar a la consola'}
           </button>
         </form>
+
+        <p style={{ color: 'var(--muted, #8ea0b4)', fontSize: '0.85rem', marginTop: '1.25rem', textAlign: 'center' }}>
+          ¿Necesitas una cuenta? <Link href="/register" style={{ color: '#7bd6ff', fontWeight: 700 }}>Regístrate</Link>
+        </p>
       </div>
     </div>
   );
 }
-

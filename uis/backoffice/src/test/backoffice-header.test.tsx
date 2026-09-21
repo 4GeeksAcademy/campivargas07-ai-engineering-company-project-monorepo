@@ -53,4 +53,12 @@ describe("BackofficeHeader Component", () => {
     expect(suppliersLink).toHaveClass("nav-link-active");
     expect(suppliersLink).toHaveAttribute("href", "/backoffice/suppliers");
   });
+
+  it("links to the authenticated account profile", () => {
+    render(<BackofficeHeader activeView="profile" badge="Cuenta" />);
+
+    const profileLink = screen.getByRole("link", { name: "Cuenta" });
+    expect(profileLink).toHaveClass("nav-link-active");
+    expect(profileLink).toHaveAttribute("href", "/account/profile");
+  });
 });
