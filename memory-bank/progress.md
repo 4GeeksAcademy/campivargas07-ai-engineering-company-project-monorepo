@@ -197,3 +197,26 @@
   errores; build de producción exitoso con 16 rutas estáticas.
 - **Higiene:** se excluyeron `.env`, archivos TinyDB locales, bytecode,
   cobertura y metadatos generados. Las PR #15 y #16 permanecen intactas.
+
+## Integración PR #9: Recuperación y Cambio de Contraseña
+
+- **Alcance aislado:** se descartaron las copias antiguas de incidentes,
+  proveedores y autenticación incluidas en la rama, conservando las versiones
+  ya verificadas de `main`.
+- **Flujo completo:** se añadieron solicitud de recuperación, token JWT de uso
+  único con expiración, restablecimiento, cambio autenticado y envío por Resend.
+- **Privacidad:** la respuesta pública de recuperación es idéntica para cuentas
+  existentes e inexistentes. El enlace sólo se devuelve si
+  `AUTH_DEBUG_RESET_LINKS=true`; nunca se expone automáticamente por usar
+  localhost.
+- **Persistencia aislada:** los metadatos de tokens usan una tabla TinyDB
+  dedicada y las pruebas la reemplazan por almacenamiento temporal.
+- **Frontend:** nuevas rutas `/forgot-password`, `/reset-password` y
+  `/account/change-password`, enlazadas desde login y perfil; cliente API
+  corregido para respetar el proxy de Next.js y autorización Bearer.
+- **Validación:** 84 pruebas backend verdes y 5 integraciones PostgreSQL
+  omitidas; 67 pruebas frontend, typecheck y lint sin errores; build exitoso de
+  19 rutas.
+- **Dependencias:** `httpx` queda disponible en producción para Resend y
+  `httpx2` se conserva en desarrollo para el `TestClient` de Starlette 1.6.
+- **Alcance protegido:** no se modificaron ni fusionaron las PR #15 y #16.

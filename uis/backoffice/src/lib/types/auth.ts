@@ -50,3 +50,21 @@ export interface ProfileUpdate {
   address?: string;
 }
 
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ResetPasswordRequest {
+  token: string;
+  new_password: string;
+}
+
+export interface ChangePasswordRequest {
+  current_password: string;
+  new_password: string;
+}
+
+export interface MessageResponse {
+  detail: string;
+  debug_reset_link?: string | null;
+}

@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import RegisterPage from "@/app/register/page";
 import ProfilePage from "@/app/account/profile/page";
+import ChangePasswordPage from "@/app/account/change-password/page";
 import { authApi } from "@/lib/auth/api";
 
 const push = vi.fn();
@@ -89,6 +90,41 @@ describe("authentication account pages", () => {
         address: "Medellín",
       });
       expect(refreshUser).toHaveBeenCalled();
+    });
+  });
+
+  it("links the profile to the protected password-change flow", () => {
+    render(<ProfilePage />);
+
+    expect(screen.getByRole("link", { name: "Cambiar contraseña" })).toHaveAttribute(
+      "href",
+      "/account/change-password",
+    );
+  });
+
+  it("changes the authenticated user's password", async () => {
+    const changePassword = vi.spyOn(authApi, "changePassword").mockResolvedValue({
+      detail: "Contraseña cambiada correctamente.",
+    });
+    render(<ChangePasswordPage />);
+
+    fireEvent.change(screen.getByLabelText("Contraseña actual"), {
+      target: { value: "OldPass123" },
+    });
+    fireEvent.change(screen.getByLabelText("Nueva contraseña"), {
+      target: { value: "NewPass456" },
+    });
+    fireEvent.change(screen.getByLabelText("Confirmar nueva contraseña"), {
+      target: { value: "NewPass456" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Cambiar contraseña" }));
+
+    await waitFor(() => {
+      expect(changePassword).toHaveBeenCalledWith({
+        current_password: "OldPass123",
+        new_password: "NewPass456",
+      });
+      expect(screen.getByText("Contraseña cambiada correctamente.")).toBeInTheDocument();
     });
   });
 });

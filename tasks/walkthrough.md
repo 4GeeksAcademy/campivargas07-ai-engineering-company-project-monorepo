@@ -555,3 +555,54 @@ dominios ni sobrescribir autenticación, proveedores o inventario.
 La integración no modificó ni fusionó las PR #15 y #16. Los archivos de
 infraestructura y la memoria arquitectónica protegida se conservaron desde
 `main`.
+
+---
+
+# Walkthrough: Integración de Recuperación de Contraseña (PR #9)
+
+Se integró el flujo de recuperación sobre la autenticación vigente de `main`,
+sin reemplazar los dominios ya fusionados desde otras ramas.
+
+## 1. Resolución de conflictos
+
+- Se conservaron desde `main` el gestor de incidentes, proveedor, inventario,
+  rutas protegidas, tipos compartidos y configuración de pruebas.
+- Se incorporaron únicamente el servicio de correo, endpoints, esquemas,
+  persistencia de tokens, pantallas y métodos del cliente relacionados con
+  contraseñas.
+- Los archivos de datos locales, `.env`, bytecode, cobertura y metadatos de
+  instalación de la rama se excluyeron del resultado.
+
+## 2. Seguridad y privacidad
+
+- Los tokens de recuperación están firmados con una clave distinta, contienen
+  propósito y `jti`, expiran y sólo pueden consumirse una vez.
+- Una nueva solicitud invalida los tokens activos anteriores del usuario.
+- La respuesta de `/auth/forgot-password` no indica si el correo existe ni si
+  el proveedor logró entregar el mensaje.
+- El enlace de depuración requiere `AUTH_DEBUG_RESET_LINKS=true`; el valor por
+  defecto es seguro incluso cuando `FRONTEND_URL` apunta a localhost.
+- El cambio autenticado comprueba la contraseña actual, rechaza reutilización y
+  aplica la política de contraseña nueva.
+
+## 3. Frontend
+
+- Login enlaza a `/forgot-password` y perfil a
+  `/account/change-password`.
+- `/reset-password` consume el token del query string, valida confirmación y
+  fortaleza, e informa estados de error y éxito de forma accesible.
+- El cliente usa `getBaseUrl()` en los tres métodos nuevos, manteniendo el proxy
+  `/api` en navegador y la URL directa durante SSR/pruebas.
+
+## 4. Evidencias
+
+- `uv run --directory services/api --extra dev pytest -q`: 84 pruebas pasando y
+  5 integraciones PostgreSQL omitidas sin `TEST_DATABASE_URL`.
+- `npm --prefix uis/backoffice test`: 67 pruebas pasando en 14 suites.
+- Typecheck y lint del backoffice: sin errores.
+- Build de producción: 19 rutas generadas, incluidas las tres rutas nuevas.
+
+## 5. Exclusiones
+
+Las PR #15 y #16 permanecieron abiertas e intactas durante toda la
+integración.

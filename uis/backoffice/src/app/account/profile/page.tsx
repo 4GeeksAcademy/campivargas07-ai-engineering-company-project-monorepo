@@ -255,6 +255,12 @@ function ProfileContent() {
                     {user.profile?.address || 'No especificada'}
                   </div>
                 </div>
+
+                <div style={{ paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
+                  <Link href="/account/change-password" className="secondary-button" style={{ display: 'inline-flex', padding: '0.55rem 1rem' }}>
+                    Cambiar contraseña
+                  </Link>
+                </div>
               </div>
             )}
           </div>

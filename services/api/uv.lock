@@ -98,6 +98,7 @@ source = { editable = "." }
 dependencies = [
     { name = "bcrypt" },
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "psycopg2-binary" },
     { name = "pydantic" },
     { name = "python-dotenv" },
@@ -124,6 +125,7 @@ dev = [
 requires-dist = [
     { name = "bcrypt", specifier = ">=4.0,<5.0" },
     { name = "fastapi", specifier = ">=0.116,<1.0" },
+    { name = "httpx", specifier = ">=0.27,<1.0" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27.0" },
     { name = "psycopg2-binary", specifier = ">=2.9.9,<3.0" },
     { name = "pydantic", specifier = ">=2.7.0,<3.0" },

@@ -48,17 +48,20 @@ def test_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[TinyDB
 
     users_tbl = isolated_db.table("users")
     profiles_tbl = isolated_db.table("profiles")
+    password_resets_tbl = isolated_db.table("password_resets")
     suppliers_tbl = isolated_db.table("suppliers")
 
     # Patch database module
     monkeypatch.setattr(database, "db", isolated_db)
     monkeypatch.setattr(database, "users_table", users_tbl)
     monkeypatch.setattr(database, "profiles_table", profiles_tbl)
+    monkeypatch.setattr(database, "password_resets_table", password_resets_tbl)
     monkeypatch.setattr(database, "suppliers_table", suppliers_tbl)
 
     # Patch domain modules that directly imported tables
     monkeypatch.setattr(auth_router, "users_table", users_tbl)
     monkeypatch.setattr(auth_router, "profiles_table", profiles_tbl)
+    monkeypatch.setattr(auth_router, "password_resets_table", password_resets_tbl)
     monkeypatch.setattr(auth_deps, "users_table", users_tbl)
     monkeypatch.setattr(users_service, "users_table", users_tbl)
     monkeypatch.setattr(users_service, "profiles_table", profiles_tbl)

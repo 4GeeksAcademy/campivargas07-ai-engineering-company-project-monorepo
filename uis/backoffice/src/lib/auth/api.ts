@@ -1,4 +1,15 @@
-import type { AuthMeResponse, LoginRequest, RegisterRequest, TokenResponse, ProfileUpdate, ProfileOut } from '../types/auth';
+import type {
+  AuthMeResponse,
+  ChangePasswordRequest,
+  ForgotPasswordRequest,
+  LoginRequest,
+  MessageResponse,
+  ProfileOut,
+  ProfileUpdate,
+  RegisterRequest,
+  ResetPasswordRequest,
+  TokenResponse,
+} from '../types/auth';
 
 export class AuthApiClient {
   private token: string | null = null;
@@ -108,6 +119,33 @@ export class AuthApiClient {
     return this.handleResponse<ProfileOut>(response);
   }
 
+  async forgotPassword(data: ForgotPasswordRequest): Promise<MessageResponse> {
+    const response = await fetch(`${this.getBaseUrl()}/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return this.handleResponse<MessageResponse>(response);
+  }
+
+  async resetPassword(data: ResetPasswordRequest): Promise<MessageResponse> {
+    const response = await fetch(`${this.getBaseUrl()}/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return this.handleResponse<MessageResponse>(response);
+  }
+
+  async changePassword(data: ChangePasswordRequest): Promise<MessageResponse> {
+    const response = await fetch(`${this.getBaseUrl()}/auth/change-password`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(data),
+    });
+    return this.handleResponse<MessageResponse>(response);
+  }
+
   logout() {
     this.setToken(null);
     if (typeof window !== 'undefined') {
@@ -121,4 +159,3 @@ export class AuthApiClient {
 }
 
 export const authApi = new AuthApiClient();
-
