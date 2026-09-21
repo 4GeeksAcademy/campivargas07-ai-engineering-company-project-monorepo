@@ -417,3 +417,83 @@ Se corrigió el flujo inicial del backoffice a partir del feedback de revisión:
 ## 4. Nota Operativa
 El primer intento de build falló por permisos de un artefacto local `.next` propiedad de `root:root`. Se apartó ese directorio generado y Next.js creó un nuevo `.next` con permisos del usuario actual. No se modificaron datos ni archivos protegidos de infraestructura.
 
+---
+
+# Walkthrough: Auditoría de Rendimiento Frontend
+
+Se completó el ciclo medir → analizar → corregir → volver a medir sobre los dos
+frontends de Brasaland. Las mediciones se ejecutaron contra builds de producción
+con Lighthouse 13.4.1 y Chrome for Testing 153, usando una sesión autenticada
+temporal para el backoffice.
+
+## 1. Línea base y causa raíz
+
+- Se auditó Website `/` y `/careers`, más Backoffice
+  `/backoffice/overview`, en móvil y escritorio.
+- El principal cuello de botella fue el backoffice móvil: Performance 73, LCP
+  2,4 s, TBT 1.310 ms, 2,9 s de trabajo de hilo principal y React #418.
+- La causa fue un primer estado distinto de `AuthProvider`: SSR renderizaba como
+  no cargando y el navegador decidía sincrónicamente desde `localStorage` que sí
+  estaba cargando. React descartaba el HTML y reconstruía el árbol.
+- En Website se identificaron el hero como fondo CSS no descubrible, imágenes
+  remotas sin variantes responsivas, contraste 3,65:1 y saltos de encabezados.
+- El inventario repetía el selector de restaurante en productos y órdenes.
+
+## 2. Cambios implementados
+
+- Estado inicial `loading=true` común a servidor y cliente; autenticación
+  resuelta dentro del efecto posterior al montaje.
+- Pruebas para SSR, sesión anónima y sesión autenticada.
+- Hero, tarjetas de menú y collage migrados a `next/image`; imágenes WebP
+  servidas desde `uis/website/public/images`, `sizes` responsivos y hero eager
+  con `fetchPriority="high"`.
+- Token específico de CTA para texto blanco, color de botón explícito y niveles
+  de encabezado semánticos en Website y Backoffice.
+- `RestaurantSelect` reutilizable integrado en `ProductsTable` y
+  `OrdersLedger`, con pruebas de opciones y eventos.
+
+## 3. Iteración basada en evidencia
+
+La primera versión de imágenes usaba el optimizador de Next.js sobre URLs
+remotas. Una corrida fría produjo LCP 4,3 s y Performance 64 porque la
+transformación esperaba la descarga remota. Se sustituyeron las fuentes por WebP
+locales. La verificación de Careers también descubrió texto negro heredado en un
+botón sobre el nuevo rojo; se declaró texto blanco explícito y se repitió la
+matriz. Ambas regresiones quedaron resueltas antes de aceptar los resultados.
+
+## 4. Resultado final
+
+| Escenario | Performance | Accessibility | Best Practices | SEO |
+| --- | ---: | ---: | ---: | ---: |
+| Website `/` móvil | 98 | 100 | 100 | 100 |
+| Website `/` escritorio | 100 | 100 | 100 | 100 |
+| Website `/careers` móvil | 100 | 100 | 100 | 100 |
+| Website `/careers` escritorio | 100 | 100 | 100 | 100 |
+| Backoffice overview móvil | 85 | 100 | 100 | 100 |
+| Backoffice overview escritorio | 100 | 100 | 100 | 100 |
+
+El backoffice móvil redujo LCP de 2,4 s a 1,5 s y TBT de 1.310 ms a
+580 ms; React #418 desapareció. Website Home móvil terminó con LCP 1,1 s, TBT
+160 ms y CLS 0.
+
+## 5. Evidencia y validación
+
+- `AUDIT.md`: método, línea base, causa raíz y análisis de reutilización.
+- `REPORT.md`: comparación antes/después, correcciones, riesgos y siguiente
+  ciclo.
+- `audit/before/` y `audit/after/`: seis HTML, seis JSON y seis capturas por
+  etapa; se conserva además una corrida de calentamiento para transparentar la
+  variabilidad.
+- `npm run test:uis`: 58/58 pruebas verdes (54 Backoffice + 4 Website).
+- `npm run typecheck:uis`: cuatro workspaces sin errores.
+- Lint de Website y Backoffice: sin errores.
+- Builds de producción: Website 5 páginas y Backoffice 12 páginas generadas.
+- Navegación final: Home, Careers y overview autenticado cargan sin errores de
+  página ni overlay de Next.js.
+
+## 6. Riesgo residual
+
+Lighthouse es laboratorio; INP requiere interacciones reales y no se deriva de
+una navegación. Se usó TBT como señal. El siguiente ciclo debe instrumentar Web
+Vitals de campo y perfilar las cinco tareas largas restantes del backoffice
+móvil, sin convertir esta auditoría en una reestructuración arquitectónica.

@@ -9,6 +9,7 @@ import {
   getRestaurantLabel,
 } from '@/lib/constants/restaurants';
 import { inventoryApi, type IngredientWithStock } from '@/lib/inventory';
+import { RestaurantSelect } from './restaurant-select';
 
 export function ProductsTable() {
   const [selectedRestaurant, setSelectedRestaurant] = useState<string>(() => {
@@ -61,8 +62,7 @@ export function ProductsTable() {
     };
   }, [selectedRestaurant]);
 
-  const handleRestaurantChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newId = e.target.value;
+  const handleRestaurantChange = (newId: string) => {
     setLoading(true);
     setError(null);
     setSelectedRestaurant(newId);
@@ -97,32 +97,12 @@ export function ProductsTable() {
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          <label htmlFor="restaurant-select" style={{ fontSize: '0.85rem', color: 'var(--muted)', fontWeight: 600 }}>
-            Restaurante:
-          </label>
-          <select
+        <RestaurantSelect
             id="restaurant-select"
+            label="Restaurante"
             value={selectedRestaurant}
-            onChange={handleRestaurantChange}
-            style={{
-              padding: '0.45rem 0.85rem',
-              borderRadius: '0.5rem',
-              background: '#07111f',
-              border: '1px solid var(--border)',
-              color: 'var(--fg)',
-              fontSize: '0.88rem',
-              outline: 'none',
-              cursor: 'pointer',
-            }}
-          >
-            {RESTAURANT_LOCATIONS.map((loc) => (
-              <option key={loc.id} value={loc.id}>
-                {loc.nombre} ({loc.id})
-              </option>
-            ))}
-          </select>
-        </div>
+            onValueChange={handleRestaurantChange}
+          />
       </div>
 
       {loading && (

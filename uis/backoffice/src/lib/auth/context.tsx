@@ -17,12 +17,9 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthMeResponse | null>(null);
-  const [loading, setLoading] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      return authApi.isAuthenticated();
-    }
-    return false;
-  });
+  // The first server and client renders must match. Browser storage is only
+  // consulted after hydration, so both environments start in a loading state.
+  const [loading, setLoading] = useState<boolean>(true);
 
   const refreshUser = React.useCallback(async () => {
     if (!authApi.isAuthenticated()) {
@@ -45,12 +42,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let ignore = false;
-    if (!authApi.isAuthenticated()) {
-      return;
-    }
+    const userRequest = authApi.isAuthenticated()
+      ? authApi.getMe()
+      : Promise.resolve(null);
 
-    authApi
-      .getMe()
+    userRequest
       .then((userData) => {
         if (!ignore) {
           setUser(userData);
@@ -103,4 +99,3 @@ export function useAuth() {
   }
   return context;
 }
-

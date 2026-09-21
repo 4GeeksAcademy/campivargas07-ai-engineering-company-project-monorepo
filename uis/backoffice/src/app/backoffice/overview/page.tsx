@@ -134,22 +134,22 @@ export default function OverviewPage() {
         <main className="container bo-main">
           <section className="kpi-grid">
             <article className="card">
-              <h3>Locales monitoreados</h3>
+              <h2>Locales monitoreados</h2>
               <p className="kpi-number">{locales.length}</p>
               <p className="kpi-sub">Colombia + USA</p>
             </article>
             <article className="card">
-              <h3>Ventas del periodo</h3>
+              <h2>Ventas del periodo</h2>
               <p className="kpi-number">{Math.round(totalVentasPeriodo).toLocaleString()}</p>
               <p className="kpi-sub">Suma por transformaciones.ts</p>
             </article>
             <article className="card">
-              <h3>Ticket promedio</h3>
+              <h2>Ticket promedio</h2>
               <p className="kpi-number kpi-good">{ticketPromedio.toFixed(2)}</p>
               <p className="kpi-sub">Calculado desde ventas reales</p>
             </article>
             <article className="card">
-              <h3>Alertas de stock</h3>
+              <h2>Alertas de stock</h2>
               <p className="kpi-number kpi-warn">{alertas.length}</p>
               <p className="kpi-sub">Ingredientes bajo minimo</p>
             </article>

@@ -8,6 +8,7 @@ import {
   getRestaurantLabel,
 } from '@/lib/constants/restaurants';
 import { inventoryApi, type InventoryOrder } from '@/lib/inventory';
+import { RestaurantSelect } from './restaurant-select';
 
 export function OrdersLedger() {
   const [selectedRestaurant, setSelectedRestaurant] = useState<string>(() => {
@@ -75,10 +76,10 @@ export function OrdersLedger() {
     };
   }, [selectedRestaurant, selectedType]);
 
-  const handleRestaurantChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+  const handleRestaurantChange = (restaurantId: string) => {
     setLoading(true);
     setError(null);
-    setSelectedRestaurant(e.target.value);
+    setSelectedRestaurant(restaurantId);
   };
 
   const handleTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -122,32 +123,13 @@ export function OrdersLedger() {
 
         {/* Filters */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.8rem', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-            <label htmlFor="ledger-local-filter" style={{ fontSize: '0.82rem', color: 'var(--muted)', fontWeight: 600 }}>
-              Sede:
-            </label>
-            <select
+          <RestaurantSelect
               id="ledger-local-filter"
+              label="Sede"
               value={selectedRestaurant}
-              onChange={handleRestaurantChange}
-              style={{
-                padding: '0.4rem 0.75rem',
-                borderRadius: '0.5rem',
-                background: '#07111f',
-                border: '1px solid var(--border)',
-                color: 'var(--fg)',
-                fontSize: '0.86rem',
-                outline: 'none',
-              }}
-            >
-              <option value="ALL">Todas las sedes</option>
-              {RESTAURANT_LOCATIONS.map((loc) => (
-                <option key={loc.id} value={loc.id}>
-                  {loc.nombre} ({loc.id})
-                </option>
-              ))}
-            </select>
-          </div>
+              onValueChange={handleRestaurantChange}
+              includeAll
+            />
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
             <label htmlFor="ledger-type-filter" style={{ fontSize: '0.82rem', color: 'var(--muted)', fontWeight: 600 }}>
