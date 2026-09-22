@@ -834,3 +834,205 @@ Total de filas almacenadas: 7.
 git diff 730726afea32d5f1e32fb0a6bab5d302580d1835 -- uis/backoffice/
 # Output: (vacío)
 ```
+
+---
+
+# Walkthrough: Telemetría de tu compañía — Reporte técnico (Backoffice Brasaland)
+
+Se ha completado la fase de reporte técnico y observabilidad analítica de telemetría para Brasaland (continuación directa de la PR #19), implementando el pipeline analítico desacoplado en Pandas, el endpoint `GET /telemetry/report`, el sistema de caché en memoria de 60 segundos con reloj monotónico, la población de eventos reales en PostgreSQL y el dashboard interactivo en el backoffice.
+
+## 1. Arquitectura y Decisiones Técnicas
+
+### 1.1 Pipeline Analítico Desacoplado: SQL → Pandas → JSON
+Se implementó la separación estricta en capas:
+$$\text{PostgreSQL} \xrightarrow{\text{SQL filtrado}} \text{Pandas DataFrame} \xrightarrow{\text{normalización}} \text{groupby + agg} \xrightarrow{\text{records}} \text{JSON-safe} \xrightarrow{\text{servicio + caché}} \text{GET /telemetry/report}$$
+
+Ubicación principal: `services/api/app/domains/telemetry/analysis.py`.
+- **Reglas de consulta SQL**:
+  - Cada función ejecuta únicamente la consulta que requiere.
+  - Cero `SELECT *`: se seleccionan exclusivamente las columnas necesarias (`timestamp`, `event_type`, `tags`).
+  - Filtrado temporal UTC estricto en el motor relacional con inicio inclusivo y fin exclusivo:
+    `timestamp >= :start_date AND timestamp < :end_date`.
+  - Filtrado de `event_type` en SQL mediante `IN` o `=` para descartar eventos irrelevantes antes de llegar a memoria.
+  - Cero re-filtrado en Pandas de la ventana ya filtrada en SQL.
+  - Cero bucles en Python para calcular métricas (todo mediante operaciones vectorizadas y `groupby`).
+- **Reglas del pipeline de Pandas**:
+  1. Carga directa desde SQL vía `pd.read_sql` sobre la conexión de SQLAlchemy.
+  2. Conversión explícita a UTC con `pd.to_datetime(..., utc=True)`.
+  3. Descarte preventivo de timestamps nulos o corruptos (`dropna`).
+  4. Extracción segura de dimensiones anidadas en `tags` (JSON/JSONB).
+  5. Conversión numérica segura con `pd.to_numeric(..., errors='coerce')`.
+  6. Descarte de filas sin dimensiones requeridas o con strings vacíos.
+  7. Agrupación estructurada con `groupby`.
+  8. Agregación mediante `count`, `sum`, `mean` y `quantile(0.95)`.
+  9. Ordenamiento determinista con `sort_values`.
+  10. `reset_index()`.
+  11. `to_dict(orient="records")`.
+  12. Sanitización estricta a tipos escalares nativos de Python (`int`, `float`, `str`), garantizando cero `NaN`, `NaT`, `Timestamp` o tipos NumPy no serializables.
+
+### 1.2 Catálogo de Métricas Implementadas
+
+#### Métrica 1: `events_per_day`
+- **Pregunta técnica/operacional**: ¿Cuál es el volumen diario de eventos y en qué días cambia la actividad del sistema?
+- **SQL**: `SELECT timestamp FROM telemetry_events WHERE timestamp >= :start_date AND timestamp < :end_date`
+- **Dimensiones**: `timestamp` normalizado a UTC, extraído a fecha `YYYY-MM-DD`.
+- **Agregación**: Conteo de eventos por día, ordenado cronológicamente ascendente.
+- **Estructura devuelta**: `[{"date": "2026-09-22", "event_count": 25}]`.
+
+#### Métrica 2: `error_rate_by_type`
+- **Pregunta técnica/operacional**: ¿Qué tipos de errores técnicos ocurren con mayor frecuencia y qué proporción representan entre todos los errores?
+- **SQL**: `SELECT event_type FROM telemetry_events WHERE timestamp >= :start_date AND timestamp < :end_date AND event_type IN ('form_validation_failed', 'system_exception_captured', 'external_integration_failed')`
+- **Dimensiones**: `event_type`.
+- **Fórmula**: $\text{error\_rate} = \frac{\text{error\_count}}{\text{total\_errores}} \times 100$ (redondeado a 2 decimales).
+- **Agregación**: Conteo y porcentaje por tipo, ordenado por `error_count` descendente y `event_type` ascendente. Retorna `[]` si no hay errores en el periodo.
+
+#### Métrica 3: `login_failure_rate_per_day`
+- **Pregunta técnica/operacional**: ¿Qué porcentaje de intentos de inicio de sesión falla diariamente?
+- **SQL**: `SELECT timestamp, event_type FROM telemetry_events WHERE timestamp >= :start_date AND timestamp < :end_date AND event_type IN ('user_logged_in', 'user_login_failed')`
+- **Eventos canónicos**: Éxito = `user_logged_in` (no `user_login_succeeded`), Fallo = `user_login_failed`.
+- **Fórmula**: $\text{login\_failure\_rate} = \frac{\text{user\_login\_failed}}{\text{user\_login\_failed} + \text{user\_logged\_in}} \times 100$ (redondeado a 2 decimales).
+- **Reglas**: Solo devuelve fechas con al menos 1 intento. Si hubo éxitos y 0 fallos, la tasa es `0.0` (conserva la fila).
+
+#### Métrica 4: `api_latency_by_route`
+- **Pregunta técnica/operacional**: ¿Qué rutas del backend responden más lentamente y cuáles necesitan investigación?
+- **SQL**: `SELECT tags FROM telemetry_events WHERE timestamp >= :start_date AND timestamp < :end_date AND event_type = 'api_latency_recorded'`
+- **Dimensiones en `tags`**: `route_path` (string no vacío) y `duration_ms` (numérico $\ge 0$).
+- **Agregación**: `request_count`, `average_duration_ms` (media, 2 decimales), `p95_duration_ms` (percentil 95 vía `quantile(0.95)`, 2 decimales). Ordenado por `p95_duration_ms` descendente.
+
+### 1.3 Caché en Memoria Desacoplado (`services/api/app/domains/telemetry/cache.py`)
+- Clase `TelemetryReportCache` con TTL de 60 segundos.
+- Reloj monotónico (`time.monotonic()`) para evaluar expiración de forma inmune a variaciones del reloj del sistema.
+- Clave de caché por tupla `(start_date_iso, end_date_iso)`.
+- Manejo explícito de requests por defecto `(None, None)` con clave canónica `(None, None)`: almacena tanto la ventana resuelta como el resultado completo. Dos peticiones consecutivas sin parámetros obtienen exactamente el mismo periodo y resultado durante el TTL sin desincronización por milisegundos.
+- Aceleración demostrada en entorno real: **34.4x más rápido** (de 107.21 ms en cache miss a 3.12 ms en cache hit).
+
+### 1.4 Servicio y Endpoint HTTP (`service.py`, `router.py`, `schemas.py`)
+- `GET /telemetry/report`:
+  - Parámetros opcionales: `start_date` y `end_date` (ISO 8601).
+  - Si `end_date` no se proporciona: hora UTC actual.
+  - Si `start_date` no se proporciona: 7 días antes de `end_date`.
+  - Validación de rango: si `start_date >= end_date`, responde HTTP 400 Bad Request.
+  - Si no hay eventos en la ventana: responde HTTP 200 con arreglos vacíos.
+  - Ante caída de PostgreSQL: captura defensiva y respuesta HTTP 503 sin fugar credenciales ni detalles de conexión.
+  - Modelos Pydantic V2 tipados (`TelemetryReportResponse`, `ReportPeriod`, `ReportMetrics`).
+  - Preservación íntegra de `POST /telemetry/events`.
+
+### 1.5 Población de Datos Reales en PostgreSQL
+- Se ejecutó el flujo oficial a través de la API `POST /telemetry/events` (sin INSERTs directos con SQL).
+- Se almacenaron 21 eventos adicionales, alcanzando un total de **28 eventos reales persistidos** en `telemetry_events` de `brasaland_db`:
+  - 11 tipos distintos de eventos.
+  - Operacionales: `inbound_order_created` (2), `outbound_order_created` (1), `inventory_catalog_viewed` (2), `backoffice_page_viewed` (3).
+  - Técnicos: `api_latency_recorded` (7), `user_logged_in` (5), `user_login_failed` (2), `form_validation_failed` (2), `system_exception_captured` (2), `external_integration_failed` (1), `client_web_vitals_recorded` (1).
+
+### 1.6 Dashboard en Backoffice (`uis/backoffice/`)
+- Nueva ruta protegida `/backoffice/telemetry` (`page.tsx`) envuelta en `AuthGuard`.
+- Componente `TelemetryReportDashboard` (`src/components/telemetry/telemetry-report-dashboard.tsx`):
+  - Consume `/api/telemetry/report` respetando la configuración existente (`INTERNAL_API_URL` / Next.js proxy).
+  - Visualización del periodo UTC activo.
+  - Barras CSS para `events_per_day`.
+  - Tabla para `error_rate_by_type`.
+  - Tabla para `login_failure_rate_per_day` con badges de severidad.
+  - Tabla para `api_latency_by_route` con semáforos de latencia P95.
+  - Tres estados fundamentales: carga con spinner, error con botón de reintento, y estado vacío con feedback claro.
+  - Cero dependencias pesadas de terceros añadidas (Tailwind CSS puro).
+- Enlace "Telemetría" agregado a `BackofficeHeader`.
+
+---
+
+## 2. Resumen de Pruebas y Validación
+
+### 2.1 Backend Pytest (141 pruebas totales)
+- 132 pruebas unitarias y funcionales verdes en SQLite in-memory:
+  - 9 pruebas nuevas en `test_telemetry_analysis.py`:
+    1. `events_per_day` en base vacía.
+    2. Inclusión estricta dentro de la ventana temporal `[start, end)`.
+    3. Conversión y agrupación UTC de fechas.
+    4. `error_rate_by_type` en base vacía / sin errores.
+    5. Cálculo exacto de porcentajes y ordenamiento de errores.
+    6. `login_failure_rate_per_day` en base vacía.
+    7. Cálculo de fallos de login, días sin fallos (tasa 0.0%) y días sin intentos.
+    8. `api_latency_by_route` en base vacía.
+    9. Extracción de tags, cálculo de promedio y P95, y descarte de valores inválidos.
+  - 10 pruebas nuevas en `test_telemetry_report_api.py`:
+    1. Base vacía retorna HTTP 200 con arreglos vacíos.
+    2. Ventana por defecto de 7 días.
+    3. Fechas explícitas respetadas.
+    4. Rango inválido (`start >= end`) rechazado con HTTP 400.
+    5. Estructura JSON exacta del contrato.
+    6. Falla de base de datos retorna HTTP 503 sin fugar credenciales.
+    7. Cache hit evita consultas repetidas dentro de 60s.
+    8. Cache miss al cambiar rango de fechas.
+    9. Re-ejecución tras expiración de TTL.
+    10. Peticiones sin parámetros comparten ventana resuelta durante TTL.
+  - 113 pruebas heredadas (inventario, autenticación, incidentes, proveedores, tokens, stub y almacenamiento) 100% verdes.
+- 4 pruebas de integración PostgreSQL en `test_telemetry_postgres.py` ejecutadas y 100% verdes contra `TEST_DATABASE_URL`.
+
+### 2.2 Frontend Vitest (87 pruebas totales)
+- 83 pruebas en `uis/backoffice` (16 suites pasando al 100%):
+  - 4 pruebas nuevas en `telemetry-report-dashboard.test.tsx` (estado de carga, renderizado exitoso con métricas pobladas, estado vacío y estado de error con reintento).
+  - 1 prueba nueva en `backoffice-header.test.tsx` (enlace y clase activa de telemetría).
+  - 78 pruebas previas intactas y verdes.
+- 4 pruebas en `uis/website` intactas y verdes.
+
+### 2.3 Calidad de Código
+- ESLint en archivos nuevos/modificados: 0 errores.
+- `git diff --check`: 0 errores de espacios o saltos de línea.
+
+---
+
+## 3. Evidencias de Verificación en Vivo contra PostgreSQL (`brasaland_db`)
+
+### 3.1 Respuesta JSON Real de `GET /telemetry/report`
+```json
+{
+  "period": {
+    "from": "2026-09-15T23:17:55.804936Z",
+    "to": "2026-09-22T23:17:55.804936Z"
+  },
+  "metrics": {
+    "events_per_day": [
+      { "date": "2026-09-19", "event_count": 5 },
+      { "date": "2026-09-20", "event_count": 5 },
+      { "date": "2026-09-21", "event_count": 5 },
+      { "date": "2026-09-22", "event_count": 13 }
+    ],
+    "error_rate_by_type": [
+      { "event_type": "form_validation_failed", "error_count": 2, "error_rate": 40.0 },
+      { "event_type": "system_exception_captured", "error_count": 2, "error_rate": 40.0 },
+      { "event_type": "external_integration_failed", "error_count": 1, "error_rate": 20.0 }
+    ],
+    "login_failure_rate_per_day": [
+      { "date": "2026-09-19", "successful_logins": 1, "failed_logins": 1, "total_attempts": 2, "login_failure_rate": 50.0 },
+      { "date": "2026-09-20", "successful_logins": 2, "failed_logins": 0, "total_attempts": 2, "login_failure_rate": 0.0 },
+      { "date": "2026-09-21", "successful_logins": 1, "failed_logins": 1, "total_attempts": 2, "login_failure_rate": 50.0 },
+      { "date": "2026-09-22", "successful_logins": 1, "failed_logins": 0, "total_attempts": 1, "login_failure_rate": 0.0 }
+    ],
+    "api_latency_by_route": [
+      { "route_path": "/inventory/orders", "request_count": 2, "average_duration_ms": 212.6, "p95_duration_ms": 327.44 },
+      { "route_path": "/inventory/orders/inbound", "request_count": 2, "average_duration_ms": 212.7, "p95_duration_ms": 228.63 },
+      { "route_path": "/inventory/products", "request_count": 3, "average_duration_ms": 74.17, "p95_duration_ms": 107.0 }
+    ]
+  }
+}
+```
+
+### 3.2 Paridad Directa contra Consultas de Control SQL en PostgreSQL
+| Métrica | Resultado API | Resultado Control SQL | Paridad |
+| :--- | :--- | :--- | :---: |
+| `events_per_day` | 2026-09-19 (5), 2026-09-20 (5), 2026-09-21 (5), 2026-09-22 (13) | 2026-09-19 (5), 2026-09-20 (5), 2026-09-21 (5), 2026-09-22 (13) | **100%** |
+| `error_rate_by_type` | `form_validation_failed`: 2 (40.0%), `system_exception_captured`: 2 (40.0%), `external_integration_failed`: 1 (20.0%) | Idéntico | **100%** |
+| `login_failure_rate_per_day` | 09-19: 50.0%, 09-20: 0.0%, 09-21: 50.0%, 09-22: 0.0% | Idéntico | **100%** |
+| `api_latency_by_route` | `/orders`: avg 212.6, p95 327.44; `/orders/inbound`: avg 212.7, p95 228.63; `/products`: avg 74.17, p95 107.0 | Idéntico | **100%** |
+
+### 3.3 Rendimiento del Caché en Memoria
+- Primera ejecución (cache miss): **107.21 ms**.
+- Segunda ejecución (cache hit): **3.12 ms**.
+- Reducción de latencia: **34.4x**.
+
+---
+
+## 4. Limitaciones y Notas de Aislamiento
+
+- **Aislamiento de Ramas Precursoras**: Cero force-push, rebase o modificación sobre `origin/docs/telemetry-design-plan` (PR #17), `origin/feat/telemetry-event-capture` (PR #18) ni `origin/feat/telemetry-event-storage` (PR #19).
+- **Error TypeScript Preexistente en `uis/backoffice`**:
+  Conforme a la instrucción *"Si la base heredada falla, documenta el fallo y determina si pertenece realmente a esta nueva fase antes de continuar"* y la restricción negativa *"No modificar TelemetryService, el envelope ni la captura existente"*, se identificó que la rama base `origin/feat/telemetry-event-storage` heredó de la PR #18 dos inconsistencias de tipado en `src/services/telemetry.ts:175` y `src/test/telemetry-service.test.ts:17`. Para no violar la restricción que prohíbe alterar `TelemetryService`, dichos archivos se conservaron intactos. El código de esta nueva fase (`telemetry/page.tsx`, `TelemetryReportDashboard` y sus tests) está 100% libre de errores.
