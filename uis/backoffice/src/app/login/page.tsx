@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
+import { telemetryService } from '@/services/telemetry';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -12,6 +13,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const { login, user, loading: authLoading } = useAuth();
   const router = useRouter();
+  const attemptCounterRef = useRef<number>(0);
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -26,8 +28,32 @@ export default function LoginPage() {
 
     try {
       await login(email, password);
+
+      // Track approved successful login event
+      try {
+        telemetryService.track('user_logged_in', {
+          auth_provider: 'local_password',
+          user_role: 'supervisor',
+          assigned_local_id: 'ALL',
+        });
+      } catch {
+        // Non-blocking
+      }
+
       router.push('/backoffice/overview');
     } catch (err) {
+      attemptCounterRef.current += 1;
+
+      // Track approved failed login event (Zero PII: no email or password)
+      try {
+        telemetryService.track('user_login_failed', {
+          failure_reason: 'invalid_credentials',
+          attempt_counter: attemptCounterRef.current,
+        });
+      } catch {
+        // Non-blocking
+      }
+
       setError(err instanceof Error ? err.message : 'Error al iniciar sesión');
     } finally {
       setLoading(false);

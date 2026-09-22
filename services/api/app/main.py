@@ -12,6 +12,7 @@ from app.domains.incidents.router import router as incidents_router
 from app.domains.operations.inventory.router import router as inventory_router
 from app.domains.procurement.suppliers.router import router as suppliers_router
 from app.domains.profiles.router import router as profiles_router
+from app.domains.telemetry.router import router as telemetry_router
 from app.domains.users.router import router as users_router
 
 
@@ -56,6 +57,7 @@ app.include_router(suppliers_router)
 app.include_router(analytics_incidents_router)
 app.include_router(incidents_router)
 app.include_router(inventory_router)
+app.include_router(telemetry_router)
 
 
 @app.get("/health", tags=["health"])

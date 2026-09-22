@@ -9,6 +9,7 @@ import {
   getRestaurantLabel,
 } from '@/lib/constants/restaurants';
 import { inventoryApi, InventoryApiError, type IngredientWithStock, type InventoryOrder } from '@/lib/inventory';
+import { telemetryService } from '@/services/telemetry';
 
 export function OutboundOrderForm() {
   const searchParams = useSearchParams();
@@ -33,6 +34,35 @@ export function OutboundOrderForm() {
 
   const fetchProductsIdRef = useRef(0);
   const checkStockIdRef = useRef(0);
+  const mountTimeRef = useRef<number>(0);
+  const quantityRef = useRef(quantity);
+  const submittedRef = useRef(false);
+
+  useEffect(() => {
+    mountTimeRef.current = Date.now();
+  }, []);
+
+  useEffect(() => {
+    quantityRef.current = quantity;
+  }, [quantity]);
+
+  useEffect(() => {
+    return () => {
+      const mountTime = mountTimeRef.current;
+      if (quantityRef.current.trim() !== '' && !submittedRef.current) {
+        const timeSpent = mountTime > 0 ? Math.max(0, Math.round((Date.now() - mountTime) / 1000)) : 0;
+        try {
+          telemetryService.track('form_abandoned', {
+            form_id: 'outbound_order_form',
+            fields_filled_count: 1,
+            time_spent_seconds: timeSpent,
+          });
+        } catch {
+          // Non-blocking
+        }
+      }
+    };
+  }, []);
 
   const reconcileStock = async (ingId: string, restId: string) => {
     setIsReconciling(true);
@@ -153,6 +183,19 @@ export function OutboundOrderForm() {
 
     if (currentStock !== null && parsedQty > currentStock) {
       setQuantityError(`Stock insuficiente: disponible ${currentStock} ${selectedIngredient?.unit_of_measure || ''}`);
+      try {
+        telemetryService.track('outbound_insufficient_stock_attempted', {
+          local_id: restaurantId,
+          ingredient_id: ingredientId,
+          ingredient_sku: selectedIngredient?.sku || 'UNKNOWN',
+          requested_quantity: parsedQty,
+          available_stock: currentStock,
+          unit_of_measure: selectedIngredient?.unit_of_measure || 'kg',
+          rejection_source: 'client_form_guard',
+        });
+      } catch {
+        // Non-blocking
+      }
       return;
     }
 
@@ -169,6 +212,7 @@ export function OutboundOrderForm() {
         quantity: parsedQty,
       });
 
+      submittedRef.current = true;
       setSuccessOrder(order);
       setQuantity('');
       setReconciliationWarning(null);
@@ -183,12 +227,41 @@ export function OutboundOrderForm() {
         )
       );
 
+      // Track approved business event
+      try {
+        telemetryService.track('outbound_order_created', {
+          order_id: order.id,
+          local_id: order.local_id,
+          ingredient_id: order.ingredient_id,
+          ingredient_sku: order.ingredient_sku,
+          quantity: order.quantity,
+          unit_of_measure: selectedIngredient?.unit_of_measure || 'kg',
+          previous_stock: baseStock,
+          resulting_stock: newStock,
+        });
+      } catch {
+        // Non-blocking
+      }
+
       // Reconcile with authoritative backend stock
       await reconcileStock(order.ingredient_id, order.local_id);
     } catch (err) {
       // Retain entered values so user can adjust amount
       if (err instanceof InventoryApiError && err.status === 400) {
         setQuantityError(err.detail);
+        try {
+          telemetryService.track('outbound_insufficient_stock_attempted', {
+            local_id: restaurantId,
+            ingredient_id: ingredientId,
+            ingredient_sku: selectedIngredient?.sku || 'UNKNOWN',
+            requested_quantity: parsedQty,
+            available_stock: currentStock ?? 0,
+            unit_of_measure: selectedIngredient?.unit_of_measure || 'kg',
+            rejection_source: 'backend_transaction_lock',
+          });
+        } catch {
+          // Non-blocking
+        }
       } else {
         setErrorMessage(err instanceof Error ? err.message : 'Error al registrar orden de salida');
       }

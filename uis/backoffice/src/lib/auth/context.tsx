@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import type { AuthMeResponse } from '../types/auth';
 import { authApi } from './api';
+import { telemetryService } from '@/services/telemetry';
 
 interface AuthContextType {
   user: AuthMeResponse | null;
@@ -66,6 +67,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ignore = true;
     };
   }, []);
+
+  useEffect(() => {
+    telemetryService.setUserContext(user ? user.id : null);
+  }, [user]);
 
   const login = async (email: string, password: string) => {
     await authApi.login({ email, password });

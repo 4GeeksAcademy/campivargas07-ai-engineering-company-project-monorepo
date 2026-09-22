@@ -9,6 +9,7 @@ import {
   getRestaurantLabel,
 } from '@/lib/constants/restaurants';
 import { inventoryApi, type IngredientWithStock, type InventoryOrder } from '@/lib/inventory';
+import { telemetryService } from '@/services/telemetry';
 
 export function InboundOrderForm() {
   const searchParams = useSearchParams();
@@ -139,6 +140,22 @@ export function InboundOrderForm() {
             : item
         )
       );
+
+      // Track approved business event
+      try {
+        telemetryService.track('inbound_order_created', {
+          order_id: order.id,
+          local_id: order.local_id,
+          ingredient_id: order.ingredient_id,
+          ingredient_sku: order.ingredient_sku,
+          quantity: order.quantity,
+          unit_of_measure: selectedIngredient?.unit_of_measure || 'kg',
+          previous_stock: baseStock,
+          resulting_stock: newStock,
+        });
+      } catch {
+        // Telemetry errors must never disrupt user flow
+      }
 
       // Reconcile with authoritative backend stock
       await reconcileStock(order.ingredient_id, order.local_id);
