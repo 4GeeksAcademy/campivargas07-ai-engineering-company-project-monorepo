@@ -1,0 +1,2092 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.brasaland.com/telemetry/v1/event-schemas.json",
+  "title": "Brasaland Unified Telemetry Event Schemas",
+  "description": "Canonical telemetry event contracts and envelope definitions for Brasaland multi-unit restaurant operations, inventory management, procurement, sales, authentication, performance, and diagnostics.",
+  "$defs": {
+    "envelopeEventId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Identificador único e idempotente del evento (UUID v4 generado en origen)."
+    },
+    "envelopeTimestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Marca de tiempo UTC en formato estricto ISO 8601 (e.g. 2026-09-22T14:30:00.000Z)."
+    },
+    "envelopeSessionId": {
+      "type": ["string", "null"],
+      "description": "Identificador de sesión activa en frontend/API, o null para procesos automatizados de background/worker."
+    },
+    "envelopeUserId": {
+      "type": ["string", "null"],
+      "format": "uuid",
+      "description": "Identificador interno seudonimizado del usuario (UUID estable de TinyDB/SQLModel), o null para eventos del sistema."
+    },
+    "envelopeSchemaVersion": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "Versión semántica del contrato telemétrico (SemVer, e.g. 1.0.0)."
+    },
+    "envelopeRequestId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Identificador de correlación distribuida propagado vía encabezado X-Request-ID o traceparent W3C."
+    },
+
+    "inbound_order_created": {
+      "type": "object",
+      "description": "Recepción física de ingredientes en sede operativa (orden de entrada al kardex).",
+      "properties": {
+        "eventId": { "$ref": "#/$defs/envelopeEventId" },
+        "timestamp": { "$ref": "#/$defs/envelopeTimestamp" },
+        "sessionId": { "$ref": "#/$defs/envelopeSessionId" },
+        "userId": { "$ref": "#/$defs/envelopeUserId" },
+        "event_type": { "const": "inbound_order_created" },
+        "entity_action": { "const": "created" },
+        "schemaVersion": { "$ref": "#/$defs/envelopeSchemaVersion" },
+        "requestId": { "$ref": "#/$defs/envelopeRequestId" },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "order_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Identificador único del registro de movimiento de entrada (IngredientEntry ID)."
+            },
+            "local_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Identificador de la sede receptora (e.g. MED-001, MIA-001)."
+            },
+            "ingredient_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Identificador UUID del ingrediente en el catálogo central."
+            },
+            "ingredient_sku": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Código SKU único del ingrediente (e.g. ING-001)."
+            },
+            "quantity": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Cantidad física ingresada, estrictamente positiva."
+            },
+            "unit_of_measure": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unidad de medida homologada (e.g. kg, litros, unidades)."
+            },
+            "previous_stock": {
+              "type": "number",
+              "description": "Saldo dinámico calculado antes de persistir la entrada."
+            },
+            "resulting_stock": {
+              "type": "number",
+              "description": "Saldo dinámico resultante tras la transacción."
+            }
+          },
+          "required": [
+            "order_id",
+            "local_id",
+            "ingredient_id",
+            "ingredient_sku",
+            "quantity",
+            "unit_of_measure",
+            "previous_stock",
+            "resulting_stock"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "eventId",
+        "timestamp",
+        "sessionId",
+        "userId",
+        "event_type",
+        "entity_action",
+        "schemaVersion",
+        "requestId",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+
+    "outbound_order_created": {
+      "type": "object",
+      "description": "Consumo operativo, despacho o merma de ingredientes en cocina (orden de salida del kardex).",
+      "properties": {
+        "eventId": { "$ref": "#/$defs/envelopeEventId" },
+        "timestamp": { "$ref": "#/$defs/envelopeTimestamp" },
+        "sessionId": { "$ref": "#/$defs/envelopeSessionId" },
+        "userId": { "$ref": "#/$defs/envelopeUserId" },
+        "event_type": { "const": "outbound_order_created" },
+        "entity_action": { "const": "created" },
+        "schemaVersion": { "$ref": "#/$defs/envelopeSchemaVersion" },
+        "requestId": { "$ref": "#/$defs/envelopeRequestId" },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "order_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Identificador único del registro de movimiento de salida (IngredientExit ID)."
+            },
+            "local_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Identificador de la sede donde ocurre el consumo (e.g. MED-001, MIA-001)."
+            },
+            "ingredient_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Identificador UUID del ingrediente en el catálogo central."
+            },
+            "ingredient_sku": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Código SKU único del ingrediente (e.g. ING-001)."
+            },
+            "quantity": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Cantidad física retirada, estrictamente positiva."
+            },
+            "unit_of_measure": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unidad de medida homologada (e.g. kg, litros, unidades)."
+            },
+            "previous_stock": {
+              "type": "number",
+              "description": "Saldo dinámico disponible verificado bajo bloqueo pesimista."
+            },
+            "resulting_stock": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Saldo dinámico remanente tras la salida (nunca negativo)."
+            }
+          },
+          "required": [
+            "order_id",
+            "local_id",
+            "ingredient_id",
+            "ingredient_sku",
+            "quantity",
+            "unit_of_measure",
+            "previous_stock",
+            "resulting_stock"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "eventId",
+        "timestamp",
+        "sessionId",
+        "userId",
+        "event_type",
+        "entity_action",
+        "schemaVersion",
+        "requestId",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+
+    "stock_threshold_triggered": {
+      "type": "object",
+      "description": "Alerta automática emitida cuando el saldo de un ingrediente en una sede alcanza o cae por debajo del umbral mínimo configurado.",
+      "properties": {
+        "eventId": { "$ref": "#/$defs/envelopeEventId" },
+        "timestamp": { "$ref": "#/$defs/envelopeTimestamp" },
+        "sessionId": { "$ref": "#/$defs/envelopeSessionId" },
+        "userId": { "$ref": "#/$defs/envelopeUserId" },
+        "event_type": { "const": "stock_threshold_triggered" },
+        "entity_action": { "const": "triggered" },
+        "schemaVersion": { "$ref": "#/$defs/envelopeSchemaVersion" },
+        "requestId": { "$ref": "#/$defs/envelopeRequestId" },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "local_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Identificador de la sede afectada."
+            },
+            "ingredient_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Identificador UUID del ingrediente en alerta."
+            },
+            "ingredient_sku": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Código SKU del ingrediente."
+            },
+            "current_stock": {
+              "type": "number",
+              "description": "Saldo disponible actual calculado en el local."
+            },
+            "minimum_stock": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Umbral de stock mínimo o de seguridad establecido en el catálogo."
+            },
+            "deficit": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Cantidad faltante para restituir el umbral mínimo (minimum_stock - current_stock)."
+            },
+            "unit_of_measure": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unidad de medida del ingrediente."
+            },
+            "severity": {
+              "type": "string",
+              "enum": ["critical_depletion", "minimum_reached"],
+              "description": "Gravedad: 'critical_depletion' si saldo <= 0; 'minimum_reached' si saldo <= minimum_stock."
+            }
+          },
+          "required": [
+            "local_id",
+            "ingredient_id",
+            "ingredient_sku",
+            "current_stock",
+            "minimum_stock",
+            "deficit",
+            "unit_of_measure",
+            "severity"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "eventId",
+        "timestamp",
+        "sessionId",
+        "userId",
+        "event_type",
+        "entity_action",
+        "schemaVersion",
+        "requestId",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+
+    "outbound_insufficient_stock_attempted": {
+      "type": "object",
+      "description": "Registro de intento de salida operativa cuando la cantidad requerida supera el stock disponible en la sede.",
+      "properties": {
+        "eventId": { "$ref": "#/$defs/envelopeEventId" },
+        "timestamp": { "$ref": "#/$defs/envelopeTimestamp" },
+        "sessionId": { "$ref": "#/$defs/envelopeSessionId" },
+        "userId": { "$ref": "#/$defs/envelopeUserId" },
+        "event_type": { "const": "outbound_insufficient_stock_attempted" },
+        "entity_action": { "const": "attempted" },
+        "schemaVersion": { "$ref": "#/$defs/envelopeSchemaVersion" },
+        "requestId": { "$ref": "#/$defs/envelopeRequestId" },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "local_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Identificador de la sede donde se intentó la salida."
+            },
+            "ingredient_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Identificador UUID del ingrediente solicitado."
+            },
+            "ingredient_sku": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Código SKU del ingrediente."
+            },
+            "requested_quantity": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Cantidad solicitada en el formulario o petición HTTP."
+            },
+            "available_stock": {
+              "type": "number",
+              "description": "Saldo real disponible al momento del intento."
+            },
+            "unit_of_measure": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unidad de medida del ingrediente."
+            },
+            "rejection_source": {
+              "type": "string",
+              "enum": ["client_form_guard", "backend_transaction_lock"],
+              "description": "Capa donde se interceptó el sobregiro: 'client_form_guard' en UI o 'backend_transaction_lock' en API."
+            }
+          },
+          "required": [
+            "local_id",
+            "ingredient_id",
+            "ingredient_sku",
+            "requested_quantity",
+            "available_stock",
+            "unit_of_measure",
+            "rejection_source"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "eventId",
+        "timestamp",
+        "sessionId",
+        "userId",
+        "event_type",
+        "entity_action",
+        "schemaVersion",
+        "requestId",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+
+    "direct_stock_edit_rejected": {
+      "type": "object",
+      "description": "Auditoría de rechazo ante intentos directos de sobrescribir saldos de inventario violando la arquitectura kardex.",
+      "properties": {
+        "eventId": { "$ref": "#/$defs/envelopeEventId" },
+        "timestamp": { "$ref": "#/$defs/envelopeTimestamp" },
+        "sessionId": { "$ref": "#/$defs/envelopeSessionId" },
+        "userId": { "$ref": "#/$defs/envelopeUserId" },
+        "event_type": { "const": "direct_stock_edit_rejected" },
+        "entity_action": { "const": "rejected" },
+        "schemaVersion": { "$ref": "#/$defs/envelopeSchemaVersion" },
+        "requestId": { "$ref": "#/$defs/envelopeRequestId" },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "target_resource": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Recurso o endpoint sobre el que se intentó la mutación no permitida."
+            },
+            "attempted_operation": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Método o acción intentada (e.g. PUT, PATCH, DIRECT_UPDATE)."
+            },
+            "rejection_reason": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Código o justificación de arquitectura (e.g. STOCK_MUTATION_MUST_BE_KARDEX_MOVEMENT)."
+            },
+            "local_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Identificador de la sede contextualizada en la petición."
+            }
+          },
+          "required": [
+            "target_resource",
+            "attempted_operation",
+            "rejection_reason",
+            "local_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "eventId",
+        "timestamp",
+        "sessionId",
+        "userId",
+        "event_type",
+        "entity_action",
+        "schemaVersion",
+        "requestId",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+
+    "inventory_catalog_viewed": {
+      "type": "object",
+      "description": "Visualización del catálogo de ingredientes y estado general de inventario por sede en el backoffice.",
+      "properties": {
+        "eventId": { "$ref": "#/$defs/envelopeEventId" },
+        "timestamp": { "$ref": "#/$defs/envelopeTimestamp" },
+        "sessionId": { "$ref": "#/$defs/envelopeSessionId" },
+        "userId": { "$ref": "#/$defs/envelopeUserId" },
+        "event_type": { "const": "inventory_catalog_viewed" },
+        "entity_action": { "const": "viewed" },
+        "schemaVersion": { "$ref": "#/$defs/envelopeSchemaVersion" },
+        "requestId": { "$ref": "#/$defs/envelopeRequestId" },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "local_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Sede seleccionada para la visualización del inventario."
+            },
+            "total_items_rendered": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Total de ingredientes listados en la vista."
+            },
+            "low_stock_items_count": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Cantidad de ingredientes en estado de stock bajo (<= mínimo)."
+            },
+            "depleted_items_count": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Cantidad de ingredientes agotados (<= 0)."
+            }
+          },
+          "required": [
+            "local_id",
+            "total_items_rendered",
+            "low_stock_items_count",
+            "depleted_items_count"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "eventId",
+        "timestamp",
+        "sessionId",
+        "userId",
+        "event_type",
+        "entity_action",
+        "schemaVersion",
+        "requestId",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+
+    "ingredient_detail_queried": {
+      "type": "object",
+      "description": "Consulta granular de la ficha y balance de stock de un ingrediente específico.",
+      "properties": {
+        "eventId": { "$ref": "#/$defs/envelopeEventId" },
+        "timestamp": { "$ref": "#/$defs/envelopeTimestamp" },
+        "sessionId": { "$ref": "#/$defs/envelopeSessionId" },
+        "userId": { "$ref": "#/$defs/envelopeUserId" },
+        "event_type": { "const": "ingredient_detail_queried" },
+        "entity_action": { "const": "queried" },
+        "schemaVersion": { "$ref": "#/$defs/envelopeSchemaVersion" },
+        "requestId": { "$ref": "#/$defs/envelopeRequestId" },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "local_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Sede operativa consultada."
+            },
+            "ingredient_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Identificador UUID del ingrediente consultado."
+            },
+            "ingredient_sku": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Código SKU del ingrediente."
+            },
+            "current_stock": {
+              "type": "number",
+              "description": "Stock disponible retornado para la sede."
+            },
+            "unit_of_measure": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Unidad de medida del ingrediente."
+            }
+          },
+          "required": [
+            "local_id",
+            "ingredient_id",
+            "ingredient_sku",
+            "current_stock",
+            "unit_of_measure"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "eventId",
+        "timestamp",
+        "sessionId",
+        "userId",
+        "event_type",
+        "entity_action",
+        "schemaVersion",
+        "requestId",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+
+    "inventory_filter_applied": {
+      "type": "object",
+      "description": "Aplicación de filtros de búsqueda o categoría en el catálogo de productos o ledger de órdenes.",
+      "properties": {
+        "eventId": { "$ref": "#/$defs/envelopeEventId" },
+        "timestamp": { "$ref": "#/$defs/envelopeTimestamp" },
+        "sessionId": { "$ref": "#/$defs/envelopeSessionId" },
+        "userId": { "$ref": "#/$defs/envelopeUserId" },
+        "event_type": { "const": "inventory_filter_applied" },
+        "entity_action": { "const": "applied" },
+        "schemaVersion": { "$ref": "#/$defs/envelopeSchemaVersion" },
+        "requestId": { "$ref": "#/$defs/envelopeRequestId" },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "local_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Sede activa donde se aplicó el filtro."
+            },
+            "category_filter": {
+              "type": "string",
+              "description": "Categoría seleccionada en el filtro (e.g. carne, verdura, todas)."
+            },
+            "search_term_length": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Longitud de caracteres del término de búsqueda ingresado (sin capturar el texto para proteger privacidad)."
+            },
+            "results_count": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Número de registros devueltos por el filtro."
+            }
+          },
+          "required": [
+            "local_id",
+            "category_filter",
+            "search_term_length",
+            "results_count"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "eventId",
+        "timestamp",
+        "sessionId",
+        "userId",
+        "event_type",
+        "entity_action",
+        "schemaVersion",
+        "requestId",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+
+    "purchase_order_suggested": {
+      "type": "object",
+      "description": "Generación automatizada de propuesta de orden de compra calculada por el agente de IA de reabastecimiento.",
+      "properties": {
+        "eventId": { "$ref": "#/$defs/envelopeEventId" },
+        "timestamp": { "$ref": "#/$defs/envelopeTimestamp" },
+        "sessionId": { "$ref": "#/$defs/envelopeSessionId" },
+        "userId": { "$ref": "#/$defs/envelopeUserId" },
+        "event_type": { "const": "purchase_order_suggested" },
+        "entity_action": { "const": "suggested" },
+        "schemaVersion": { "$ref": "#/$defs/envelopeSchemaVersion" },
+        "requestId": { "$ref": "#/$defs/envelopeRequestId" },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "suggestion_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Identificador único de la propuesta de compra generada."
+            },
+            "local_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Sede destino del reabastecimiento propuesto."
+            },
+            "supplier_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Identificador del proveedor sugerido."
+            },
+            "items_count": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Número de líneas o ingredientes incluidos en la propuesta."
+            },
+            "total_estimated_amount": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Valor monetario estimado total de la orden."
+            },
+            "currency": {
+              "type": "string",
+              "enum": ["COP", "USD"],
+              "description": "Moneda oficial de la orden según el mercado de la sede."
+            },
+            "trigger_reason": {
+              "type": "string",
+              "enum": ["scheduled_replenishment", "stockout_prevention", "manual_generation"],
+              "description": "Razón del disparo de la sugerencia."
+            }
+          },
+          "required": [
+            "suggestion_id",
+            "local_id",
+            "supplier_id",
+            "items_count",
+            "total_estimated_amount",
+            "currency",
+            "trigger_reason"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "eventId",
+        "timestamp",
+        "sessionId",
+        "userId",
+        "event_type",
+        "entity_action",
+        "schemaVersion",
+        "requestId",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+
+    "purchase_order_approved": {
+      "type": "object",
+      "description": "Aprobación formal de una orden de compra por parte del supervisor de restaurante.",
+      "properties": {
+        "eventId": { "$ref": "#/$defs/envelopeEventId" },
+        "timestamp": { "$ref": "#/$defs/envelopeTimestamp" },
+        "sessionId": { "$ref": "#/$defs/envelopeSessionId" },
+        "userId": { "$ref": "#/$defs/envelopeUserId" },
+        "event_type": { "const": "purchase_order_approved" },
+        "entity_action": { "const": "approved" },
+        "schemaVersion": { "$ref": "#/$defs/envelopeSchemaVersion" },
+        "requestId": { "$ref": "#/$defs/envelopeRequestId" },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "order_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Identificador de la orden de compra aprobada."
+            },
+            "local_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Sede donde se aprueba la compra."
+            },
+            "supplier_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Identificador del proveedor adjudicado."
+            },
+            "total_approved_amount": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Monto económico final aprobado."
+            },
+            "currency": {
+              "type": "string",
+              "enum": ["COP", "USD"],
+              "description": "Moneda de la orden (COP o USD)."
+            },
+            "approver_role": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Rol operativo del usuario aprobador (e.g. supervisor, administrador)."
+            },
+            "approval_latency_seconds": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Tiempo transcurrido en segundos entre la sugerencia y la aprobación efectiva."
+            }
+          },
+          "required": [
+            "order_id",
+            "local_id",
+            "supplier_id",
+            "total_approved_amount",
+            "currency",
+            "approver_role",
+            "approval_latency_seconds"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "eventId",
+        "timestamp",
+        "sessionId",
+        "userId",
+        "event_type",
+        "entity_action",
+        "schemaVersion",
+        "requestId",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+
+    "purchase_order_dispatched": {
+      "type": "object",
+      "description": "Transmisión y despacho formal de la orden de compra aprobada hacia el proveedor externo.",
+      "properties": {
+        "eventId": { "$ref": "#/$defs/envelopeEventId" },
+        "timestamp": { "$ref": "#/$defs/envelopeTimestamp" },
+        "sessionId": { "$ref": "#/$defs/envelopeSessionId" },
+        "userId": { "$ref": "#/$defs/envelopeUserId" },
+        "event_type": { "const": "purchase_order_dispatched" },
+        "entity_action": { "const": "dispatched" },
+        "schemaVersion": { "$ref": "#/$defs/envelopeSchemaVersion" },
+        "requestId": { "$ref": "#/$defs/envelopeRequestId" },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "order_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Identificador de la orden despachada."
+            },
+            "local_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Sede destino del pedido."
+            },
+            "supplier_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Identificador del proveedor receptor."
+            },
+            "dispatch_channel": {
+              "type": "string",
+              "enum": ["email", "edi_api", "portal"],
+              "description": "Canal técnico empleado para enviar la orden."
+            },
+            "estimated_delivery_date": {
+              "type": "string",
+              "format": "date",
+              "description": "Fecha estimada de entrega informada (YYYY-MM-DD)."
+            }
+          },
+          "required": [
+            "order_id",
+            "local_id",
+            "supplier_id",
+            "dispatch_channel",
+            "estimated_delivery_date"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "eventId",
+        "timestamp",
+        "sessionId",
+        "userId",
+        "event_type",
+        "entity_action",
+        "schemaVersion",
+        "requestId",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+
+    "purchase_order_received": {
+      "type": "object",
+      "description": "Confirmación de entrega física y cierre de orden de compra en restaurante.",
+      "properties": {
+        "eventId": { "$ref": "#/$defs/envelopeEventId" },
+        "timestamp": { "$ref": "#/$defs/envelopeTimestamp" },
+        "sessionId": { "$ref": "#/$defs/envelopeSessionId" },
+        "userId": { "$ref": "#/$defs/envelopeUserId" },
+        "event_type": { "const": "purchase_order_received" },
+        "entity_action": { "const": "received" },
+        "schemaVersion": { "$ref": "#/$defs/envelopeSchemaVersion" },
+        "requestId": { "$ref": "#/$defs/envelopeRequestId" },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "order_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Identificador de la orden de compra recibida."
+            },
+            "local_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Sede donde se recibió el despacho."
+            },
+            "supplier_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Identificador del proveedor."
+            },
+            "fulfillment_status": {
+              "type": "string",
+              "enum": ["complete", "partial", "discrepant"],
+              "description": "Estado del cumplimiento en la recepción física."
+            },
+            "lead_time_hours": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Tiempo total transcurrido en horas desde el despacho hasta la recepción física."
+            }
+          },
+          "required": [
+            "order_id",
+            "local_id",
+            "supplier_id",
+            "fulfillment_status",
+            "lead_time_hours"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "eventId",
+        "timestamp",
+        "sessionId",
+        "userId",
+        "event_type",
+        "entity_action",
+        "schemaVersion",
+        "requestId",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+
+    "purchase_order_rejected": {
+      "type": "object",
+      "description": "Rechazo o cancelación de una propuesta u orden de compra por el supervisor o dirección.",
+      "properties": {
+        "eventId": { "$ref": "#/$defs/envelopeEventId" },
+        "timestamp": { "$ref": "#/$defs/envelopeTimestamp" },
+        "sessionId": { "$ref": "#/$defs/envelopeSessionId" },
+        "userId": { "$ref": "#/$defs/envelopeUserId" },
+        "event_type": { "const": "purchase_order_rejected" },
+        "entity_action": { "const": "rejected" },
+        "schemaVersion": { "$ref": "#/$defs/envelopeSchemaVersion" },
+        "requestId": { "$ref": "#/$defs/envelopeRequestId" },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "order_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Identificador de la orden rechazada."
+            },
+            "local_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Sede involucrada."
+            },
+            "supplier_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Identificador del proveedor."
+            },
+            "rejection_reason_code": {
+              "type": "string",
+              "enum": [
+                "budget_limit_exceeded",
+                "duplicate_order",
+                "supplier_unavailable",
+                "manual_cancellation"
+              ],
+              "description": "Código tipificado del motivo de cancelación/rechazo."
+            }
+          },
+          "required": [
+            "order_id",
+            "local_id",
+            "supplier_id",
+            "rejection_reason_code"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "eventId",
+        "timestamp",
+        "sessionId",
+        "userId",
+        "event_type",
+        "entity_action",
+        "schemaVersion",
+        "requestId",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+
+    "supplier_price_variance_detected": {
+      "type": "object",
+      "description": "Detección de discrepancia o variación de precio unitario facturado frente a contrato marco de compras.",
+      "properties": {
+        "eventId": { "$ref": "#/$defs/envelopeEventId" },
+        "timestamp": { "$ref": "#/$defs/envelopeTimestamp" },
+        "sessionId": { "$ref": "#/$defs/envelopeSessionId" },
+        "userId": { "$ref": "#/$defs/envelopeUserId" },
+        "event_type": { "const": "supplier_price_variance_detected" },
+        "entity_action": { "const": "detected" },
+        "schemaVersion": { "$ref": "#/$defs/envelopeSchemaVersion" },
+        "requestId": { "$ref": "#/$defs/envelopeRequestId" },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "supplier_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Identificador del proveedor involucrado."
+            },
+            "ingredient_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Identificador UUID del ingrediente con precio discrepante."
+            },
+            "ingredient_sku": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Código SKU del ingrediente."
+            },
+            "contracted_unit_price": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Precio unitario pactado previamente en contrato o catálogo."
+            },
+            "invoiced_unit_price": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "Precio unitario real facturado por el proveedor."
+            },
+            "variance_percentage": {
+              "type": "number",
+              "description": "Porcentaje de variación relativo ((invoiced - contracted) / contracted * 100)."
+            },
+            "currency": {
+              "type": "string",
+              "enum": ["COP", "USD"],
+              "description": "Moneda de la transacción."
+            }
+          },
+          "required": [
+            "supplier_id",
+            "ingredient_id",
+            "ingredient_sku",
+            "contracted_unit_price",
+            "invoiced_unit_price",
+            "variance_percentage",
+            "currency"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "eventId",
+        "timestamp",
+        "sessionId",
+        "userId",
+        "event_type",
+        "entity_action",
+        "schemaVersion",
+        "requestId",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+
+    "consolidated_procurement_report_generated": {
+      "type": "object",
+      "description": "Generación del reporte consolidado semanal de compras de la cadena para soporte de negociación por volumen.",
+      "properties": {
+        "eventId": { "$ref": "#/$defs/envelopeEventId" },
+        "timestamp": { "$ref": "#/$defs/envelopeTimestamp" },
+        "sessionId": { "$ref": "#/$defs/envelopeSessionId" },
+        "userId": { "$ref": "#/$defs/envelopeUserId" },
+        "event_type": { "const": "consolidated_procurement_report_generated" },
+        "entity_action": { "const": "generated" },
+        "schemaVersion": { "$ref": "#/$defs/envelopeSchemaVersion" },
+        "requestId": { "$ref": "#/$defs/envelopeRequestId" },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "reporting_period": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-W[0-9]{2}$",
+              "description": "Semana ISO de reporte (e.g. 2026-W38)."
+            },
+            "total_spend_cop": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Gasto total consolidado en pesos colombianos (sedes Colombia)."
+            },
+            "total_spend_usd": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Gasto total consolidado en dólares estadounidenses (sedes Florida)."
+            },
+            "total_orders_count": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Número total de órdenes de compra emitidas en el ciclo."
+            },
+            "active_suppliers_count": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Cantidad de proveedores activos contratados en el período."
+            }
+          },
+          "required": [
+            "reporting_period",
+            "total_spend_cop",
+            "total_spend_usd",
+            "total_orders_count",
+            "active_suppliers_count"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "eventId",
+        "timestamp",
+        "sessionId",
+        "userId",
+        "event_type",
+        "entity_action",
+        "schemaVersion",
+        "requestId",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+
+    "daily_sales_recorded": {
+      "type": "object",
+      "description": "Consolidación de ventas del cierre de jornada diaria por sede en COP o USD.",
+      "properties": {
+        "eventId": { "$ref": "#/$defs/envelopeEventId" },
+        "timestamp": { "$ref": "#/$defs/envelopeTimestamp" },
+        "sessionId": { "$ref": "#/$defs/envelopeSessionId" },
+        "userId": { "$ref": "#/$defs/envelopeUserId" },
+        "event_type": { "const": "daily_sales_recorded" },
+        "entity_action": { "const": "recorded" },
+        "schemaVersion": { "$ref": "#/$defs/envelopeSchemaVersion" },
+        "requestId": { "$ref": "#/$defs/envelopeRequestId" },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "local_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Sede que registra el cierre de ventas."
+            },
+            "business_date": {
+              "type": "string",
+              "format": "date",
+              "description": "Fecha contable del turno (YYYY-MM-DD)."
+            },
+            "total_sales_amount": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Importe total bruto facturado."
+            },
+            "currency": {
+              "type": "string",
+              "enum": ["COP", "USD"],
+              "description": "Moneda oficial del restaurante."
+            },
+            "total_covers": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Número de comensales atendidos."
+            },
+            "average_ticket": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Ticket promedio calculado (total_sales_amount / total_covers)."
+            },
+            "lines_count": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Cantidad de platos/líneas de venta agregadas en el día."
+            }
+          },
+          "required": [
+            "local_id",
+            "business_date",
+            "total_sales_amount",
+            "currency",
+            "total_covers",
+            "average_ticket",
+            "lines_count"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "eventId",
+        "timestamp",
+        "sessionId",
+        "userId",
+        "event_type",
+        "entity_action",
+        "schemaVersion",
+        "requestId",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+
+    "pos_order_completed": {
+      "type": "object",
+      "description": "Registro de comanda o ticket individual completado en el terminal de punto de venta (POS).",
+      "properties": {
+        "eventId": { "$ref": "#/$defs/envelopeEventId" },
+        "timestamp": { "$ref": "#/$defs/envelopeTimestamp" },
+        "sessionId": { "$ref": "#/$defs/envelopeSessionId" },
+        "userId": { "$ref": "#/$defs/envelopeUserId" },
+        "event_type": { "const": "pos_order_completed" },
+        "entity_action": { "const": "recorded" },
+        "schemaVersion": { "$ref": "#/$defs/envelopeSchemaVersion" },
+        "requestId": { "$ref": "#/$defs/envelopeRequestId" },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "local_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Sede donde se emitió el ticket."
+            },
+            "order_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Identificador único del ticket generado por el POS."
+            },
+            "total_amount": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Importe total del ticket en moneda local."
+            },
+            "currency": {
+              "type": "string",
+              "enum": ["COP", "USD"],
+              "description": "Moneda de la transacción."
+            },
+            "covers": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Número de personas en la comanda."
+            },
+            "items_count": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Cantidad de artículos facturados en el ticket."
+            }
+          },
+          "required": [
+            "local_id",
+            "order_id",
+            "total_amount",
+            "currency",
+            "covers",
+            "items_count"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "eventId",
+        "timestamp",
+        "sessionId",
+        "userId",
+        "event_type",
+        "entity_action",
+        "schemaVersion",
+        "requestId",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+
+    "location_zero_sales_alert_triggered": {
+      "type": "object",
+      "description": "Alerta automática emitida cuando un restaurante abierto no reporta ventas durante un período crítico.",
+      "properties": {
+        "eventId": { "$ref": "#/$defs/envelopeEventId" },
+        "timestamp": { "$ref": "#/$defs/envelopeTimestamp" },
+        "sessionId": { "$ref": "#/$defs/envelopeSessionId" },
+        "userId": { "$ref": "#/$defs/envelopeUserId" },
+        "event_type": { "const": "location_zero_sales_alert_triggered" },
+        "entity_action": { "const": "triggered" },
+        "schemaVersion": { "$ref": "#/$defs/envelopeSchemaVersion" },
+        "requestId": { "$ref": "#/$defs/envelopeRequestId" },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "local_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Identificador de la sede sin actividad detectada."
+            },
+            "operating_minutes_without_sales": {
+              "type": "integer",
+              "minimum": 15,
+              "description": "Minutos transcurridos en horario operativo sin registrar ningún ticket."
+            },
+            "operating_hour": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 23,
+              "description": "Hora del día local (0-23) al dispararse la alerta."
+            },
+            "expected_minimum_covers": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Comensales esperados según histórico de demanda para dicha hora."
+            }
+          },
+          "required": [
+            "local_id",
+            "operating_minutes_without_sales",
+            "operating_hour",
+            "expected_minimum_covers"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "eventId",
+        "timestamp",
+        "sessionId",
+        "userId",
+        "event_type",
+        "entity_action",
+        "schemaVersion",
+        "requestId",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+
+    "pos_heartbeat_recorded": {
+      "type": "object",
+      "description": "Señal periódica de conectividad y estado de salud enviada desde el terminal de caja del restaurante.",
+      "properties": {
+        "eventId": { "$ref": "#/$defs/envelopeEventId" },
+        "timestamp": { "$ref": "#/$defs/envelopeTimestamp" },
+        "sessionId": { "$ref": "#/$defs/envelopeSessionId" },
+        "userId": { "$ref": "#/$defs/envelopeUserId" },
+        "event_type": { "const": "pos_heartbeat_recorded" },
+        "entity_action": { "const": "recorded" },
+        "schemaVersion": { "$ref": "#/$defs/envelopeSchemaVersion" },
+        "requestId": { "$ref": "#/$defs/envelopeRequestId" },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "local_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Sede donde se ubica el terminal."
+            },
+            "terminal_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Identificador técnico del hardware o caja POS."
+            },
+            "connectivity_status": {
+              "type": "string",
+              "enum": ["online", "degraded", "offline_sync"],
+              "description": "Estado de conexión a la red de Brasaland."
+            }
+          },
+          "required": [
+            "local_id",
+            "terminal_id",
+            "connectivity_status"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "eventId",
+        "timestamp",
+        "sessionId",
+        "userId",
+        "event_type",
+        "entity_action",
+        "schemaVersion",
+        "requestId",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+
+    "user_logged_in": {
+      "type": "object",
+      "description": "Autenticación exitosa de un usuario interno en backoffice o API operativa.",
+      "properties": {
+        "eventId": { "$ref": "#/$defs/envelopeEventId" },
+        "timestamp": { "$ref": "#/$defs/envelopeTimestamp" },
+        "sessionId": { "$ref": "#/$defs/envelopeSessionId" },
+        "userId": { "$ref": "#/$defs/envelopeUserId" },
+        "event_type": { "const": "user_logged_in" },
+        "entity_action": { "const": "logged_in" },
+        "schemaVersion": { "$ref": "#/$defs/envelopeSchemaVersion" },
+        "requestId": { "$ref": "#/$defs/envelopeRequestId" },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "auth_provider": {
+              "type": "string",
+              "enum": ["local_password", "jwt_refresh"],
+              "description": "Mecanismo técnico de autenticación."
+            },
+            "user_role": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Rol asignado al usuario (e.g. supervisor, administrador, cocinero)."
+            },
+            "assigned_local_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Sede principal asignada al usuario o 'ALL' para personal directivo."
+            }
+          },
+          "required": [
+            "auth_provider",
+            "user_role",
+            "assigned_local_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "eventId",
+        "timestamp",
+        "sessionId",
+        "userId",
+        "event_type",
+        "entity_action",
+        "schemaVersion",
+        "requestId",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+
+    "user_login_failed": {
+      "type": "object",
+      "description": "Intento fallido de autenticación en la plataforma por credenciales inválidas o bloqueo.",
+      "properties": {
+        "eventId": { "$ref": "#/$defs/envelopeEventId" },
+        "timestamp": { "$ref": "#/$defs/envelopeTimestamp" },
+        "sessionId": { "$ref": "#/$defs/envelopeSessionId" },
+        "userId": { "$ref": "#/$defs/envelopeUserId" },
+        "event_type": { "const": "user_login_failed" },
+        "entity_action": { "const": "failed" },
+        "schemaVersion": { "$ref": "#/$defs/envelopeSchemaVersion" },
+        "requestId": { "$ref": "#/$defs/envelopeRequestId" },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "failure_reason": {
+              "type": "string",
+              "enum": ["invalid_credentials", "account_locked", "inactive_user", "rate_limited"],
+              "description": "Causa tipificada del fallo de acceso (sin divulgar si el email existe)."
+            },
+            "attempt_counter": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Número correlativo de intento fallido en la ventana de tiempo."
+            }
+          },
+          "required": [
+            "failure_reason",
+            "attempt_counter"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "eventId",
+        "timestamp",
+        "sessionId",
+        "userId",
+        "event_type",
+        "entity_action",
+        "schemaVersion",
+        "requestId",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+
+    "session_expired": {
+      "type": "object",
+      "description": "Cierre o caducidad de una sesión de usuario por expiración del token JWT o inactividad.",
+      "properties": {
+        "eventId": { "$ref": "#/$defs/envelopeEventId" },
+        "timestamp": { "$ref": "#/$defs/envelopeTimestamp" },
+        "sessionId": { "$ref": "#/$defs/envelopeSessionId" },
+        "userId": { "$ref": "#/$defs/envelopeUserId" },
+        "event_type": { "const": "session_expired" },
+        "entity_action": { "const": "expired" },
+        "schemaVersion": { "$ref": "#/$defs/envelopeSchemaVersion" },
+        "requestId": { "$ref": "#/$defs/envelopeRequestId" },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "expiry_reason": {
+              "type": "string",
+              "enum": ["token_jwt_expired", "idle_timeout", "forced_logout"],
+              "description": "Motivo del vencimiento de la sesión."
+            },
+            "session_duration_seconds": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Duración total acumulada de la sesión en segundos."
+            }
+          },
+          "required": [
+            "expiry_reason",
+            "session_duration_seconds"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "eventId",
+        "timestamp",
+        "sessionId",
+        "userId",
+        "event_type",
+        "entity_action",
+        "schemaVersion",
+        "requestId",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+
+    "permission_denied": {
+      "type": "object",
+      "description": "Intento de acceso a un recurso, endpoint o acción sin contar con los privilegios RBAC suficientes (HTTP 403).",
+      "properties": {
+        "eventId": { "$ref": "#/$defs/envelopeEventId" },
+        "timestamp": { "$ref": "#/$defs/envelopeTimestamp" },
+        "sessionId": { "$ref": "#/$defs/envelopeSessionId" },
+        "userId": { "$ref": "#/$defs/envelopeUserId" },
+        "event_type": { "const": "permission_denied" },
+        "entity_action": { "const": "denied" },
+        "schemaVersion": { "$ref": "#/$defs/envelopeSchemaVersion" },
+        "requestId": { "$ref": "#/$defs/envelopeRequestId" },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "required_role": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Rol mínimo requerido para la acción intentada."
+            },
+            "user_role": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Rol actual del usuario solicitante."
+            },
+            "target_endpoint": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Ruta de la API o vista interna protegida."
+            },
+            "http_method": {
+              "type": "string",
+              "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"],
+              "description": "Método HTTP ejecutado."
+            }
+          },
+          "required": [
+            "required_role",
+            "user_role",
+            "target_endpoint",
+            "http_method"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "eventId",
+        "timestamp",
+        "sessionId",
+        "userId",
+        "event_type",
+        "entity_action",
+        "schemaVersion",
+        "requestId",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+
+    "password_reset_requested": {
+      "type": "object",
+      "description": "Solicitud de recuperación y restablecimiento de contraseña generada en la plataforma.",
+      "properties": {
+        "eventId": { "$ref": "#/$defs/envelopeEventId" },
+        "timestamp": { "$ref": "#/$defs/envelopeTimestamp" },
+        "sessionId": { "$ref": "#/$defs/envelopeSessionId" },
+        "userId": { "$ref": "#/$defs/envelopeUserId" },
+        "event_type": { "const": "password_reset_requested" },
+        "entity_action": { "const": "requested" },
+        "schemaVersion": { "$ref": "#/$defs/envelopeSchemaVersion" },
+        "requestId": { "$ref": "#/$defs/envelopeRequestId" },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "delivery_channel": {
+              "type": "string",
+              "enum": ["email"],
+              "description": "Canal de entrega del enlace seguro."
+            },
+            "request_outcome": {
+              "type": "string",
+              "enum": ["dispatched", "suppressed_unknown_account"],
+              "description": "Resultado interno controlado (la API responde 200 idéntico por seguridad)."
+            }
+          },
+          "required": [
+            "delivery_channel",
+            "request_outcome"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "eventId",
+        "timestamp",
+        "sessionId",
+        "userId",
+        "event_type",
+        "entity_action",
+        "schemaVersion",
+        "requestId",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+
+    "api_latency_recorded": {
+      "type": "object",
+      "description": "Métrica de rendimiento y tiempo de respuesta en los endpoints del backend FastAPI.",
+      "properties": {
+        "eventId": { "$ref": "#/$defs/envelopeEventId" },
+        "timestamp": { "$ref": "#/$defs/envelopeTimestamp" },
+        "sessionId": { "$ref": "#/$defs/envelopeSessionId" },
+        "userId": { "$ref": "#/$defs/envelopeUserId" },
+        "event_type": { "const": "api_latency_recorded" },
+        "entity_action": { "const": "recorded" },
+        "schemaVersion": { "$ref": "#/$defs/envelopeSchemaVersion" },
+        "requestId": { "$ref": "#/$defs/envelopeRequestId" },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "route_path": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Plantilla normalizada de la ruta ejecutada (e.g. /inventory/products/{id})."
+            },
+            "http_method": {
+              "type": "string",
+              "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"],
+              "description": "Método HTTP de la petición."
+            },
+            "status_code": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 599,
+              "description": "Código de estado HTTP devuelto."
+            },
+            "duration_ms": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Tiempo total de procesamiento de la petición en milisegundos."
+            },
+            "db_query_count": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Número de consultas SQL ejecutadas en la transacción (control N+1)."
+            }
+          },
+          "required": [
+            "route_path",
+            "http_method",
+            "status_code",
+            "duration_ms",
+            "db_query_count"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "eventId",
+        "timestamp",
+        "sessionId",
+        "userId",
+        "event_type",
+        "entity_action",
+        "schemaVersion",
+        "requestId",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+
+    "client_web_vitals_recorded": {
+      "type": "object",
+      "description": "Captura de métricas Core Web Vitals en clientes web y móviles del backoffice.",
+      "properties": {
+        "eventId": { "$ref": "#/$defs/envelopeEventId" },
+        "timestamp": { "$ref": "#/$defs/envelopeTimestamp" },
+        "sessionId": { "$ref": "#/$defs/envelopeSessionId" },
+        "userId": { "$ref": "#/$defs/envelopeUserId" },
+        "event_type": { "const": "client_web_vitals_recorded" },
+        "entity_action": { "const": "recorded" },
+        "schemaVersion": { "$ref": "#/$defs/envelopeSchemaVersion" },
+        "requestId": { "$ref": "#/$defs/envelopeRequestId" },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "page_route": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Ruta de la página en Next.js (e.g. /backoffice/inventory/products)."
+            },
+            "metric_name": {
+              "type": "string",
+              "enum": ["LCP", "FID", "CLS", "INP", "TTFB"],
+              "description": "Nombre de la métrica estandarizada de rendimiento."
+            },
+            "metric_value": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Valor numérico registrado de la métrica (ms para tiempo, puntuación para CLS)."
+            },
+            "rating": {
+              "type": "string",
+              "enum": ["good", "needs_improvement", "poor"],
+              "description": "Calificación según umbrales de Google Web Vitals."
+            }
+          },
+          "required": [
+            "page_route",
+            "metric_name",
+            "metric_value",
+            "rating"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "eventId",
+        "timestamp",
+        "sessionId",
+        "userId",
+        "event_type",
+        "entity_action",
+        "schemaVersion",
+        "requestId",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+
+    "db_query_slow_detected": {
+      "type": "object",
+      "description": "Detección de consultas SQL a base de datos que superan el umbral tolerable de latencia.",
+      "properties": {
+        "eventId": { "$ref": "#/$defs/envelopeEventId" },
+        "timestamp": { "$ref": "#/$defs/envelopeTimestamp" },
+        "sessionId": { "$ref": "#/$defs/envelopeSessionId" },
+        "userId": { "$ref": "#/$defs/envelopeUserId" },
+        "event_type": { "const": "db_query_slow_detected" },
+        "entity_action": { "const": "detected" },
+        "schemaVersion": { "$ref": "#/$defs/envelopeSchemaVersion" },
+        "requestId": { "$ref": "#/$defs/envelopeRequestId" },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "query_type": {
+              "type": "string",
+              "enum": ["SELECT", "INSERT", "UPDATE", "DELETE", "AGGREGATE"],
+              "description": "Tipo de operación de base de datos."
+            },
+            "table_name": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Tabla principal involucrada (e.g. ingredient_entry, ingredient_exit)."
+            },
+            "execution_time_ms": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Duración real de la ejecución de la consulta en milisegundos."
+            },
+            "threshold_ms": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Umbral de lentitud superado (e.g. 200 ms)."
+            }
+          },
+          "required": [
+            "query_type",
+            "table_name",
+            "execution_time_ms",
+            "threshold_ms"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "eventId",
+        "timestamp",
+        "sessionId",
+        "userId",
+        "event_type",
+        "entity_action",
+        "schemaVersion",
+        "requestId",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+
+    "form_validation_failed": {
+      "type": "object",
+      "description": "Fallo en validación de campos en formularios de entrada, salida o creación de catálogo.",
+      "properties": {
+        "eventId": { "$ref": "#/$defs/envelopeEventId" },
+        "timestamp": { "$ref": "#/$defs/envelopeTimestamp" },
+        "sessionId": { "$ref": "#/$defs/envelopeSessionId" },
+        "userId": { "$ref": "#/$defs/envelopeUserId" },
+        "event_type": { "const": "form_validation_failed" },
+        "entity_action": { "const": "failed" },
+        "schemaVersion": { "$ref": "#/$defs/envelopeSchemaVersion" },
+        "requestId": { "$ref": "#/$defs/envelopeRequestId" },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "form_id": {
+              "type": "string",
+              "enum": [
+                "inbound_order_form",
+                "outbound_order_form",
+                "ingredient_create_form",
+                "supplier_form"
+              ],
+              "description": "Formulario donde ocurrió la falla de validación."
+            },
+            "field_name": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Nombre del campo con error (e.g. quantity, ingredient_id)."
+            },
+            "error_rule": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Regla de validación infringida (e.g. STRICTLY_POSITIVE, REQUIRED_FIELD)."
+            }
+          },
+          "required": [
+            "form_id",
+            "field_name",
+            "error_rule"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "eventId",
+        "timestamp",
+        "sessionId",
+        "userId",
+        "event_type",
+        "entity_action",
+        "schemaVersion",
+        "requestId",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+
+    "system_exception_captured": {
+      "type": "object",
+      "description": "Excepción técnica no controlada del sistema (HTTP 500) capturada por manejadores globales.",
+      "properties": {
+        "eventId": { "$ref": "#/$defs/envelopeEventId" },
+        "timestamp": { "$ref": "#/$defs/envelopeTimestamp" },
+        "sessionId": { "$ref": "#/$defs/envelopeSessionId" },
+        "userId": { "$ref": "#/$defs/envelopeUserId" },
+        "event_type": { "const": "system_exception_captured" },
+        "entity_action": { "const": "captured" },
+        "schemaVersion": { "$ref": "#/$defs/envelopeSchemaVersion" },
+        "requestId": { "$ref": "#/$defs/envelopeRequestId" },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "exception_class": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Clase o nombre del tipo de error de Python/JS (e.g. DatabaseConnectionError)."
+            },
+            "error_code": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Código estandarizado del error para búsqueda en catálogo de incidencias."
+            },
+            "origin_service": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Servicio de origen (e.g. services/api, uis/backoffice)."
+            }
+          },
+          "required": [
+            "exception_class",
+            "error_code",
+            "origin_service"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "eventId",
+        "timestamp",
+        "sessionId",
+        "userId",
+        "event_type",
+        "entity_action",
+        "schemaVersion",
+        "requestId",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+
+    "external_integration_failed": {
+      "type": "object",
+      "description": "Fallo en la comunicación con servicios externos o pasarelas dependientes.",
+      "properties": {
+        "eventId": { "$ref": "#/$defs/envelopeEventId" },
+        "timestamp": { "$ref": "#/$defs/envelopeTimestamp" },
+        "sessionId": { "$ref": "#/$defs/envelopeSessionId" },
+        "userId": { "$ref": "#/$defs/envelopeUserId" },
+        "event_type": { "const": "external_integration_failed" },
+        "entity_action": { "const": "failed" },
+        "schemaVersion": { "$ref": "#/$defs/envelopeSchemaVersion" },
+        "requestId": { "$ref": "#/$defs/envelopeRequestId" },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "integration_target": {
+              "type": "string",
+              "enum": ["resend_email", "pos_gateway", "whatsapp_api"],
+              "description": "Servicio o proveedor externo afectado."
+            },
+            "error_code": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Código de error o status code de la pasarela."
+            },
+            "retry_attempt": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Número de intento de reintento en el que se produjo la falla."
+            }
+          },
+          "required": [
+            "integration_target",
+            "error_code",
+            "retry_attempt"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "eventId",
+        "timestamp",
+        "sessionId",
+        "userId",
+        "event_type",
+        "entity_action",
+        "schemaVersion",
+        "requestId",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+
+    "backoffice_page_viewed": {
+      "type": "object",
+      "description": "Navegación interna y cambio de ruta entre módulos protegidos del backoffice.",
+      "properties": {
+        "eventId": { "$ref": "#/$defs/envelopeEventId" },
+        "timestamp": { "$ref": "#/$defs/envelopeTimestamp" },
+        "sessionId": { "$ref": "#/$defs/envelopeSessionId" },
+        "userId": { "$ref": "#/$defs/envelopeUserId" },
+        "event_type": { "const": "backoffice_page_viewed" },
+        "entity_action": { "const": "viewed" },
+        "schemaVersion": { "$ref": "#/$defs/envelopeSchemaVersion" },
+        "requestId": { "$ref": "#/$defs/envelopeRequestId" },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "previous_route": {
+              "type": "string",
+              "description": "Ruta previa desde donde se originó la navegación o 'DIRECT_ENTRY'."
+            },
+            "current_route": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Ruta activa de destino (e.g. /backoffice/inventory/orders/inbound)."
+            },
+            "navigation_duration_ms": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Tiempo de permanencia en milisegundos en la vista previa."
+            }
+          },
+          "required": [
+            "previous_route",
+            "current_route",
+            "navigation_duration_ms"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "eventId",
+        "timestamp",
+        "sessionId",
+        "userId",
+        "event_type",
+        "entity_action",
+        "schemaVersion",
+        "requestId",
+        "properties"
+      ],
+      "additionalProperties": false
+    },
+
+    "form_abandoned": {
+      "type": "object",
+      "description": "Abandono de un formulario con datos completados antes de efectuar su envío formal.",
+      "properties": {
+        "eventId": { "$ref": "#/$defs/envelopeEventId" },
+        "timestamp": { "$ref": "#/$defs/envelopeTimestamp" },
+        "sessionId": { "$ref": "#/$defs/envelopeSessionId" },
+        "userId": { "$ref": "#/$defs/envelopeUserId" },
+        "event_type": { "const": "form_abandoned" },
+        "entity_action": { "const": "abandoned" },
+        "schemaVersion": { "$ref": "#/$defs/envelopeSchemaVersion" },
+        "requestId": { "$ref": "#/$defs/envelopeRequestId" },
+        "properties": {
+          "type": "object",
+          "properties": {
+            "form_id": {
+              "type": "string",
+              "enum": [
+                "inbound_order_form",
+                "outbound_order_form",
+                "ingredient_create_form"
+              ],
+              "description": "Identificador del formulario abandonado."
+            },
+            "fields_filled_count": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Cantidad de campos modificados o completados antes de abandonar."
+            },
+            "time_spent_seconds": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Segundos transcurridos interactuando con el formulario antes de salir."
+            }
+          },
+          "required": [
+            "form_id",
+            "fields_filled_count",
+            "time_spent_seconds"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "eventId",
+        "timestamp",
+        "sessionId",
+        "userId",
+        "event_type",
+        "entity_action",
+        "schemaVersion",
+        "requestId",
+        "properties"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "oneOf": [
+    { "$ref": "#/$defs/inbound_order_created" },
+    { "$ref": "#/$defs/outbound_order_created" },
+    { "$ref": "#/$defs/stock_threshold_triggered" },
+    { "$ref": "#/$defs/outbound_insufficient_stock_attempted" },
+    { "$ref": "#/$defs/direct_stock_edit_rejected" },
+    { "$ref": "#/$defs/inventory_catalog_viewed" },
+    { "$ref": "#/$defs/ingredient_detail_queried" },
+    { "$ref": "#/$defs/inventory_filter_applied" },
+    { "$ref": "#/$defs/purchase_order_suggested" },
+    { "$ref": "#/$defs/purchase_order_approved" },
+    { "$ref": "#/$defs/purchase_order_dispatched" },
+    { "$ref": "#/$defs/purchase_order_received" },
+    { "$ref": "#/$defs/purchase_order_rejected" },
+    { "$ref": "#/$defs/supplier_price_variance_detected" },
+    { "$ref": "#/$defs/consolidated_procurement_report_generated" },
+    { "$ref": "#/$defs/daily_sales_recorded" },
+    { "$ref": "#/$defs/pos_order_completed" },
+    { "$ref": "#/$defs/location_zero_sales_alert_triggered" },
+    { "$ref": "#/$defs/pos_heartbeat_recorded" },
+    { "$ref": "#/$defs/user_logged_in" },
+    { "$ref": "#/$defs/user_login_failed" },
+    { "$ref": "#/$defs/session_expired" },
+    { "$ref": "#/$defs/permission_denied" },
+    { "$ref": "#/$defs/password_reset_requested" },
+    { "$ref": "#/$defs/api_latency_recorded" },
+    { "$ref": "#/$defs/client_web_vitals_recorded" },
+    { "$ref": "#/$defs/db_query_slow_detected" },
+    { "$ref": "#/$defs/form_validation_failed" },
+    { "$ref": "#/$defs/system_exception_captured" },
+    { "$ref": "#/$defs/external_integration_failed" },
+    { "$ref": "#/$defs/backoffice_page_viewed" },
+    { "$ref": "#/$defs/form_abandoned" }
+  ]
+}

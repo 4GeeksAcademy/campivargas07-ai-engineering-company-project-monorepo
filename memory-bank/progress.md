@@ -220,3 +220,11 @@
 - **Dependencias:** `httpx` queda disponible en producción para Resend y
   `httpx2` se conserva en desarrollo para el `TestClient` de Starlette 1.6.
 - **Alcance protegido:** no se modificaron ni fusionaron las PR #15 y #16.
+
+## Hito: Plan de Telemetría de Brasaland (rama `docs/telemetry-design-plan`)
+
+- **Documento Canónico (`docs/telemetry/telemetry-plan.md`)**: Arquitectura integral de observabilidad y producto cubriendo las 19 secciones normativas, matriz de trazabilidad y gobernanza Zero-PII.
+- **Contratos JSON Schema (`docs/telemetry/event-schemas.json`)**: Esquema canónico en Draft 2020-12 validado con 32 eventos (10 obligatorios y 22 oportunidades) bajo envelope unificado y allowlist estricta (`additionalProperties: false`).
+- **Trazabilidad de Métricas**: Cobertura demostrable de alertas de stock crítico, ciclo de pedidos de ingredientes, ventas en COP/USD, alerta de cero ventas en horario operativo y visibilidad consolidada de compras/proveedores.
+- **Validación Formal**: 100% de paridad semántica entre Markdown y JSON Schema, validado con `Draft202012Validator` en Python y suite de 32 payloads de prueba sin errores ni dependencias añadidas.
+
