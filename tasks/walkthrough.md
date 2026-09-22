@@ -606,3 +606,79 @@ sin reemplazar los dominios ya fusionados desde otras ramas.
 
 Las PR #15 y #16 permanecieron abiertas e intactas durante toda la
 integración.
+
+---
+
+# Walkthrough: Fase 2 — Captura de Eventos de Telemetría (Backoffice Brasaland)
+
+Se implementó la infraestructura completa de captura y recepción de telemetría de producto y observabilidad en `services/api` y `uis/backoffice`, bajo el contrato estricto aprobado en `docs/telemetry/telemetry-plan.md` y `docs/telemetry/event-schemas.json` (v1.0.0, Zero PII).
+
+## 1. Resumen de Cambios Implementados
+
+### 1.1 Backend FastAPI (`services/api`)
+- **Dominio de Telemetría (`app/domains/telemetry/`)**:
+  - `schemas.py`: Modelado Pydantic V2 de los 32 eventos con `model_config = ConfigDict(extra="forbid")`, uniones discriminadas por `event_type`, envelope canónico (`eventId`, `timestamp`, `sessionId`, `userId`, `event_type`, `entity_action`, `schemaVersion="1.0.0"`, `requestId`, `properties`) y modelo `TelemetryBatch` con validación de límite de lote (máximo 20 eventos).
+  - `router.py`: Endpoint `POST /telemetry/events` que valida el lote recibido, registra información segura de observabilidad (`count` y lista de `event_type` en logs) y devuelve HTTP 200 con `{"received": N}`. Lectura desacoplada de `TELEMETRY_ENDPOINT` desde el entorno.
+  - `__init__.py`: Exportación del router.
+- **Registro en `app/main.py`**: Integración de `app.include_router(telemetry_router)` sin afectar CORS, middlewares ni rutas existentes.
+- **Configuración (`services/api/.env.example`)**: Documentación de `TELEMETRY_ENDPOINT=http://localhost:8000/telemetry/events`.
+- **Suite Pytest (`tests/test_telemetry_stub.py`)**: 13 pruebas unitarias automatizadas cubriendo lotes válidos, lote vacío, rechazo por exceso de límite (>20), campos faltantes en envelope, campos no autorizados (`extra="forbid"`), propiedades fuera de la allowlist, tipos inválidos, ausencia de persistencia en disco o BD y validación de Zero PII en logs.
+
+### 1.2 Frontend Backoffice (`uis/backoffice`)
+- **Tipado Estricto de Contrato (`src/types/telemetry.ts`)**:
+  - Definición de interfaces TypeScript para los 32 eventos y sus propiedades permitidas.
+  - Mapeo inmutable `EVENT_ACTION_MAPPING` y allowlists `EVENT_ALLOWLISTS` para validación defensiva en desarrollo.
+- **Servicio Centralizado (`src/services/telemetry.ts`)**:
+  - Instancia singleton `telemetryService` con método público `track(eventType, properties)`.
+  - Autocompletado del envelope con UUIDs criptográficos, timestamp UTC ISO, sesión en `sessionStorage` (nunca JWT), `userId` seudonimizado y `schemaVersion="1.0.0"`.
+  - Cola en memoria con bufferización y doble disparador: 20 eventos o 10 segundos desde el primer evento pendiente.
+  - Reintentos con retroceso exponencial (backoff) y jitter hasta 3 reintentos conservando el `eventId` original para deduplicación idempotente.
+  - Vaciado confiable en cierre u ocultamiento (`visibilitychange` / `pagehide`) mediante `navigator.sendBeacon` (con Blob `application/json`) y fallback resiliente a `fetch(..., { keepalive: true })`.
+  - Protección estricta contra fallos en SSR (inicialización diferida de APIs del navegador).
+- **Integración Transversal Global**:
+  - `src/components/telemetry/web-vitals.tsx`: Captura de métricas Core Web Vitals (LCP, FID, CLS, INP, TTFB) mediante `useReportWebVitals` de Next.js 16, emitiendo `client_web_vitals_recorded`.
+  - `src/components/telemetry/telemetry-bootstrap.tsx`: Montado en `src/app/layout.tsx` para captura automática de cambios de ruta (`backoffice_page_viewed`) y captura global de excepciones no controladas (`system_exception_captured`).
+  - `src/lib/inventory.ts`: Medición de latencia de red monotónica con `performance.now()`, emitiendo `api_latency_recorded` sin incurrir en recursión sobre el endpoint de telemetría.
+  - `src/lib/auth/context.tsx`: Sincronización automática del `user_uuid` seudonimizado con `telemetryService.setUserContext(user.id)` y limpieza en logout.
+- **Instrumentación de Negocio en Vistas Reales**:
+  - `InboundOrderForm`: Emisión semántica de `inbound_order_created` tras confirmación de creación exitosa.
+  - `OutboundOrderForm`: Emisión semántica de `outbound_order_created` tras éxito, `outbound_insufficient_stock_attempted` tanto en guardia preventiva de cliente (`client_form_guard`) como ante error HTTP 400 (`backend_transaction_lock`), y `form_abandoned` ante abandono con datos sin guardar.
+  - `ProductsTable`: Emisión de `inventory_catalog_viewed` tras carga de productos con conteos de stock bajo y agotados, y `inventory_filter_applied` con debounce de 500 ms al cambiar de local.
+  - `LoginPage`: Emisión de `user_logged_in` tras login exitoso y `user_login_failed` con motivo controlado y contador de intentos ante fallo, con estricto Zero-PII (sin email ni contraseñas).
+- **Configuración (`uis/backoffice/.env.example`)**: Documentación de `NEXT_PUBLIC_TELEMETRY_ENDPOINT=http://localhost:8000/telemetry/events`.
+- **Suite Vitest (`src/test/telemetry-service.test.ts`)**: 11 pruebas unitarias con fake timers cubriendo generación de envelope, batching a 20 eventos, timer de 10s, drenaje tras 2xx, 3 reintentos conservando `eventId`, prevención de flushes concurrentes, `sendBeacon`, fallback a `keepalive: true`, rechazo de propiedades no autorizadas, seguridad SSR y ausencia de recursión ante errores.
+
+## 2. Eventos Instrumentados vs Bloqueados
+
+### 2.1 Eventos Instrumentados en Flujos Reales
+1. `inbound_order_created` (Obligatorio) -> `InboundOrderForm`
+2. `outbound_order_created` (Obligatorio) -> `OutboundOrderForm`
+3. `user_logged_in` (Obligatorio) -> `LoginPage` / `AuthProvider`
+4. `outbound_insufficient_stock_attempted` (Oportunidad) -> `OutboundOrderForm`
+5. `inventory_catalog_viewed` (Oportunidad) -> `ProductsTable`
+6. `inventory_filter_applied` (Oportunidad) -> `ProductsTable`
+7. `user_login_failed` (Oportunidad) -> `LoginPage`
+8. `api_latency_recorded` (Oportunidad) -> `InventoryApiClient.request`
+9. `client_web_vitals_recorded` (Oportunidad) -> `WebVitals` (`useReportWebVitals`)
+10. `system_exception_captured` (Oportunidad) -> `TelemetryBootstrap`
+11. `backoffice_page_viewed` (Oportunidad) -> `TelemetryBootstrap`
+12. `form_abandoned` (Oportunidad) -> `OutboundOrderForm`
+
+### 2.2 Eventos Bloqueados por Ausencia de Flujo en el Monorepo
+Los siguientes eventos del catálogo quedan formalmente documentados como bloqueados hasta la implementación de sus módulos respectivos:
+- `stock_threshold_triggered`: Requiere worker en backend de monitoreo continuo de umbrales de stock.
+- `purchase_order_suggested`, `purchase_order_approved`, `purchase_order_dispatched`, `purchase_order_received`, `purchase_order_rejected`: Requieren la interfaz y módulo de compras/aprovisionamiento (Lucía Fernández / motor IA).
+- `supplier_price_variance_detected`, `consolidated_procurement_report_generated`: Requieren el módulo de conciliación de facturas de proveedores.
+- `daily_sales_recorded`, `pos_order_completed`, `location_zero_sales_alert_triggered`, `pos_heartbeat_recorded`: Pertenecen al software de punto de venta (TPV/POS) y monitoreo de cajas físicas en restaurantes.
+- `session_expired`, `permission_denied`, `password_reset_requested`: Bloqueados a nivel de frontend hasta contar con flujos de caducidad automática de tokens en UI y feedback de 403 en vistas.
+- `db_query_slow_detected`: Métrica de backend/DBA a nivel de engine SQLAlchemy/PostgreSQL.
+- `form_validation_failed`, `external_integration_failed`: Formularios de creación directa de insumos e integraciones externas aún no expuestas en el backoffice.
+
+## 3. Validación y Evidencias de Ejecución
+
+- **Backend Pytest**: `uv run --directory services/api pytest` -> 97 pruebas verdes (13 nuevas en `test_telemetry_stub.py`), 5 integraciones PostgreSQL omitidas sin `TEST_DATABASE_URL`. Cero fallos.
+- **Frontend Vitest**: `npm --prefix uis/backoffice run test` -> 78 pruebas verdes en 15 suites (11 nuevas en `telemetry-service.test.ts`). Cero fallos.
+- **Frontend Typecheck**: `npm --prefix uis/backoffice run typecheck` -> 0 errores TypeScript.
+- **Frontend Lint**: `npm --prefix uis/backoffice run lint` -> 0 errores, 0 advertencias ESLint.
+- **Frontend Build**: `npm --prefix uis/backoffice run build` -> Compilación de producción con Turbopack exitosa (19/19 páginas estáticas prerenderizadas).
+- **Prueba End-to-End**: Simulación de lote con 5 eventos heterogéneos (`backoffice_page_viewed`, `inventory_catalog_viewed`, `inbound_order_created`, `api_latency_recorded`, `client_web_vitals_recorded`) enviada al receptor FastAPI con respuesta HTTP 200 `{"received": 5}` y logs limpios de Zero-PII.

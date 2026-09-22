@@ -189,3 +189,4 @@ def test_logs_contain_no_sensitive_data(caplog):
     assert "token" not in log_text.lower()
     assert "secret" not in log_text.lower()
     assert "@" not in log_text  # no email addresses
+

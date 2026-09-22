@@ -31,3 +31,4 @@ def receive_telemetry_events(batch: TelemetryBatch) -> TelemetryBatchResponse:
     logger.info("Received telemetry batch: count=%d, event_types=%s", count, event_types)
 
     return TelemetryBatchResponse(received=count)
+

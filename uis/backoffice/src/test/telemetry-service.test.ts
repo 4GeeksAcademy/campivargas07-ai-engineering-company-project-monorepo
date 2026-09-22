@@ -14,7 +14,7 @@ describe('TelemetryService Unit Tests', () => {
       status: 200,
       json: async () => ({ received: 1 }),
     });
-    global.fetch = fetchMock as unknown as typeof fetch;
+    global.fetch = fetchMock;
 
     sendBeaconMock = vi.fn().mockReturnValue(true);
     Object.defineProperty(global.navigator, 'sendBeacon', {
@@ -267,3 +267,4 @@ describe('TelemetryService Unit Tests', () => {
     expect(service.getQueue().length).toBe(0);
   });
 });
+

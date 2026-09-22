@@ -17,7 +17,6 @@ import {
   type EventType,
   type EventPropertiesMap,
   type AnyTelemetryEnvelope,
-  type TelemetryEnvelope,
 } from '@/types/telemetry';
 
 export interface TelemetryConfig {
@@ -173,19 +172,19 @@ export class TelemetryService {
         }
       }
 
-      const envelope: TelemetryEnvelope<T, EventPropertiesMap[T]> = {
+      const envelope: AnyTelemetryEnvelope = {
         eventId: this.generateUUID(),
         timestamp: new Date().toISOString(),
         sessionId: this.getSessionId(),
         userId: this.userId,
         event_type: eventType,
-        entity_action: EVENT_ACTION_MAPPING[eventType],
+        entity_action: EVENT_ACTION_MAPPING[eventType] as any,
         schemaVersion: SCHEMA_VERSION,
         requestId: this.generateUUID(),
-        properties: { ...properties },
+        properties: { ...properties } as any,
       };
 
-      this.queue.push(envelope as unknown as AnyTelemetryEnvelope);
+      this.queue.push(envelope);
 
       // Lazily ensure unload listeners are bound
       this.initBrowserListeners();
@@ -363,3 +362,4 @@ export class TelemetryService {
 
 // Global shared singleton instance
 export const telemetryService = new TelemetryService();
+
