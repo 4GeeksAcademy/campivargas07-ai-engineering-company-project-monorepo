@@ -61,4 +61,12 @@ describe("BackofficeHeader Component", () => {
     expect(profileLink).toHaveClass("nav-link-active");
     expect(profileLink).toHaveAttribute("href", "/account/profile");
   });
+
+  it("links to the telemetry technical report page", () => {
+    render(<BackofficeHeader activeView="telemetry" badge="Telemetría" />);
+
+    const telemetryLink = screen.getByRole("link", { name: "Telemetría" });
+    expect(telemetryLink).toHaveClass("nav-link-active");
+    expect(telemetryLink).toHaveAttribute("href", "/backoffice/telemetry");
+  });
 });

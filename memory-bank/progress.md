@@ -248,4 +248,34 @@
 - **Frontend Intacto (`uis/backoffice/`)**: Cero modificaciones en componentes, hooks, tipos o servicios del backoffice (`git diff` vacío contra commit inicial de la fase).
 - **Validación Integral**: 122 pruebas backend verdes en Pytest (incluyendo 20 pruebas nuevas en `test_telemetry_storage.py` y 4 pruebas de integración PostgreSQL en `test_telemetry_postgres.py`), 78 pruebas frontend verdes en Vitest y verificación E2E en vivo contra contenedor PostgreSQL `brasaland_db`.
 
+## Hito: Telemetría de tu compañía — Reporte técnico (Backoffice Brasaland, rama `feat/telemetry-technical-report`)
 
+- **Pipeline Analítico PostgreSQL → Pandas → JSON**:
+  - `services/api/app/domains/telemetry/analysis.py`: cuatro funciones puras y deterministas (`get_events_per_day`, `get_error_rate_by_type`, `get_login_failure_rate_per_day`, `get_api_latency_by_route`).
+  - Filtrado temporal estricto en SQL sobre marcas de tiempo UTC con inicio inclusivo y fin exclusivo (`timestamp >= :start_date AND timestamp < :end_date`).
+  - Filtrado SQL por `event_type` donde aplica (`IN` o igualdad), sin cargar filas innecesarias ni ejecutar `SELECT *`.
+  - Normalización en Pandas (`pd.to_datetime(..., utc=True)`, extracción de dimensiones desde `tags`, descarte seguro de nulos y orden determinista con `reset_index()`).
+  - Conversión exhaustiva a tipos nativos de Python (cero `NaN`, `NaT`, `Timestamp` o tipos NumPy en la respuesta).
+- **Caché en Memoria Desacoplado (`cache.py`)**:
+  - `TelemetryReportCache` con TTL de 60 segundos y reloj monotónico (`time.monotonic()`).
+  - Clave de caché por tupla `(start_date, end_date)`.
+  - Tratamiento explícito de llamadas sin parámetros como `(None, None)` reteniendo tanto el periodo resuelto como el resultado durante el TTL (sin desincronización por milisegundos).
+  - Aceleración de 34x en respuestas repetidas (de ~107 ms a ~3.1 ms).
+- **Servicio y Endpoint HTTP (`service.py`, `router.py`, `schemas.py`)**:
+  - `GET /telemetry/report`: parámetros opcionales `start_date` y `end_date` (ISO 8601), resolución uniforme de ventana de 7 días hacia atrás en UTC por defecto.
+  - Validación de rango temporal (`start_date < end_date`), retornando HTTP 400 ante rangos invertidos.
+  - Manejo de base de datos vacía (HTTP 200 con arreglos vacíos) y fallos de conexión (HTTP 503 sin fugar credenciales).
+  - Modelos tipados Pydantic V2 (`TelemetryReportResponse`, `ReportPeriod`, `ReportMetrics`).
+  - Preservación íntegra del contrato de `POST /telemetry/events`.
+- **Población de Datos Mínimos**:
+  - Ingestión de 21 eventos adicionales a través de la API oficial `POST /telemetry/events`, alcanzando 28 eventos reales en `brasaland_db` distribuidos en 11 tipos de eventos (incluyendo operacionales y técnicos).
+- **Dashboard en Backoffice (`uis/backoffice/`)**:
+  - Nueva ruta protegida `/backoffice/telemetry` (`page.tsx`) envuelta en `AuthGuard`.
+  - Componente `TelemetryReportDashboard` (`src/components/telemetry/telemetry-report-dashboard.tsx`): visualización de volumen diario (barras CSS), errores por tipo (tabla), fallos de inicio de sesión diarios y latencia de API por ruta.
+  - Manejo de estados de carga, error accesible con botón de reintento y estado vacío.
+  - Enlace incorporado en `BackofficeHeader` con navegación coherente.
+- **Validación y Pruebas**:
+  - Backend: 141 pruebas totales en Pytest (132 verdes en SQLite in-memory + 4 de integración PostgreSQL ejecutadas y verdes contra `TEST_DATABASE_URL`).
+  - Frontend: 87 pruebas totales en Vitest (83 en backoffice incluyendo 4 de `telemetry-report-dashboard.test.tsx` y 1 de `backoffice-header.test.tsx`, 4 en website).
+  - ESLint limpio en componentes creados y modificados.
+  - Verificación manual comparativa: paridad matemática del 100% entre las respuestas del endpoint y consultas de control directas en PostgreSQL.

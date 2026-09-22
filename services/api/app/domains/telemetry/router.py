@@ -11,9 +11,10 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any
+from datetime import datetime
+from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import TypeAdapter, ValidationError
 from sqlmodel import Session
 
@@ -24,7 +25,9 @@ from app.domains.telemetry.schemas import (
     TelemetryBatchRequest,
     TelemetryBatchResponse,
     TelemetryEvent,
+    TelemetryReportResponse,
 )
+from app.domains.telemetry.service import generate_telemetry_report
 
 logger = logging.getLogger("telemetry")
 
@@ -118,3 +121,48 @@ def receive_telemetry_events(
         stored=stored_count,
         rejected=total_rejected,
     )
+
+
+@router.get(
+    "/report",
+    status_code=status.HTTP_200_OK,
+    response_model=TelemetryReportResponse,
+    summary="Get technical telemetry report",
+    description="Calculates technical metrics from stored telemetry events over the specified UTC window [start_date, end_date). Results are cached in memory for 60 seconds.",
+)
+def get_telemetry_report(
+    start_date: Optional[datetime] = Query(
+        None,
+        description="Start date (inclusive, ISO 8601). Defaults to 7 days before end_date.",
+    ),
+    end_date: Optional[datetime] = Query(
+        None,
+        description="End date (exclusive, ISO 8601). Defaults to current UTC time.",
+    ),
+    session: Session = Depends(get_db),
+) -> TelemetryReportResponse:
+    """
+    Returns consolidated technical metrics:
+    - events_per_day
+    - error_rate_by_type
+    - login_failure_rate_per_day
+    - api_latency_by_route
+    """
+    try:
+        return generate_telemetry_report(session, start_date=start_date, end_date=end_date)
+    except ValueError as val_err:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(val_err),
+        ) from val_err
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(
+            "Unhandled database error while generating report: %s",
+            exc.__class__.__name__,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database service temporarily unavailable",
+        ) from exc
