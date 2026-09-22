@@ -275,3 +275,4 @@ def get_api_latency_by_route(
         }
         for row in records
     ]
+

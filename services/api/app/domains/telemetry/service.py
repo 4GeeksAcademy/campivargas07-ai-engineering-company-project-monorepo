@@ -131,3 +131,4 @@ def generate_telemetry_report(
     )
 
     return response
+

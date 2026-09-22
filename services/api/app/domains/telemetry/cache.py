@@ -80,3 +80,4 @@ class TelemetryReportCache:
 
 # Module-level singleton cache for reports
 report_cache = TelemetryReportCache()
+

@@ -318,3 +318,4 @@ def test_api_latency_aggregation_and_p95(db_session: Session):
         assert isinstance(r["request_count"], int)
         assert isinstance(r["average_duration_ms"], float)
         assert isinstance(r["p95_duration_ms"], float)
+
