@@ -5,6 +5,7 @@
  */
 
 import { authApi } from "./auth";
+import { telemetryService } from "@/services/telemetry";
 
 export interface Ingredient {
   id: string; // UUID
@@ -116,6 +117,7 @@ export class InventoryApiClient {
       ...(options.headers || {}),
     };
 
+    const startTime = typeof performance !== "undefined" ? performance.now() : Date.now();
     let response: Response;
     try {
       response = await fetch(url, {
@@ -127,6 +129,28 @@ export class InventoryApiClient {
         0,
         `No fue posible conectar con el servicio de inventario: ${err instanceof Error ? err.message : "Error de red"}`
       );
+    }
+
+    const durationMs = typeof performance !== "undefined" ? Math.max(0, performance.now() - startTime) : 0;
+    const httpMethod = ((options.method || "GET").toUpperCase()) as "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+    const cleanPath = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+    const normalizedRoute = cleanPath.replace(
+      /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i,
+      "{id}"
+    );
+
+    if (!url.includes("/telemetry/events")) {
+      try {
+        telemetryService.track("api_latency_recorded", {
+          route_path: normalizedRoute,
+          http_method: httpMethod,
+          status_code: response.status,
+          duration_ms: Math.round(durationMs * 100) / 100,
+          db_query_count: 0,
+        });
+      } catch {
+        // Telemetry must never crash or block business operations
+      }
     }
 
     if (response.status === 401) {

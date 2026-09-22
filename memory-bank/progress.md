@@ -220,3 +220,21 @@
 - **Dependencias:** `httpx` queda disponible en producción para Resend y
   `httpx2` se conserva en desarrollo para el `TestClient` de Starlette 1.6.
 - **Alcance protegido:** no se modificaron ni fusionaron las PR #15 y #16.
+
+## Hito: Plan de Telemetría de Brasaland (rama `docs/telemetry-design-plan`)
+
+- **Documento Canónico (`docs/telemetry/telemetry-plan.md`)**: Arquitectura integral de observabilidad y producto cubriendo las 19 secciones normativas, matriz de trazabilidad y gobernanza Zero-PII.
+- **Contratos JSON Schema (`docs/telemetry/event-schemas.json`)**: Esquema canónico en Draft 2020-12 validado con 32 eventos (10 obligatorios y 22 oportunidades) bajo envelope unificado y allowlist estricta (`additionalProperties: false`).
+- **Trazabilidad de Métricas**: Cobertura demostrable de alertas de stock crítico, ciclo de pedidos de ingredientes, ventas en COP/USD, alerta de cero ventas en horario operativo y visibilidad consolidada de compras/proveedores.
+- **Validación Formal**: 100% de paridad semántica entre Markdown y JSON Schema, validado con `Draft202012Validator` en Python y suite de 32 payloads de prueba sin errores ni dependencias añadidas.
+
+## Hito: Captura de Eventos de Telemetría (Backoffice Brasaland, rama `feat/telemetry-event-capture`)
+
+- **Receptor FastAPI (`services/api/app/domains/telemetry/`)**: Endpoint `POST /telemetry/events` con modelos Pydantic V2 (`extra="forbid"`), envelope canónico SemVer 1.0.0, validación de lote (hasta 20 eventos), respuesta `{"received": N}`, logging Zero-PII y sin persistencia en base de datos ni archivos.
+- **Configuración de Backend**: Variable de entorno `TELEMETRY_ENDPOINT` documentada en `services/api/.env.example`.
+- **Servicio Frontend (`uis/backoffice/src/services/telemetry.ts`)**: `TelemetryService` singleton con `track()`, autocompletado de envelope con UUIDs y timestamp UTC, sesión diferida en `sessionStorage` (sin JWT), `userId` seudonimizado, buffer en memoria con disparador doble (20 eventos o 10s de espera), reintentos exponenciales con jitter (hasta 3 reintentos conservando `eventId`) y vaciado en cierre/ocultamiento (`navigator.sendBeacon` con fallback `keepalive: true`).
+- **Integración Transversal y Core Web Vitals**: Componente `<WebVitals />` (`useReportWebVitals`), `<TelemetryBootstrap />` (navegación y captura de errores globales), medición monotónica de latencia en `InventoryApiClient` y sincronización de usuario en `AuthProvider`.
+- **Instrumentación de Negocio en Vistas Reales**: Captura semántica en `InboundOrderForm` (`inbound_order_created`), `OutboundOrderForm` (`outbound_order_created`, `outbound_insufficient_stock_attempted`, `form_abandoned`), `ProductsTable` (`inventory_catalog_viewed`, `inventory_filter_applied` debounced 500ms) y `LoginPage` (`user_logged_in`, `user_login_failed`).
+- **Validación Integral**: 97 pruebas backend en Pytest (13 nuevas en `test_telemetry_stub.py`), 78 pruebas frontend en Vitest (11 nuevas en `telemetry-service.test.ts`), 0 errores TypeScript, 0 errores ESLint y compilación de producción con Turbopack exitosa (19/19 páginas estáticas).
+
+
