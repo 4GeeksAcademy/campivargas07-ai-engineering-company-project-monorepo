@@ -682,3 +682,155 @@ Los siguientes eventos del catálogo quedan formalmente documentados como bloque
 - **Frontend Lint**: `npm --prefix uis/backoffice run lint` -> 0 errores, 0 advertencias ESLint.
 - **Frontend Build**: `npm --prefix uis/backoffice run build` -> Compilación de producción con Turbopack exitosa (19/19 páginas estáticas prerenderizadas).
 - **Prueba End-to-End**: Simulación de lote con 5 eventos heterogéneos (`backoffice_page_viewed`, `inventory_catalog_viewed`, `inbound_order_created`, `api_latency_recorded`, `client_web_vitals_recorded`) enviada al receptor FastAPI con respuesta HTTP 200 `{"received": 5}` y logs limpios de Zero-PII.
+
+---
+
+# Walkthrough: Telemetría de tu compañía — Almacenamiento (Persistencia PostgreSQL / Supabase)
+
+Se ha implementado la fase de persistencia y almacenamiento de telemetría para Brasaland, sustituyendo el stub receptor temporal de `POST /telemetry/events` por persistencia real en PostgreSQL/Supabase, basada en una tabla append-only `telemetry_events`, validación parcial individual por evento y una única inserción masiva idempotente por lote, preservando intacto el frontend del backoffice.
+
+## 1. Arquitectura y Decisiones Técnicas
+
+### 1.1 Tabla `telemetry_events` y Migración Idempotente
+- **Archivo de migración (`services/api/migrations/001_create_telemetry_events.sql`)**:
+  - DDL puro y versionado que crea la tabla `telemetry_events` con `CREATE TABLE IF NOT EXISTS`.
+  - Diseñada bajo el principio de **inmutabilidad y solo adición (append-only)**: sin triggers de actualización, sin soft-delete, y sin permisos de escritura directa desde navegadores (las credenciales residen exclusivamente en el backend).
+- **Ocho columnas exactas**:
+  1. `event_id`: Clave primaria UUID (`UUID PRIMARY KEY`) que garantiza unicidad e idempotencia.
+  2. `event_type`: Nombre del evento (`VARCHAR(100) NOT NULL`).
+  3. `timestamp`: Fecha/hora UTC con zona horaria (`TIMESTAMPTZ NOT NULL`).
+  4. `service`: Identificador del productor asignado en el servidor (`VARCHAR(50) NOT NULL`, valor inicial `"backoffice"`).
+  5. `session_id`: UUID/identificador efímero de sesión web (`VARCHAR(100) NULL`).
+  6. `user_id`: UUID seudonimizado del usuario interno (`UUID NULL`).
+  7. `request_id`: Identificador de trazabilidad distribuida (`VARCHAR(100) NOT NULL`).
+  8. `tags`: Contenido validado de properties en formato `JSONB NOT NULL DEFAULT '{}'::jsonb`.
+- **Tres índices explícitos creados**:
+  1. `idx_telemetry_events_timestamp` sobre `timestamp` para consultas temporales y series de tiempo.
+  2. `idx_telemetry_events_event_type` sobre `event_type` para agregaciones por tipo de evento.
+  3. `idx_telemetry_events_tags_gin` sobre `tags` con operador GIN (`USING gin (tags)`) para búsquedas estructuradas y filtrado de alto rendimiento sobre JSONB.
+- **Decisión técnica sobre `entity_action` y `schemaVersion`**:
+  El envelope canónico de entrada contiene `entity_action` y `schemaVersion="1.0.0"`. Ambos campos continúan siendo rigurosamente validados en el modelo Pydantic del backend (`extra="forbid"`), pero no se persisten en columnas dedicadas ni se inyectan en `tags` (que almacena exclusivamente las propiedades de negocio y técnicas de `properties`), respetando la restricción de exactamente ocho columnas.
+- **Asignación autoritativa de `service`**:
+  El envelope enviado por el cliente no incluye `service`. El servidor lo asigna de forma autoritativa (`"backoffice"`), impidiendo que clientes web inyecten un nombre de servicio arbitrario.
+
+### 1.2 Validación Parcial por Evento
+- **Envelope exterior ligero (`TelemetryBatchRequest`)**:
+  - En `schemas.py`: `events: list[dict[str, Any]] = Field(..., max_length=20)` con `extra="forbid"`.
+  - Evita que FastAPI rechace con 422 un lote entero si un único evento es inválido. Lotes malformados a nivel de envelope exterior (e.g. sin campo `events`, con campos extra o con más de 20 eventos) continúan respondiendo HTTP 422.
+- **Validación individual aislada**:
+  - Instanciación de `TELEMETRY_EVENT_ADAPTER = TypeAdapter(TelemetryEvent)` a nivel de módulo en `router.py`.
+  - Validación elemento por elemento dentro de `try...except ValidationError`: los eventos con campos faltantes, tipos inválidos o propiedades fuera del allowlist incrementan el contador `rejected` de forma aislada, permitiendo que los eventos válidos del lote continúen hacia la persistencia masiva.
+  - Lotes mixtos responden HTTP 200.
+
+### 1.3 Inserción Masiva e Idempotencia
+- **Capa de persistencia (`services/api/app/domains/telemetry/repository.py`)**:
+  - Función `bulk_insert_telemetry_events(session, rows)`: realiza **una única sentencia de inserción masiva** por lote (`INSERT INTO ... VALUES (...) ON CONFLICT (event_id) DO NOTHING RETURNING event_id`).
+  - No ejecuta INSERTs individuales, no hace commits en bucle ni abre transacciones por evento.
+  - Si un lote es completamente inválido (`len(valid_rows) == 0`), no realiza ninguna consulta a la base de datos.
+  - Retorna el conteo exacto de filas realmente insertadas mediante el recuento de filas devueltas por `RETURNING event_id`.
+- **Estrategia ante duplicados**:
+  - Si un evento con el mismo `event_id` es reenviado por los reintentos del frontend, PostgreSQL ignora la inserción sin error (`DO NOTHING`).
+  - El evento duplicado no genera una segunda fila y se contabiliza dentro de `rejected`.
+- **Contadores de respuesta**:
+  - Respuesta JSON: `{ "received": N, "stored": S, "rejected": R }`
+  - Se cumple estrictamente: `received = stored + rejected` (donde `rejected = invalidos_validacion + duplicados_no_insertados`).
+- **Resiliencia y manejo de errores de base de datos**:
+  - Si ocurre un fallo en la conexión o ejecución en base de datos, se ejecuta `session.rollback()`, se registra el error con Zero-PII y se devuelve HTTP 503 (`Database service temporarily unavailable`) para que el frontend reintente según su política de backoff.
+
+### 1.4 Frontend Intacto (`uis/backoffice`)
+- Ningún archivo bajo `uis/backoffice/` fue modificado (`git diff` vacío contra el commit inicial de la fase).
+- El contrato de respuesta (`received`, `stored`, `rejected`) es 100% transparente para `TelemetryService`, que evalúa `response.ok` y vacía los eventos transmitidos exitosamente.
+
+---
+
+## 2. Resumen de Pruebas y Validación
+
+### 2.1 Batería de Pruebas Pytest (Backend)
+Ejecución completa con `TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/brasaland_api_test" uv run --directory services/api pytest`:
+- **122 pruebas pasando al 100% (0 fallos, 0 errores)**:
+  - 16 pruebas en `test_telemetry_storage.py`:
+    1. Envelope exterior malformado (HTTP 422).
+    2. Lote completamente válido (HTTP 200, stored=N, rejected=0).
+    3. Lote mixto con eventos válidos e inválidos (HTTP 200, contadores exactos).
+    4. Rechazo individual vía `ValidationError`.
+    5. Lote completamente inválido sin llamadas a la base de datos.
+    6. Verificación de una sola operación bulk insert por lote (spy).
+    7. Mapeo exacto de las 8 columnas sin fuga de `entity_action` ni `schemaVersion`.
+    8. Evento de negocio (`inbound_order_created`) correctamente almacenado.
+    9. Evento técnico (`client_web_vitals_recorded`) correctamente almacenado.
+    10. Preservación del allowlist de properties (`extra="forbid"`).
+    11. `tags` contiene únicamente properties, sin metadatos del envelope.
+    12. Evento duplicado no genera segunda fila en BD (`ON CONFLICT DO NOTHING`).
+    13. Contadores exactos ante duplicados (`received = stored + rejected`).
+    14. Rollback y respuesta HTTP 503 ante fallas de base de datos.
+    15. Estructura de migración DDL y 3 índices verificados.
+    16. Compatibilidad de respuesta con `TelemetryService` frontend.
+  - 4 pruebas en `test_telemetry_postgres.py` (ejecutadas contra PostgreSQL real):
+    1. DDL nativo y verificación de los 8 tipos de columna en PostgreSQL (`information_schema.columns`).
+    2. Existencia de los 3 índices nativos (`timestamp`, `event_type`, GIN sobre `tags`).
+    3. Bulk insert real y consulta de operadores JSONB (`@>`, `->>`).
+    4. Deduplicación idempotente nativa en PostgreSQL ante reenvío de `event_id`.
+  - 13 pruebas en `test_telemetry_stub.py` (actualizadas y 100% verdes).
+  - 89 pruebas preexistentes de inventario, autenticación, incidentes, proveedores y tokens intactas y verdes.
+
+### 2.2 Batería de Pruebas Vitest (Frontend)
+Ejecución con `npm --prefix uis/backoffice run test`:
+- **78 pruebas pasando al 100% en 15 suites**, incluyendo las 11 pruebas de `TelemetryService`.
+
+---
+
+## 3. Evidencias de Verificación End-to-End en Vivo
+
+Verificación ejecutada conectando FastAPI contra el contenedor PostgreSQL `brasaland-postgres` (`brasaland_db`):
+
+### 3.1 Envío de Lote con 5 Eventos Reales de Backoffice
+Payload enviado con 3 eventos de negocio (`inbound_order_created`, `outbound_order_created`, `inventory_catalog_viewed`) y 2 eventos técnicos (`client_web_vitals_recorded`, `backoffice_page_viewed`):
+```json
+// Respuesta HTTP 200 OK:
+{
+  "received": 5,
+  "stored": 5,
+  "rejected": 0
+}
+```
+
+### 3.2 Envío de Lote Mixto (2 Válidos + 2 Inválidos)
+```json
+// Respuesta HTTP 200 OK:
+{
+  "received": 4,
+  "stored": 2,
+  "rejected": 2
+}
+```
+
+### 3.3 Reenvío de Evento Duplicado (Mismo `eventId`)
+```json
+// Respuesta HTTP 200 OK:
+{
+  "received": 1,
+  "stored": 0,
+  "rejected": 1
+}
+```
+
+### 3.4 Filas Persistidas en la Tabla `telemetry_events` de PostgreSQL
+Consulta SQL: `SELECT event_id, event_type, service, timestamp, tags FROM telemetry_events ORDER BY timestamp ASC;`
+```
+ - ID: e8d787e9-648d-41ee-916f-d30a2212a778 | Type: inbound_order_created | Service: backoffice | Time: 2026-09-22 22:06:48.671392+00:00 | Tags: {"local_id": "MED-001", "order_id": "ab5cafca-7b12-47c6-8204-3f915aa811d5", "quantity": 25.0, "ingredient_id": "473cbf4c-45df-40f9-97f8-00292b4e8e07", "ingredient_sku": "ING-001", "previous_stock": 100.0, "resulting_stock": 125.0, "unit_of_measure": "kg"}
+ - ID: f4d31fab-01bc-435a-8a34-2d0ed68f9de9 | Type: outbound_order_created | Service: backoffice | Time: 2026-09-22 22:06:48.671429+00:00 | Tags: {"local_id": "MED-001", "order_id": "928f8838-d0d7-471a-b1eb-72275f2e9c14", "quantity": 10.0, "ingredient_id": "473cbf4c-45df-40f9-97f8-00292b4e8e07", "ingredient_sku": "ING-001", "previous_stock": 125.0, "resulting_stock": 115.0, "unit_of_measure": "kg"}
+ - ID: 97490e1a-32b7-4263-ad19-3a6990c51a8c | Type: client_web_vitals_recorded | Service: backoffice | Time: 2026-09-22 22:06:48.671450+00:00 | Tags: {"rating": "good", "page_route": "/backoffice/overview", "metric_name": "LCP", "metric_value": 1240.0}
+ - ID: b0bd135d-6137-4bf5-890d-89bbffc097b2 | Type: backoffice_page_viewed | Service: backoffice | Time: 2026-09-22 22:06:48.671462+00:00 | Tags: {"current_route": "/backoffice/inventory/products", "previous_route": "/login", "navigation_duration_ms": 340.5}
+ - ID: fee8b596-718b-445f-b275-0cab2d95b2de | Type: inventory_catalog_viewed | Service: backoffice | Time: 2026-09-22 22:06:48.671476+00:00 | Tags: {"local_id": "MED-001", "depleted_items_count": 0, "total_items_rendered": 7, "low_stock_items_count": 1}
+```
+Total de filas almacenadas: 7.
+- Todas las filas conservan `service = "backoffice"`.
+- `timestamp` incluye offset de zona horaria UTC (`+00:00`).
+- `tags` contiene exclusivamente los campos autorizados por el allowlist de cada evento en formato JSONB.
+- Se certifica que no hay duplicación ante reenvío de `eventId`.
+
+### 3.5 Verificación de Cero Cambios en Frontend
+```bash
+git diff 730726afea32d5f1e32fb0a6bab5d302580d1835 -- uis/backoffice/
+# Output: (vacío)
+```

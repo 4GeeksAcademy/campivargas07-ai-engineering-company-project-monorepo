@@ -237,4 +237,15 @@
 - **Instrumentación de Negocio en Vistas Reales**: Captura semántica en `InboundOrderForm` (`inbound_order_created`), `OutboundOrderForm` (`outbound_order_created`, `outbound_insufficient_stock_attempted`, `form_abandoned`), `ProductsTable` (`inventory_catalog_viewed`, `inventory_filter_applied` debounced 500ms) y `LoginPage` (`user_logged_in`, `user_login_failed`).
 - **Validación Integral**: 97 pruebas backend en Pytest (13 nuevas en `test_telemetry_stub.py`), 78 pruebas frontend en Vitest (11 nuevas en `telemetry-service.test.ts`), 0 errores TypeScript, 0 errores ESLint y compilación de producción con Turbopack exitosa (19/19 páginas estáticas).
 
+## Hito: Telemetría de tu compañía — Almacenamiento (Backoffice Brasaland, rama `feat/telemetry-event-storage`)
+
+- **Persistencia en PostgreSQL (`services/api/app/domains/telemetry/`)**: Sustitución del stub temporal de `POST /telemetry/events` por almacenamiento real en PostgreSQL/Supabase en tabla `telemetry_events`.
+- **Migración DDL Idempotente (`services/api/migrations/001_create_telemetry_events.sql`)**: Creación de tabla append-only con exactamente 8 columnas (`event_id` UUID PK, `event_type`, `timestamp` TIMESTAMPTZ, `service` servidor, `session_id`, `user_id`, `request_id`, `tags` JSONB) y 3 índices explícitos (`timestamp`, `event_type`, GIN sobre `tags`).
+- **Modelo SQLModel e Inicialización (`models.py`, `database.py`)**: `TelemetryEventRecord` registrado en `init_db()` con compatibilidad para dialectos PostgreSQL y SQLite sin migraciones manuales.
+- **Validación Parcial por Evento (`router.py`, `schemas.py`)**: Envelope exterior ligero `TelemetryBatchRequest` (`events: list[dict[str, Any]]` hasta 20 eventos, `extra="forbid"`), validación individual de elementos con `TypeAdapter(TelemetryEvent)` a nivel de módulo, aislando `ValidationError` sin rechazar con 422 el lote completo. Lotes parseables responden HTTP 200.
+- **Mapeo Puro y Seguro (`mapping.py`)**: Función `telemetry_event_to_row` que mapea camelCase a snake_case, serializa UUID/fecha, preserva el allowlist de `properties` dentro de `tags` (sin fugar datos del envelope), asigna `service="backoffice"` en el servidor y valida pero no persiste `entity_action` ni `schemaVersion`.
+- **Inserción Masiva e Idempotencia (`repository.py`)**: Inserción bulk única mediante `ON CONFLICT (event_id) DO NOTHING RETURNING event_id`. Respuesta exacta `{"received": N, "stored": S, "rejected": R}` cumpliendo `received = stored + rejected`. Si ocurren fallos de BD, rollback defensivo y respuesta HTTP 503 sin fuga de credenciales.
+- **Frontend Intacto (`uis/backoffice/`)**: Cero modificaciones en componentes, hooks, tipos o servicios del backoffice (`git diff` vacío contra commit inicial de la fase).
+- **Validación Integral**: 122 pruebas backend verdes en Pytest (incluyendo 20 pruebas nuevas en `test_telemetry_storage.py` y 4 pruebas de integración PostgreSQL en `test_telemetry_postgres.py`), 78 pruebas frontend verdes en Vitest y verificación E2E en vivo contra contenedor PostgreSQL `brasaland_db`.
+
 
