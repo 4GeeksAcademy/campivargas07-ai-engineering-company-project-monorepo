@@ -14,7 +14,8 @@ describe('TelemetryService Unit Tests', () => {
       status: 200,
       json: async () => ({ received: 1 }),
     });
-    global.fetch = fetchMock;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    global.fetch = fetchMock as any;
 
     sendBeaconMock = vi.fn().mockReturnValue(true);
     Object.defineProperty(global.navigator, 'sendBeacon', {
