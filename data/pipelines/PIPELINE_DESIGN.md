@@ -552,82 +552,35 @@ Para asegurar la observabilidad forense y auditoría completa de cada ciclo del 
 - Las tareas idempotentes previas no generan efectos secundarios acumulativos.
 
 ### 15.3 Control Estricto de Concurrencia
-- **Límite de Concurrencia:** Configurado conceptualmente con una concurrencia máxima de **1 ejecución simultánea** para el flujo `inventory_health_business_flow`.
+- **Límite de Concurrencia:** Concurrencia máxima de **1 ejecución simultánea** para el flujo `inventory_health_business_flow`.
+- **Implementación con PostgreSQL Advisory Lock:** Implementado mediante `pg_try_advisory_lock(84920491)`. Si una corrida cron o manual intenta ejecutarse mientras otra está activa, el flow detecta el bloqueo, registra el estado `SKIPPED` en `reporting.pipeline_execution_logs` y retorna limpiamente sin generar contención ni corrupción de datos.
 - **Colisión entre Cron y Disparo Manual:**
-  - Si un usuario dispara manualmente el pipeline mientras la ejecución programada de los 15 minutos está activa, la segunda ejecución entra en cola en estado `SCHEDULED / PENDING` y espera a que la corrida activa finalice.
+  - Si un usuario dispara manualmente el pipeline mientras la ejecución programada está activa, la segunda ejecución se registra como `SKIPPED` respetando el candado atómico.
   - Se impide formalmente que dos transacciones modifiquen concurrentemente las mismas particiones de snapshots, evitando condiciones de carrera (*race conditions*).
 
 ---
 
-## 16. Mapeo Conceptual a Prefect
+## 16. Implementación Ejecutable en Prefect 3
 
-*(Nota: En cumplimiento de la Parte 1 de 3, no se agrega Prefect a `pyproject.toml` ni se crea configuración ejecutable. Este apartado establece el diseño y pseudocódigo conceptual de orquestación).*
+*(Nota: En la Parte 2 de 3, Prefect 3 ha sido incorporado al monorepo mediante `uv add --project services/api "prefect>=3,<4"`. El flujo y sus tareas residen en `data/pipelines/inventory_health/flow.py` y se ejecutan directamente en modo efímero o vía CLI).*
 
-### 16.1 Flujo y Tareas Mínimas
+### 16.1 Flujo y Tareas Implementadas
 - **Flow Principal:** `inventory_health_business_flow`
-- **Tareas Mínimas Requeridas:**
-  1. `extract_inventory_changes`: Lee eventos nuevos y entidades de kardex afectadas a partir del checkpoint.
-  2. `validate_and_deduplicate_events`: Valida contratos de eventos, desvía a cuarentena y deduplica en memoria.
-  3. `reconcile_inventory_ledger`: Recalcula el stock autoritativo mediante agregación transaccional sobre `ingredient_entry` e `ingredient_exit`.
-  4. `calculate_inventory_health_metrics`: Calcula ratios, déficits, flags de quiebre y conteos de sobregiro.
-  5. `load_inventory_health_snapshot`: Ejecuta el upsert atómico del snapshot, persiste linaje y avanza el watermark.
+- **Tareas del Pipeline:**
+  1. `extract_inventory_changes`: Lee eventos incrementales de `telemetry_events` y registros de kardex (`ingredient_entry`, `ingredient_exit`) a partir del checkpoint (retries=3, delays=[30, 60, 120]s).
+  2. `validate_and_deduplicate_events`: Valida contratos de eventos, deduplica en memoria y desvía registros anómalos a `reporting.inventory_health_quarantine` con los 8 códigos tipificados (retries=0).
+  3. `reconcile_inventory_ledger`: Recalcula el stock autoritativo mediante agregación transaccional sobre el kardex y reconcilia con telemetría (retries=3, delays=[10, 30, 60]s).
+  4. `calculate_inventory_health_metrics`: Calcula ratios de stock, déficits, flags booleanos y agregaciones con caché de Prefect (`task_input_hash`) y TTL de 15 minutos (retries=0).
+  5. `load_inventory_health_snapshot`: Ejecuta el upsert atómico (UPSERT) en `reporting.inventory_health_snapshot`, registra linaje en `reporting.inventory_health_lineage`, actualiza `reporting.pipeline_checkpoints` y asienta el log de ejecución (retries=3, delays=[15, 30, 60]s).
+  6. `publish_pipeline_summary`: Tarea secundaria no crítica invocada con `return_state=True` para que un fallo en la emisión del resumen no aborte una corrida completada exitosamente.
 
-### 16.2 Pseudocódigo Conceptual del Flow
-```python
-# data/pipelines/inventory_health/flow.py (DISEÑO CONCEPTUAL - NO EJECUTABLE EN ESTA FASE)
-
-from prefect import flow, task
-from datetime import timedelta
-
-@task(
-    name="extract-inventory-changes",
-    retries=3,
-    retry_delay_seconds=[30, 60, 120],
-)
-def extract_inventory_changes():
-    """Extrae eventos incrementales de telemetry_events y registros del kardex."""
-    pass
-
-@task(name="validate-and-deduplicate-events", retries=0)
-def validate_and_deduplicate_events(extracted_data):
-    """Valida contratos por event_type, desvía registros anómalos a cuarentena y deduplica por event_id."""
-    pass
-
-@task(
-    name="reconcile-inventory-ledger",
-    retries=3,
-    retry_delay_seconds=[10, 30, 60],
-)
-def reconcile_inventory_ledger(validated_data):
-    """Calcula el stock disponible autoritativo sumando entradas y restando salidas transaccionales."""
-    pass
-
-@task(name="calculate-inventory-health-metrics", retries=0)
-def calculate_inventory_health_metrics(reconciled_data):
-    """Calcula ratios de nivel de stock, déficits, flags booleanos y agregaciones."""
-    pass
-
-@task(
-    name="load-inventory-health-snapshot",
-    retries=3,
-    retry_delay_seconds=[15, 30, 60],
-)
-def load_inventory_health_snapshot(metrics_data):
-    """Carga atómica e idempotente (UPSERT) en reporting.inventory_health_snapshot y actualiza checkpoints."""
-    pass
-
-@flow(
-    name="inventory-health-business",
-    description="Pipeline de salud de inventario operacional y reconciliación para Brasaland",
-    log_prints=True,
-)
-def inventory_health_business_flow():
-    extracted = extract_inventory_changes()
-    validated = validate_and_deduplicate_events(extracted)
-    reconciled = reconcile_inventory_ledger(validated)
-    metrics = calculate_inventory_health_metrics(reconciled)
-    load_inventory_health_snapshot(metrics)
+### 16.2 Ejecución CLI
+El pipeline es ejecutable directamente como script de terminal a través de:
+```bash
+uv run --project services/api python data/pipelines/pipeline.py [--full-reconciliation] [--db-url URL]
 ```
+- Imprime un resumen de ejecución con: Flow Run ID, Status, Source Events Read, Snapshots Loaded y Records Quarantined.
+- Retorna código de salida `0` si el estado es `COMPLETED` o `SKIPPED`, y `1` si finaliza en `FAILED`.
 
 ### 16.3 Políticas de Reintento por Tarea
 - **Extracción (`extract_inventory_changes`):** 3 reintentos con esperas de 30s, 60s y 120s para mitigar micro-cortes de conexión a PostgreSQL.
@@ -635,7 +588,7 @@ def inventory_health_business_flow():
 - **Reconciliación (`reconcile_inventory_ledger`):** 3 reintentos ante timeouts de lectura transaccional.
 - **Cálculo (`calculate_inventory_health_metrics`):** 0 reintentos. Lógica matemática en memoria libre de I/O externo.
 - **Carga (`load_inventory_health_snapshot`):** 3 reintentos con esperas de 15s, 30s y 60s utilizando la misma transacción idempotente.
-- **Comportamiento Final:** Si cualquiera de las dependencias críticas continúa fallando tras agotar sus reintentos, el flujo se marca en estado `FAILED` y se emite la alerta operativa correspondiente.
+- **Comportamiento Final:** Si cualquiera de las dependencias críticas continúa fallando tras agotar sus reintentos, el flujo se marca en estado `FAILED` y se actualiza el log de ejecución con el error sanitizado.
 
 ---
 
@@ -665,7 +618,7 @@ def inventory_health_business_flow():
   *(Despacha la ejecución en Prefect asignando un `flow_run_id` y encolando la tarea sin bloquear la petición).*
 - **Autenticación y Autorización:**
   - Requiere autenticación Bearer JWT mediante la dependencia existente `get_current_user`.
-  - Requiere rol administrativo u operacional autorizado (`supervisor`, `gerente_local`, `administrador`). Rechaza con HTTP 403 para usuarios no autorizados.
+  - Requiere rol administrativo u operacional autorizado (`admin`, `manager` según `UserRole` en `services/api/app/domains/users/schemas.py`). Rechaza con HTTP 403 Forbidden para usuarios con roles no autorizados (`user`, `employee`).
 - **Código de Respuesta:** `HTTP 202 Accepted` (No bloquea la petición esperando la finalización del pipeline).
 - **Contrato de Respuesta:**
   ```json

@@ -1036,3 +1036,100 @@ Ubicación principal: `services/api/app/domains/telemetry/analysis.py`.
 - **Aislamiento de Ramas Precursoras**: Cero force-push, rebase o modificación sobre `origin/docs/telemetry-design-plan` (PR #17), `origin/feat/telemetry-event-capture` (PR #18) ni `origin/feat/telemetry-event-storage` (PR #19).
 - **Error TypeScript Preexistente en `uis/backoffice`**:
   Conforme a la instrucción *"Si la base heredada falla, documenta el fallo y determina si pertenece realmente a esta nueva fase antes de continuar"* y la restricción negativa *"No modificar TelemetryService, el envelope ni la captura existente"*, se identificó que la rama base `origin/feat/telemetry-event-storage` heredó de la PR #18 dos inconsistencias de tipado en `src/services/telemetry.ts:175` y `src/test/telemetry-service.test.ts:17`. Para no violar la restricción que prohíbe alterar `TelemetryService`, dichos archivos se conservaron intactos. El código de esta nueva fase (`telemetry/page.tsx`, `TelemetryReportDashboard` y sus tests) está 100% libre de errores.
+
+---
+
+# Walkthrough: Pipeline de Desempeño de Negocio Resiliente — Parte 2 de 3
+
+Se ha implementado la fase ejecutable del pipeline de salud de inventario con **Prefect 3**, migración DDL sobre esquema `reporting`, CLI ejecutable, endpoints analíticos en FastAPI y batería completa de pruebas automatizadas.
+
+---
+
+## 1. Resumen de Cambios Implementados
+
+### 1.1 Dependencia y Configuración de Prefect 3
+- **`services/api/pyproject.toml`** y **`services/api/uv.lock`**:
+  - Incorporación limpia de Prefect 3 (`"prefect>=3,<4"`) mediante `uv add --project services/api "prefect>=3,<4"`.
+  - Configuración de `pythonpath = [".", "../.."]` en `pyproject.toml` para resolución de módulos en el monorepo.
+  - Cero dependencias superfluas o externas añadidas.
+
+### 1.2 Migración DDL Idempotente del Esquema `reporting`
+- **`services/api/migrations/002_create_inventory_health_reporting.sql`**:
+  - Creación del esquema `reporting`.
+  - `reporting.inventory_health_snapshot`: PK compuesta `(snapshot_date, local_id, ingredient_id)`, métricas agregadas, marcas de tiempo y linaje.
+  - `reporting.pipeline_checkpoints`: Control de watermarks incrementales por origen.
+  - `reporting.inventory_health_lineage`: PK `(pipeline_run_id, event_id)` para trazabilidad inmutable.
+  - `reporting.inventory_health_quarantine`: Registro estructurado de eventos anómalos desviados.
+  - `reporting.pipeline_execution_logs`: Auditoría forense de corridas (`SCHEDULED`, `RUNNING`, `COMPLETED`, `FAILED`, `SKIPPED`).
+
+### 1.3 Orquestación con Prefect 3 (`data/pipelines/inventory_health/flow.py`)
+- **Flow Principal**: `inventory_health_business_flow`
+- **Control de Concurrencia**: Bloqueo por PostgreSQL advisory lock `pg_try_advisory_lock(84920491)`. Si otra instancia está activa, retorna y registra `SKIPPED` sin condiciones de carrera.
+- **Tasks**:
+  1. `extract_inventory_changes`: Extracción en solo lectura de `telemetry_events`, `ingredient`, `ingredient_entry` e `ingredient_exit` respetando checkpoints (retries=3, delays=[30, 60, 120]s).
+  2. `validate_and_deduplicate_events`: Deduplicación en memoria por `event_id` y desvío a cuarentena con los 8 códigos tipificados (`MISSING_LOCAL_ID`, `MISSING_INGREDIENT_ID`, `NON_NUMERIC_QUANTITY`, `NEGATIVE_QUANTITY`, `INCOMPATIBLE_STRUCTURE`, `UNKNOWN_INGREDIENT_ID`, `INCOMPATIBLE_UNIT`, `INVALID_TIMESTAMP`) (retries=0).
+  3. `reconcile_inventory_ledger`: Reconciliación transaccional: stock autoritativo $= \sum(\text{entry}) - \sum(\text{exit})$ por local e ingrediente, correlación con telemetría (retries=3, delays=[10, 30, 60]s).
+  4. `calculate_inventory_health_metrics`: Ratios de stock (`current_stock / minimum_stock`), stock deficit, flags booleanos de quiebre y conteos de sobregiro con caché Prefect (`task_input_hash`) y TTL de 15 minutos (retries=0).
+  5. `load_inventory_health_snapshot`: Carga atómica e idempotente (UPSERT) en `reporting.inventory_health_snapshot`, registro de linaje, avance de checkpoint y actualización de execution logs (retries=3, delays=[15, 30, 60]s).
+  6. `publish_pipeline_summary`: Tarea secundaria invocada con `return_state=True` para que fallos no críticos no afecten el estado `COMPLETED` del flujo principal.
+
+### 1.4 Entrypoint CLI (`data/pipelines/pipeline.py`)
+- Script ejecutable:
+  ```bash
+  uv run --project services/api python data/pipelines/pipeline.py [--full-reconciliation] [--db-url URL]
+  ```
+- Salida formateada con Flow Run ID, estado, eventos leídos, snapshots cargados y conteo de cuarentena. Códigos de salida: `0` para éxito o skip, `1` para error.
+
+### 1.5 Dominio de Reporting en FastAPI (`services/api/app/domains/reporting/`)
+- **`models.py`**: Modelos SQLModel para las 5 tablas del esquema `reporting`.
+- **`schemas.py`**: Modelos Pydantic V2 (`PipelineRunTriggerResponse`, `PipelineRunStatusResponse`, `InventoryHealthResponse`).
+- **`repository.py`** & **`service.py`**: Conexión con `data/pipelines/inventory_health/queries.py` y despacho asíncrono con `BackgroundTasks`.
+- **`router.py`**: Endpoints expuestos:
+  1. `POST /reporting/inventory-health/runs`: Disparo asíncrono (HTTP 202 Accepted), restringido a roles `admin` y `manager` (HTTP 403 Forbidden para `user` y `employee`).
+  2. `GET /reporting/inventory-health/runs/{flow_run_id}`: Estado, duración y contadores (HTTP 200 OK / 404), con sanitización de errores.
+  3. `GET /reporting/inventory-health`: Snapshot analítico con filtros `date`, `local_id`, `ingredient_id` y `only_critical`.
+
+---
+
+## 2. Evidencias de Validación Automatizada
+
+### 2.1 Suite Completa de Backend (Pytest)
+```
+================= 162 passed, 88 warnings in 60.87s (0:01:00) ==================
+```
+- **`test_reporting_pipeline_tasks.py`**: 12 pruebas unitarias pasando (validación de deduplicación, los 8 códigos de cuarentena, reconciliación matemática, métricas y resiliencia de summary).
+- **`test_reporting_pipeline_flow.py`**: 4 pruebas de integración pasando (ejecución E2E, idempotencia en segunda corrida, bloqueo por concurrencia y rollback transaccional ante fallos).
+- **`test_reporting_api.py`**: 5 pruebas de integración de API pasando (autenticación 401, autorización de roles 403 vs 202, estado 200/404 y consulta con filtros).
+- **Suites previas**: 141 pruebas de autenticación, usuarios, inventario y telemetría 100% conservadas y verdes.
+
+### 2.2 Validación en Vivo de Ejecución CLI contra `brasaland_db`
+```
+19:48:29.117 | INFO    | Flow run 'lively-grouse' - Beginning flow run 'lively-grouse' for flow 'inventory-health-business'
+19:48:29.465 | INFO    | Task run 'extract_inventory_changes-e87' - Finished in state Completed()
+19:48:29.487 | INFO    | Task run 'validate_and_deduplicate_events-d9f' - Finished in state Completed()
+19:48:29.537 | INFO    | Task run 'reconcile_inventory_ledger-4b8' - Finished in state Completed()
+19:48:29.607 | INFO    | Task run 'calculate_inventory_health_metrics-aa1' - Finished in state Completed()
+19:48:29.718 | INFO    | Task run 'load_inventory_health_snapshot-295' - Finished in state Completed()
+19:48:29.732 | INFO    | Task run 'publish_pipeline_summary-709' - Finished in state Completed()
+19:48:30.166 | INFO    | Flow run 'lively-grouse' - Finished in state Completed()
+
+============================================================
+BRASALAND INVENTORY HEALTH PIPELINE — RUN SUMMARY
+============================================================
+Flow Run ID:         a0f55518-86a2-4d4d-ace2-5decb03e4b73
+Status:              COMPLETED
+Source Events Read:  3
+Snapshots Loaded:    12
+Records Quarantined: 1
+Aggregated Metrics:  {'METRIC_STOCK_LEVEL_RATIO': 0.9121, 'METRIC_CRITICAL_STOCKOUTS_COUNT': 1, 'METRIC_BELOW_MINIMUM_COUNT': 7, 'METRIC_INSUFFICIENT_STOCK_ATTEMPTS_COUNT': 0}
+============================================================
+```
+
+---
+
+## 3. Estado de Ramas y Aislamiento
+
+- **Base de Trabajo**: Rama `feat/business-performance-pipeline-design` (PR #21), SHA inicial: `b1d3d33104025b1a4b37e85f5332b5dece740bc8`.
+- **Nueva Rama**: `feat/resilient-business-performance-pipeline`.
+- **Preservación Estricta**: No se modificaron ni forzaron ramas de PRs previas (#17, #18, #19, #20, #21).
+- **Zonas Protegidas**: Se preservaron sin alteraciones `CONTEXT.md`, `company-choice.md`, `memory-bank/projectbrief.md` y `memory-bank/techContext.md`.
