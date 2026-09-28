@@ -34,9 +34,6 @@ from data.pipelines.inventory_health.queries import (
 
 __all__ = [
     "inventory_health_business_flow",
-    "extract_inventory_health_data_flow",
-    "transform_inventory_health_data_flow",
-    "load_inventory_health_snapshot_flow",
     "trigger_inventory_health_flow",
     "get_pipeline_run_status",
     "extract_inventory_changes",
@@ -1033,88 +1030,6 @@ def publish_pipeline_summary(
 
 
 # ==============================================================================
-# Subflow 1: Extract Inventory Health Data Flow
-# ==============================================================================
-@flow(
-    name="extract-inventory-health-data",
-    description="Subflow executing the data extraction phase from telemetry and transactional kardex.",
-    log_prints=True,
-)
-def extract_inventory_health_data_flow(
-    db_url: Optional[str] = None,
-    is_full_reconciliation: bool = False,
-) -> dict[str, Any]:
-    """
-    Subflow encapsulating data extraction.
-    Invokes task 'extract_inventory_changes' and returns extracted datasets.
-    """
-    logger.info("Executing extract_inventory_health_data_flow...")
-    return extract_inventory_changes(
-        db_url=db_url,
-        is_full_reconciliation=is_full_reconciliation,
-    )
-
-
-# ==============================================================================
-# Subflow 2: Transform Inventory Health Data Flow
-# ==============================================================================
-@flow(
-    name="transform-inventory-health-data",
-    description="Subflow executing data validation, quarantine routing, ledger reconciliation, and KPI calculation.",
-    log_prints=True,
-)
-def transform_inventory_health_data_flow(
-    extracted_data: dict[str, Any],
-) -> dict[str, Any]:
-    """
-    Subflow encapsulating in-memory data transformation:
-    1. validate_and_deduplicate_events
-    2. reconcile_inventory_ledger
-    3. calculate_inventory_health_metrics
-    Operates without global mutable state and is independently testable.
-    """
-    logger.info("Executing transform_inventory_health_data_flow...")
-    validated = validate_and_deduplicate_events(extracted_data)
-    reconciled = reconcile_inventory_ledger(extracted_data, validated)
-    metrics = calculate_inventory_health_metrics(reconciled)
-
-    return {
-        "validated": validated,
-        "reconciled": reconciled,
-        "metrics": metrics,
-    }
-
-
-# ==============================================================================
-# Subflow 3: Load Inventory Health Snapshot Flow
-# ==============================================================================
-@flow(
-    name="load-inventory-health-snapshot",
-    description="Subflow executing atomic idempotent loading into the reporting schema.",
-    log_prints=True,
-)
-def load_inventory_health_snapshot_flow(
-    metrics_data: dict[str, Any],
-    validated_data: dict[str, Any],
-    extracted_data: dict[str, Any],
-    pipeline_run_id: str,
-    db_url: Optional[str] = None,
-) -> dict[str, Any]:
-    """
-    Subflow encapsulating the loading phase:
-    Invokes task 'load_inventory_health_snapshot' inside an atomic transaction.
-    """
-    logger.info("Executing load_inventory_health_snapshot_flow for run %s...", pipeline_run_id)
-    return load_inventory_health_snapshot(
-        metrics_data=metrics_data,
-        validated_data=validated_data,
-        extracted_data=extracted_data,
-        pipeline_run_id=pipeline_run_id,
-        db_url=db_url,
-    )
-
-
-# ==============================================================================
 # Flow: inventory_health_business_flow
 # ==============================================================================
 @flow(
@@ -1129,11 +1044,13 @@ def inventory_health_business_flow(
     should_fail_summary: bool = False,
 ) -> dict[str, Any]:
     """
-    Main Prefect 3 flow coordinating the 3 subflows + 1 optional secondary task:
-    1. Subflow: extract_inventory_health_data_flow
-    2. Subflow: transform_inventory_health_data_flow
-    3. Subflow: load_inventory_health_snapshot_flow
-    4. Task: publish_pipeline_summary (optional, return_state=True)
+    Main Prefect 3 flow executing the 5 core stages + 1 optional secondary task:
+    1. extract_inventory_changes
+    2. validate_and_deduplicate_events
+    3. reconcile_inventory_ledger
+    4. calculate_inventory_health_metrics
+    5. load_inventory_health_snapshot
+    6. publish_pipeline_summary (optional, return_state=True)
     """
     pipeline_run_id = str(UUID(run_id)) if run_id else str(uuid.uuid4())
     engine = _get_engine(db_url)
@@ -1170,21 +1087,20 @@ def inventory_health_business_flow(
         # Initialize RUNNING status in execution logs
         record_execution_start(engine, UUID(pipeline_run_id), status="RUNNING")
 
-        # Subflow 1: Extraction
-        extracted = extract_inventory_health_data_flow(
-            db_url=db_url,
-            is_full_reconciliation=is_full_reconciliation,
-        )
+        # Stage 1: Extraction
+        extracted = extract_inventory_changes(db_url=db_url, is_full_reconciliation=is_full_reconciliation)
 
-        # Subflow 2: Transformation (Validation, Deduplication, Reconciliation & KPI Calculation)
-        transformed = transform_inventory_health_data_flow(
-            extracted_data=extracted,
-        )
-        validated = transformed["validated"]
-        metrics = transformed["metrics"]
+        # Stage 2: Validation & Deduplication
+        validated = validate_and_deduplicate_events(extracted)
 
-        # Subflow 3: Loading (Atomic Idempotent UPSERT, Checkpoint, Lineage, Quarantine & Exec Log)
-        load_result = load_inventory_health_snapshot_flow(
+        # Stage 3: Ledger Reconciliation
+        reconciled = reconcile_inventory_ledger(extracted, validated)
+
+        # Stage 4: Calculation of KPIs (Prefect Cached)
+        metrics = calculate_inventory_health_metrics(reconciled)
+
+        # Stage 5: Atomic Idempotent Loading
+        load_result = load_inventory_health_snapshot(
             metrics_data=metrics,
             validated_data=validated,
             extracted_data=extracted,
@@ -1192,7 +1108,7 @@ def inventory_health_business_flow(
             db_url=db_url,
         )
 
-        # Stage 4: Optional Non-Critical Summary Task
+        # Stage 6: Optional Non-Critical Summary Task
         # Invoked explicitly with return_state=True to prevent secondary failure from aborting the flow
         summary_state = publish_pipeline_summary(
             load_result,

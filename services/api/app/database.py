@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Generator
 
 from dotenv import load_dotenv
+from sqlalchemy import text
 from sqlmodel import Session, SQLModel, create_engine
 from tinydb import TinyDB
 
@@ -84,6 +85,15 @@ def init_db(bind_engine=None) -> None:
         IngredientExit,
     )
     from app.domains.telemetry.models import TelemetryEventRecord  # noqa: F401
+    from app.domains.jobs.models import JobRunRecord  # noqa: F401
 
     engine = bind_engine or get_db_engine()
     SQLModel.metadata.create_all(engine)
+    with engine.connect() as conn:
+        conn.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_job_runs_processing "
+                "ON job_runs (job_name, target_date) WHERE status = 'processing'"
+            )
+        )
+        conn.commit()

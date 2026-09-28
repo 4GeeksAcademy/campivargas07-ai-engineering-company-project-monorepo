@@ -560,45 +560,24 @@ Para asegurar la observabilidad forense y auditoría completa de cada ciclo del 
 
 ---
 
-## 16. Implementación Ejecutable en Prefect 3: Topología de Subflows
+## 16. Implementación Ejecutable en Prefect 3
 
-*(Nota: En la Parte 3 de 3, la orquestación ha sido modularizada en tres subflows `@flow` independientes y secuenciales, con pruebas unitarias aisladas en `tests/pipelines/test_pipeline.py` y dashboard de negocio operativo en `/backoffice/reporting/inventory-health`).*
+*(Nota: En la Parte 2 de 3, Prefect 3 ha sido incorporado al monorepo mediante `uv add --project services/api "prefect>=3,<4"`. El flujo y sus tareas residen en `data/pipelines/inventory_health/flow.py` y se ejecutan directamente en modo efímero o vía CLI).*
 
-### 16.1 Flujo Principal y Subflows Implementados
-- **Flow Principal:** `inventory_health_business_flow` (`data/pipelines/inventory_health/flow.py`)
-  Coordina la ejecución secuencial de los tres subflows con entradas y salidas explícitas, control de concurrencia mediante `pg_try_advisory_lock(84920491)` y tarea secundaria desacoplada.
+### 16.1 Flujo y Tareas Implementadas
+- **Flow Principal:** `inventory_health_business_flow`
+- **Tareas del Pipeline:**
+  1. `extract_inventory_changes`: Lee eventos incrementales de `telemetry_events` y registros de kardex (`ingredient_entry`, `ingredient_exit`) a partir del checkpoint (retries=3, delays=[30, 60, 120]s).
+  2. `validate_and_deduplicate_events`: Valida contratos de eventos, deduplica en memoria y desvía registros anómalos a `reporting.inventory_health_quarantine` con los 8 códigos tipificados (retries=0).
+  3. `reconcile_inventory_ledger`: Recalcula el stock autoritativo mediante agregación transaccional sobre el kardex y reconcilia con telemetría (retries=3, delays=[10, 30, 60]s).
+  4. `calculate_inventory_health_metrics`: Calcula ratios de stock, déficits, flags booleanos y agregaciones con caché de Prefect (`task_input_hash`) y TTL de 15 minutos (retries=0).
+  5. `load_inventory_health_snapshot`: Ejecuta el upsert atómico (UPSERT) en `reporting.inventory_health_snapshot`, registra linaje en `reporting.inventory_health_lineage`, actualiza `reporting.pipeline_checkpoints` y asienta el log de ejecución (retries=3, delays=[15, 30, 60]s).
+  6. `publish_pipeline_summary`: Tarea secundaria no crítica invocada con `return_state=True` para que un fallo en la emisión del resumen no aborte una corrida completada exitosamente.
 
-- **Subflows Prefect 3 (`@flow`):**
-  1. `extract_inventory_health_data_flow`:
-     - **Responsabilidad:** Extracción incremental de eventos de telemetría y registros de kardex relacional a partir de checkpoints.
-     - **Task invocada:** `extract_inventory_changes` (retries=3, delays=[30, 60, 120]s).
-     - **Entradas / Salidas:** Recibe `db_url`, `is_full_reconciliation`; retorna diccionario con `telemetry_events`, `ingredients`, `entries`, `exits`, `affected_partitions`, etc.
-  2. `transform_inventory_health_data_flow`:
-     - **Responsabilidad:** Transformación determinista en memoria, validación de contrato, deduplicación, reconciliación contable y cálculo de indicadores de negocio. No depende de base de datos ni servidor externo, permitiendo pruebas unitarias 100% aisladas.
-     - **Tasks invocadas:**
-       - `validate_and_deduplicate_events` (retries=0, 8 códigos de cuarentena).
-       - `reconcile_inventory_ledger` (retries=3, delays=[10, 30, 60]s).
-       - `calculate_inventory_health_metrics` (retries=0, caché Prefect `task_input_hash` con TTL de 15 minutos).
-     - **Entradas / Salidas:** Recibe `extracted_data`; retorna `{"validated": ..., "reconciled": ..., "metrics": ...}`.
-  3. `load_inventory_health_snapshot_flow`:
-     - **Responsabilidad:** Carga atómica ACID en una sola transacción PostgreSQL con UPSERT idempotente, linaje, checkpoints y auditoría de ejecución.
-     - **Task invocada:** `load_inventory_health_snapshot` (retries=3, delays=[15, 30, 60]s).
-     - **Entradas / Salidas:** Recibe `metrics_data`, `validated_data`, `extracted_data`, `pipeline_run_id`, `db_url`; retorna diccionario con estado y contadores de carga.
-
-- **Tarea Secundaria No Crítica:**
-  - `publish_pipeline_summary`: Invocada al finalizar con `return_state=True` para garantizar que un fallo en la emisión de notificaciones no degrade el estado del flujo principal `COMPLETED`.
-
-### 16.2 Ejecución CLI y Tests Unitarios
-El pipeline es ejecutable directamente como script de terminal:
+### 16.2 Ejecución CLI
+El pipeline es ejecutable directamente como script de terminal a través de:
 ```bash
 uv run --project services/api python data/pipelines/pipeline.py [--full-reconciliation] [--db-url URL]
-```
-- Imprime resumen con: Flow Run ID, Status, Source Events Read, Snapshots Loaded y Records Quarantined.
-- Retorna código de salida `0` si el estado es `COMPLETED` o `SKIPPED`, y `1` si finaliza en `FAILED`.
-
-Batería de tests unitarios aislados de transformación y subflows:
-```bash
-uv run --project services/api python -m pytest tests/pipelines/test_pipeline.py
 ```
 - Imprime un resumen de ejecución con: Flow Run ID, Status, Source Events Read, Snapshots Loaded y Records Quarantined.
 - Retorna código de salida `0` si el estado es `COMPLETED` o `SKIPPED`, y `1` si finaliza en `FAILED`.
@@ -737,20 +716,7 @@ uv run --project services/api python -m pytest tests/pipelines/test_pipeline.py
   }
   ```
 
-### 17.3 Dashboard de Negocio en Backoffice (`/backoffice/reporting/inventory-health`)
-En cumplimiento de la Parte 3 de 3, el dashboard de negocio ha sido implementado y protegido bajo autenticación (`AuthGuard`) en la ruta:
-`/backoffice/reporting/inventory-health`
-- **Componente:** `InventoryHealthDashboard` (`uis/backoffice/src/components/reporting/inventory-health-dashboard.tsx`).
-- **Navegación:** Enlazado directamente desde la barra de navegación del Backoffice (`BackofficeHeader`) bajo la sección *Salud Inventario*.
-- **Consumo:** Invoca exclusivamente el endpoint analítico `GET /reporting/inventory-health`, resolviendo la URL base de forma dinámica sin host hardcodeado y sin depender de `GET /telemetry/report`.
-- **KPIs Visualizados:**
-  1. `METRIC_STOCK_LEVEL_RATIO`: Nivel de existencias frente al mínimo de seguridad (promedio agregado e individual por ingrediente).
-  2. `METRIC_CRITICAL_STOCKOUTS_COUNT`: Conteo de ingredientes con existencias agotadas ($\le 0$).
-  3. `METRIC_BELOW_MINIMUM_COUNT`: Conteo de ingredientes operando bajo el umbral mínimo de seguridad.
-  4. `METRIC_INSUFFICIENT_STOCK_ATTEMPTS_COUNT`: Total de salidas bloqueadas en cocina/operaciones por falta de stock.
-- **Observabilidad Operativa:** Muestra periodo del snapshot, timestamp UTC de frescura, y un semáforo de sincronización con banner de alerta si el retraso supera los 20 minutos (`freshness_lag_seconds > 1200`).
-- **Filtros Interactivos:** Filtrado por sede (`local_id`) y conmutador para ver exclusivamente ingredientes críticos (`only_critical`).
-- **Estados de Interfaz:** Manejo accesible de estados de carga, error con botón de reintento, estado vacío y refresco manual.
+*(Nota: El dashboard de negocio en el Backoffice consumirá estos endpoints en la Parte 3; no se construye en esta fase).*
 
 ---
 
