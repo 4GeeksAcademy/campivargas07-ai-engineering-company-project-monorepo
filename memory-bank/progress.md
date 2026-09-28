@@ -279,3 +279,20 @@
   - Frontend: 87 pruebas totales en Vitest (83 en backoffice incluyendo 4 de `telemetry-report-dashboard.test.tsx` y 1 de `backoffice-header.test.tsx`, 4 en website).
   - ESLint limpio en componentes creados y modificados.
   - Verificación manual comparativa: paridad matemática del 100% entre las respuestas del endpoint y consultas de control directas en PostgreSQL.
+
+## Hito: Pipeline de Desempeño de Negocio Resiliente — Parte 2 de 3 (rama `feat/resilient-business-performance-pipeline`)
+
+- **Prefect 3 Integrado**: `"prefect>=3,<4"` instalado en `services/api` con `uv` (`pyproject.toml`, `uv.lock`); resolución limpia en monorepo (`pythonpath = [".", "../.."]`).
+- **Migración DDL Idempotente (`services/api/migrations/002_create_inventory_health_reporting.sql`)**: Creación de esquema `reporting` y 5 tablas dedicadas (`inventory_health_snapshot`, `pipeline_checkpoints`, `inventory_health_lineage`, `inventory_health_quarantine`, `pipeline_execution_logs`).
+- **Orquestación Resiliente (`data/pipelines/inventory_health/flow.py`)**:
+  - Control de concurrencia mediante PostgreSQL advisory lock `pg_try_advisory_lock(84920491)` con estado `SKIPPED`.
+  - 5 tareas principales: `extract_inventory_changes` (retries=3), `validate_and_deduplicate_events` (8 códigos de cuarentena), `reconcile_inventory_ledger` (retries=3), `calculate_inventory_health_metrics` (caché Prefect 15 min), `load_inventory_health_snapshot` (UPSERT idempotente atómico).
+  - 1 tarea secundaria: `publish_pipeline_summary` con `return_state=True` para tolerancia a fallos.
+- **Entrypoint CLI (`data/pipelines/pipeline.py`)**: Ejecutable con `uv run --project services/api python data/pipelines/pipeline.py [--full-reconciliation]`, retornando código 0 y resumen formateado.
+- **Dominio de Reporting en API (`services/api/app/domains/reporting/`)**:
+  - `POST /reporting/inventory-health/runs` (HTTP 202 Accepted, roles `admin` y `manager`, 403 Forbidden para `user`/`employee`, ejecución asíncrona con `BackgroundTasks`).
+  - `GET /reporting/inventory-health/runs/{flow_run_id}` (HTTP 200 OK / 404, sanitización de credenciales).
+  - `GET /reporting/inventory-health` (HTTP 200 OK con filtros `date`, `local_id`, `ingredient_id`, `only_critical`).
+- **Validación Automatizada Integral**:
+  - 162 pruebas pasando al 100% en Pytest (21 pruebas nuevas: unitarias, integración PostgreSQL, idempotencia, concurrencia, rollback y seguridad/endpoints).
+  - Verificación CLI en vivo contra `brasaland_db` completada con éxito.
