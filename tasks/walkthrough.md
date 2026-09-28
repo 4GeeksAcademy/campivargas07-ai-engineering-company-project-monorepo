@@ -1133,3 +1133,146 @@ Aggregated Metrics:  {'METRIC_STOCK_LEVEL_RATIO': 0.9121, 'METRIC_CRITICAL_STOCK
 - **Nueva Rama**: `feat/resilient-business-performance-pipeline`.
 - **Preservación Estricta**: No se modificaron ni forzaron ramas de PRs previas (#17, #18, #19, #20, #21).
 - **Zonas Protegidas**: Se preservaron sin alteraciones `CONTEXT.md`, `company-choice.md`, `memory-bank/projectbrief.md` y `memory-bank/techContext.md`.
+
+---
+
+# Walkthrough: Mejora del Pipeline: Subflows y Tests — Parte 3 de 3
+
+Se ha completado la fase final del pipeline de salud de inventario de Brasaland: refactorización modular en **subflows Prefect 3**, suite de **pruebas unitarias aisladas**, verificación integral de **idempotencia y resiliencia**, y construcción del **dashboard de negocio para Backoffice**.
+
+---
+
+## 1. Resumen de Cambios Implementados
+
+### 1.1 Refactorización en Subflows Prefect 3 (`data/pipelines/inventory_health/flow.py`)
+- Se extrajo la coordinación del flujo en **tres subflows `@flow` independientes** y tipados:
+  1. **`extract_inventory_health_data_flow(engine, start_date=None, end_date=None, full_reconciliation=False)`**:
+     - Ejecuta la tarea `extract_inventory_changes` (retries=3, delays=[30, 60, 120]s).
+     - Lectura en solo lectura de `telemetry_events`, `ingredient`, `ingredient_entry` e `ingredient_exit` respetando checkpoints.
+     - Retorna `InventoryChangesResult`.
+  2. **`transform_inventory_health_data_flow(raw_data, snapshot_date=None)`**:
+     - Ejecuta secuencialmente `validate_and_deduplicate_events`, `reconcile_inventory_ledger` y `calculate_inventory_health_metrics`.
+     - Deduplica eventos por `event_id`, desvía a cuarentena con los 8 códigos tipificados (`MISSING_LOCAL_ID`, `MISSING_INGREDIENT_ID`, `NON_NUMERIC_QUANTITY`, `NEGATIVE_QUANTITY`, `INCOMPATIBLE_STRUCTURE`, `UNKNOWN_INGREDIENT_ID`, `INCOMPATIBLE_UNIT`, `INVALID_TIMESTAMP`).
+     - Reconcilia stock autoritativo: $\text{stock} = \sum(\text{entry}) - \sum(\text{exit})$.
+     - Calcula las 4 métricas canónicas con **caché Prefect 3** (`task_input_hash`) y TTL de 15 minutos.
+     - Retorna `HealthMetricsResult`.
+  3. **`load_inventory_health_snapshot_flow(engine, metrics_data, raw_data, run_id)`**:
+     - Ejecuta la tarea `load_inventory_health_snapshot` (retries=3, delays=[15, 30, 60]s).
+     - Ejecuta inserción/actualización atómica (UPSERT) en `reporting.inventory_health_snapshot` mediante `ON CONFLICT (snapshot_date, local_id, ingredient_id) DO UPDATE`.
+     - Registra linaje inmutable en `reporting.inventory_health_lineage` y avanza checkpoints en `reporting.pipeline_checkpoints`.
+     - Retorna `SnapshotLoadResult`.
+- **Flujo Principal `inventory_health_business_flow`**:
+  - Orquesta los tres subflows en secuencia estricta pasando datos estructurados explícitos sin estado global mutable.
+  - Concurrencia protegida mediante PostgreSQL advisory lock `pg_try_advisory_lock(84920491)`.
+  - Tarea no crítica `publish_pipeline_summary` ejecutada con `return_state=True` para preservar el estado `COMPLETED` del flujo principal ante eventuales fallos de notificación.
+  - Subflows exportados en `__all__` para permitir su importación e invocación independiente.
+
+### 1.2 Suite de Pruebas Unitarias Aisladas (`tests/pipelines/test_pipeline.py`)
+- Se implementó una batería de pruebas unitarias puras y deterministas para las tareas de transformación y subflows, sin requerir base de datos PostgreSQL activa:
+  1. `test_validate_and_deduplicate_events_drops_duplicate_event_ids`: Comprueba que eventos repetidos con idéntico `event_id` se deduplican y solo se procesan una vez.
+  2. `test_validate_and_deduplicate_events_quarantines_invalid_payloads`: Valida que registros con errores tipificados (`MISSING_LOCAL_ID`, `NON_NUMERIC_QUANTITY`, etc.) se clasifiquen defensivamente a cuarentena sin interrumpir el lote de eventos válidos.
+  3. `test_reconcile_and_calculate_metrics`: Verifica el cálculo autoritativo de inventario ($\text{balance} = \sum(\text{entry}) - \sum(\text{exit})$) y el cómputo exacto de las 4 métricas requeridas:
+     - `METRIC_STOCK_LEVEL_RATIO`
+     - `METRIC_CRITICAL_STOCKOUTS_COUNT`
+     - `METRIC_BELOW_MINIMUM_COUNT`
+     - `METRIC_INSUFFICIENT_STOCK_ATTEMPTS_COUNT`
+  4. `test_transformation_subflow_coordination`: Comprueba la invocación aislada de `transform_inventory_health_data_flow` y la correcta propagación de sus estructuras de datos.
+- Ejecutable con: `uv run --project services/api python -m pytest tests/pipelines/test_pipeline.py`.
+
+### 1.3 Dashboard de Negocio en Backoffice (`uis/backoffice/`)
+- **Ruta Protegida y Navegación**:
+  - Nueva ruta `/backoffice/reporting/inventory-health` (`page.tsx`) envuelta en `AuthGuard` y `BackofficeHeader`.
+  - Enlace de navegación "Salud Inventario" en `BackofficeHeader` con indicador visual de vista activa.
+- **Componente `InventoryHealthDashboard` (`uis/backoffice/src/components/reporting/inventory-health-dashboard.tsx`)**:
+  - Conexión cliente al endpoint `GET /reporting/inventory-health` vía proxy `/api/reporting/inventory-health`, sin URLs hardcodeadas ni llamadas a `GET /telemetry/report`.
+  - 4 tarjetas resumen KPI orientadas a Felipe Guerrero (Director de Operaciones):
+    1. *Ratio Salud Stock*: Porcentaje de stock sobre nivel mínimo requerido.
+    2. *Quiebres Críticos*: Conteo de ingredientes con stock en cero o negativo.
+    3. *Bajo Mínimo*: Conteo de ingredientes con stock inferior al mínimo operativo.
+    4. *Intentos Sobregiro*: Eventos de pedidos fallidos por inventario insuficiente.
+  - Indicador de frescura de datos con marca temporal localizada y **banner de advertencia** ante desfases mayores a 20 minutos (`> 20 min`).
+  - Filtros operativos interactivos: Sede (`local_id`) y checkbox "Solo críticos" (`only_critical`).
+  - Tabla de detalle de ingredientes con semáforos textuales normalizados (`Crítico`, `Bajo Mínimo`, `Saludable`).
+  - Manejo completo de estados: carga accesible, error con reintento manual y estado vacío cuando no existen registros.
+- **Batería de Pruebas de Frontend (Vitest & Testing Library)**:
+  - `uis/backoffice/src/test/inventory-health-dashboard.test.tsx`: 5 pruebas completas verificando carga, renderizado con datos poblados, estado vacío, reintento ante fallos y banner de datos desactualizados.
+  - `uis/backoffice/src/test/backoffice-header.test.tsx`: Prueba unitaria para el enlace de navegación "Salud Inventario".
+
+### 1.4 Documentación Canónica (`data/pipelines/PIPELINE_DESIGN.md`)
+- Actualizada la Sección 16 describiendo la arquitectura formal de tres subflows Prefect 3, sus firmas de entrada/salida y comandos de ejecución.
+- Añadida la Sección 17.3 con las especificaciones del Dashboard de Negocio en Backoffice, sus contratos de datos y reglas de accesibilidad.
+
+---
+
+## 2. Evidencias de Validación Automatizada
+
+### 2.1 Pruebas Unitarias de Pipeline (Pytest)
+```
+$ uv run --project services/api python -m pytest tests/pipelines/test_pipeline.py
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-8.3.4, pluggy-1.5.0
+plugins: cov-6.0.0, anyio-4.8.0
+collected 4 items
+
+tests/pipelines/test_pipeline.py ....                                    [100%]
+
+============================== 4 passed in 13.62s ===============================
+```
+
+### 2.2 Suite Completa de Backend
+```
+$ TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/brasaland_api_test" uv run --project services/api pytest services/api/tests
+================ 162 passed, 88 warnings in 72.73s (0:01:12) ==================
+```
+
+### 2.3 Verificación de Idempotencia y CLI contra `brasaland_db`
+Dos ejecuciones consecutivas del pipeline por CLI:
+1. **Primera corrida**: Extracción de cambios y carga de snapshots:
+   - `Flow Run ID: a9d8d641-6927-41fe-8b1e-b3f5c76db364`
+   - `Status: COMPLETED`
+   - `Snapshots Loaded: 8`
+2. **Segunda corrida**: Re-ejecución inmediata sobre los mismos datos:
+   - `Flow Run ID: 62e519e9-11ba-4f24-916c-e588dbca57fb`
+   - `Task calculate_inventory_health_metrics`: **Cached(type=COMPLETED)** (cache hit en Prefect).
+   - `Status: COMPLETED`
+   - `Snapshots Loaded: 8` (actualizados in-place mediante UPSERT).
+   - Recuento total en `reporting.inventory_health_snapshot`: **12 filas** (sin incremento ni duplicados).
+   - Cero alteraciones sobre filas de `telemetry_events`.
+
+### 2.4 Validación de Frontend (Backoffice & Website)
+- **Vitest**:
+  ```
+  Test Files  18 passed (18)
+  Tests       93 passed (93)
+  ```
+  (89 pruebas en Backoffice + 4 pruebas en Website).
+- **TypeScript**:
+  ```
+  $ npm --prefix uis/backoffice run typecheck
+  > tsc --noEmit
+  (0 errores)
+  ```
+- **ESLint**:
+  ```
+  $ npm --prefix uis/backoffice run lint
+  > eslint
+  (0 errores, 0 advertencias)
+  ```
+- **Producción Next.js 16 con Turbopack**:
+  ```
+  $ npm --prefix uis/backoffice run build
+  ✓ Compiled successfully in 9.6s
+  ✓ Generating static pages using 1 worker (21/21)
+  Route: /backoffice/reporting/inventory-health (Static)
+  ```
+
+---
+
+## 3. Estado de Ramas y Aislamiento
+
+- **Base de Trabajo**: Rama `feat/resilient-business-performance-pipeline` (PR #22), SHA base: `19d0343118a9d518d5456387c55a6065b330ca21`.
+- **Nueva Rama**: `feat/business-performance-pipeline-final`.
+- **Pull Request**: Creada con destino a `feat/resilient-business-performance-pipeline` con la anotación explícita `Depends on #22`.
+- **Preservación Estricta**: No se realizaron rebases, force-pushes ni modificaciones sobre las ramas precursoras (PR #17 a #22).
+- **Zonas Protegidas**: Intactas sin modificaciones (`CONTEXT.md`, `company-choice.md`, `memory-bank/projectbrief.md`, `memory-bank/techContext.md`).
+
