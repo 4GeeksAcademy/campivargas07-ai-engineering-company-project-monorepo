@@ -323,3 +323,39 @@
   - `npm run test:uis`: 93/93 pruebas pasando (89 en backoffice, 4 en website).
   - `npm --prefix uis/backoffice run typecheck && lint && build`: 0 errores, compilación de producción con 21 páginas estáticas completada.
 
+## Hito: Procesos en Segundo Plano — ticket #DEV-53: script nocturno de telemetría (rama `feat/nightly-telemetry-script`)
+
+- **Persistencia y Migración DDL (`services/api/migrations/003_create_job_runs.sql`)**:
+  - Tabla `job_runs` en esquema público, separada de `reporting.pipeline_execution_logs`.
+  - Columnas: `id` (UUID PK), `job_name`, `target_date`, `status` (`pending`, `processing`, `completed`, `failed`), `started_at`, `finished_at`, `error_message`, `created_at`.
+  - Índice por `(job_name, target_date)` e índice único parcial `uq_job_runs_processing` asegurando a nivel de base de datos que a lo sumo un proceso se encuentre en estado `processing` para una fecha dada.
+- **Dominio de Jobs y Reclamo Atómico (`services/api/app/domains/jobs/`)**:
+  - Modelo `JobRunRecord` en `models.py` registrado en `init_db()`.
+  - Servicio `service.py`: `claim_job_run` con control de concurrencia y recuperación de carreras por `IntegrityError`; omisión idempotente ante corridas `completed` (`ALREADY_COMPLETED`); recuperación automática de estados `processing` obsoletos tras `stale_timeout_minutes` (zombies o caídas abruptas). Transiciones de cierre: `complete_job_run` y `fail_job_run`.
+- **Script Nocturno de Telemetría (`scripts/nightly_export.py`)**:
+  - Proceso CLI independiente fuera de FastAPI.
+  - Resolución de fecha objetivo mediante `--target-date YYYY-MM-DD`, variable `TARGET_DATE` o por defecto ayer en UTC.
+  - Exportación en streaming de eventos de `telemetry_events` estrictamente acotados a la fecha UTC en `data/raw/telemetry_YYYY-MM-DD.csv` con archivo temporal y reemplazo atómico (`os.replace`).
+  - Preservación sin sobreescritura si el archivo CSV ya existe (respaldo inmutable).
+  - Invocación del pipeline real de salud de inventario (`data/pipelines/pipeline.py`) como subproceso limpio.
+  - Distinción estricta de `COMPLETED` vs `SKIPPED`: adaptación mínima compatible en `pipeline.py` para devolver código de salida `2` ante saltos por bloqueo concurrente; `nightly_export.py` valida `returncode == 0` y `Status: COMPLETED`, marcando `failed` si el subproceso fue omitido (`SKIPPED`) o falló.
+- **Suite de Pruebas Automatizadas (`tests/scripts/test_nightly_export.py`)**:
+  - 14 pruebas unitarias e integración pasando en 1.36s:
+    1. Resolución de fecha por argumento, variable de entorno, fallback UTC y validación de formato.
+    2. Filtrado estricto por rango temporal UTC de la fecha en el CSV sin fuga a días contiguos.
+    3. Preservación de archivo CSV existente sin sobreescritura.
+    4. Omisión idempotente cuando la fecha ya se completó.
+    5. Reintento exitoso tras corridas previas fallidas.
+    6. Detección y recuperación de ejecuciones `processing` zombies/obsoletas tras timeout.
+    7. Prevención de concurrencia paralela entre dos procesos compitiendo por la misma fecha.
+    8. Ciclo completo CLI con subproceso simulado exitoso (`COMPLETED`).
+    9. Manejo de subproceso `SKIPPED` marcando `job_runs` como `failed`.
+    10. Manejo de fallo del pipeline marcando `failed` con mensaje de error forense.
+    11. Omisión CLI cuando la fecha ya fue completada.
+- **Validación Integral**:
+  - `pytest tests/scripts/test_nightly_export.py`: 14/14 pasando.
+  - `pytest tests/pipelines/test_pipeline.py`: 4/4 pasando.
+  - `pytest services/api/tests`: 162/162 pasando.
+  - Ejecución real en vivo contra `brasaland_db` confirmando exportación de 5 eventos de `2026-09-21`, ejecución del pipeline Prefect, creación de fila en `job_runs` y salto idempotente en segunda corrida.
+
+

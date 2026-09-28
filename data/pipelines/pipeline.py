@@ -98,7 +98,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
         elif status == "SKIPPED":
             logger.warning("Pipeline execution was skipped (concurrency lock active).")
-            return 0
+            return 2
         else:
             logger.error("Pipeline finished with non-successful status: %s", status)
             return 1
