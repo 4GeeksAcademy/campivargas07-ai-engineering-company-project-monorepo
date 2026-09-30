@@ -1,5 +1,22 @@
 # Walkthrough: Dominio de Inventario con SQLModel y Doble Base de Datos en `services/api`
 
+## Walkthrough: Correcciones de revisión PR #15 — registro público y CSV
+
+### Cambios
+- Se retiró `role` del contrato público `UserCreate` y se configuró el rechazo de propiedades extra. Aunque se envíe `role: "admin"`, Pydantic responde 422 sin crear el usuario.
+- `create_user` asigna explícitamente el rol `user`. `POST /users` responde con `{ "detail": "User registered successfully", "id": "..." }` y no incluye email.
+- Se alineó el cliente de registro del Backoffice; registra sin rol y continúa autenticando mediante el login con email/password.
+- OpenAPI especifica para la descarga CSV `text/csv`, formato binario, cabecera `Content-Disposition` y respuesta 404, conservando la respuesta `Response` existente.
+- `docs/serialization-audit.md` refleja el estado corregido de `POST /users` y los contratos de exportación.
+
+### Validación
+- `uv run --directory services/api pytest`: 67 passed, 5 skipped (requieren `TEST_DATABASE_URL`).
+- Typecheck Backoffice reporta referencias antiguas en `.next/types/validator.ts` a páginas que no existen en el checkout, sin errores restantes en los archivos auth modificados.
+- `git diff --check` ejecutado. Pytest actualizó bytecode `.pyc` y metadatos `egg-info` versionados, que deben revertirse antes de entregar.
+
+### Por qué se produjo el hallazgo
+El trabajo original priorizó añadir modelos de respuesta y documentar la superficie existente. En ese momento se consideró la asignación de rol una decisión de producto pendiente y se interpretó “no devolver secretos” como excluir contraseñas/hashes; no se aplicó el principio de mínimo privilegio ni minimización de PII al endpoint público. La exportación se trató como una respuesta no JSON correctamente en runtime, pero no se describió expresamente en el esquema OpenAPI ni se probó esa parte del contrato.
+
 Se ha implementado la extensión de `services/api` con el dominio de inventario para Brasaland, integrando PostgreSQL mediante SQLModel junto con TinyDB, preservando la autenticación existente y documentando las interfaces y validaciones.
 
 ---

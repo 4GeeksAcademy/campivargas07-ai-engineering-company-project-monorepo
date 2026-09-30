@@ -15,10 +15,14 @@ export interface TokenResponse {
 export interface RegisterRequest {
   email: string;
   password: string;
-  role?: string;
   name?: string;
   phone?: string;
   address?: string;
+}
+
+export interface UserRegistrationResponse {
+  detail: string;
+  id: string;
 }
 
 export interface UserOut {

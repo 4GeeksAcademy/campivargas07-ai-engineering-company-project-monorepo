@@ -14,16 +14,27 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.domains.auth.dependencies import get_current_user
 
-from .schemas import DeleteResponse, UserCreate, UserListResponse, UserResponse, UserUpdate
+from .schemas import (
+    DeleteResponse,
+    UserCreate,
+    UserListResponse,
+    UserRegistrationResponse,
+    UserResponse,
+    UserUpdate,
+)
 from . import service
 
 router = APIRouter(prefix="/users", tags=["users"])
 
 
-@router.post("", response_model=UserResponse, status_code=201)
-def create_user(data: UserCreate) -> UserResponse:
+@router.post("", response_model=UserRegistrationResponse, status_code=201)
+def create_user(data: UserCreate) -> UserRegistrationResponse:
     """Register a new user. Profile fields (name, phone, address) are optional."""
-    return service.create_user(data)
+    user = service.create_user(data)
+    return UserRegistrationResponse(
+        detail="User registered successfully",
+        id=user.id,
+    )
 
 
 @router.get("", response_model=UserListResponse)

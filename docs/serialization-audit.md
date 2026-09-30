@@ -24,7 +24,7 @@ La rama de trabajo se creó como `feature/serialization-audit`. Antes de impleme
 | `GET /health` | Healthcheck | Docker/operación | Ninguna | `dict` / `HealthResponse` | `status` | Ninguno | ❌ | ✅ |
 | `POST /auth/login` | Login y JWT | `auth/api.ts`, login | `email`, `password` | `TokenResponse` | `access_token`, `token_type` | Password solo entrada | ✅ | ✅ |
 | `GET /auth/me` | Sesión y perfil autenticado | `auth/context.tsx` | Bearer | `AuthMeResponse` anidado | Usuario, email propio, perfil | Hash/password | ⚠️ | ✅ con tipos frontend alineados |
-| `POST /users` | Registro | Contexto/formulario de auth | Email, password, role y perfil opcional | `UserResponse`, `201` | `id`, email, role, activo, fecha | Password/hash | ✅ | ✅ |
+| `POST /users` | Registro público | Contexto/formulario de auth | Email, password y perfil opcional; rol asignado por el servidor | `UserRegistrationResponse`, `201` | Confirmación e `id` | Email en respuesta, rol controlado por cliente, password/hash | ⚠️ | ✅ rol `user` fijado en servidor y respuesta sin email |
 | `GET /users` | Listado de usuarios | Consumidor directo no confirmado | Bearer | `UserListResponse` | Campos de administración y trazabilidad | Hash/password | ⚠️ | ✅, sin hash |
 | `GET /users/{user_id}` | Detalle de usuario | No confirmado | Bearer, id | `UserResponse` | Campos de usuario | Hash/password | ⚠️ | ✅ |
 | `PUT /users/{user_id}` | Editar email/rol | No confirmado | Email, role | `UserResponse` | Campos controlados por servidor | Password/hash | ✅ | ✅ |
@@ -56,7 +56,8 @@ Comprobado en esquemas y servicios:
 - `GET /auth/me` puede devolver el email del usuario autenticado.
 - `user_uuid` del movimiento se conserva porque `OrdersLedger` lo consume para trazabilidad.
 
-La política de autoasignación de rol en `POST /users` continúa siendo una decisión de producto pendiente: el comportamiento existente permite solicitar `admin` públicamente y no se cambió en esta implementación mínima.
+- `POST /users` es público y rechaza campos extra, incluido `role`; el servicio asigna siempre `user`. Los cambios de rol siguen restringidos a la ruta autenticada y autorización administrativa.
+- La respuesta pública de registro usa `UserRegistrationResponse` (`detail`, `id`) y no vuelve a exponer el email ni el rol.
 
 ## 4. Cambios implementados
 
@@ -67,6 +68,13 @@ La política de autoasignación de rol en `POST /users` continúa siendo una dec
   - `GET /health` ahora declara `response_model=HealthResponse`.
 - `services/api/app/domains/users/schemas.py`
   - Se añadió `DeleteResponse`.
+- `services/api/app/domains/users/schemas.py` y `router.py`
+  - `UserCreate` no acepta `role` y rechaza campos extra.
+  - El registro devuelve `UserRegistrationResponse`, limitado a confirmación e identificador.
+- `services/api/app/domains/users/service.py`
+  - El rol de autorregistro se asigna exclusivamente en servidor (`user`).
+- `services/api/app/domains/analytics/incidents/router.py`
+  - La exportación CSV declara `text/csv`, formato binario, `Content-Disposition` y respuesta 404 en OpenAPI.
 - `services/api/app/domains/users/router.py`
   - `DELETE /users/{user_id}` declara `response_model=DeleteResponse`.
 - `services/api/app/domains/procurement/suppliers/schemas.py`
@@ -86,7 +94,9 @@ La política de autoasignación de rol en `POST /users` continúa siendo una dec
   - Health JSON y media type.
   - Ausencia de `password` y `hashed_password` en listados de usuarios.
   - Contrato explícito de borrado de usuario.
-  - Presencia de contratos en OpenAPI.
+  - Presencia de contratos en OpenAPI, incluido registro y exportación CSV.
+- `services/api/tests/test_register.py` y `test_incidents_api.py`
+  - Rechazo de rol enviado en autorregistro, respuesta sin email y cabeceras CSV reales.
 
 ## 5. Contratos especiales
 
@@ -111,7 +121,14 @@ La política de autoasignación de rol en `POST /users` continúa siendo una dec
 - `Content-Type: text/csv; charset=utf-8`.
 - `Content-Disposition: attachment; filename="results.csv"`.
 - HTTP `404` cuando no existe un resultado previo.
-- Su contrato es de archivo, no de objeto JSON serializado.
+- OpenAPI declara explícitamente `text/csv` (string binario) y `Content-Disposition`; su contrato es de archivo, no de objeto JSON serializado.
+
+### `POST /users`
+
+- HTTP `201`.
+- `UserCreate` excluye `role` y no admite propiedades adicionales; un intento de asignar un rol responde `422`.
+- El servidor asigna siempre el rol `user` en el autorregistro.
+- `UserRegistrationResponse` sólo devuelve `detail` e `id`; no incluye email, rol ni datos de credenciales.
 
 ## 6. Compatibilidad y riesgos
 
@@ -121,6 +138,7 @@ La política de autoasignación de rol en `POST /users` continúa siendo una dec
 - No se alteró `services/backend`.
 - No se modificaron `CONTEXT.md`, `company-choice.md`, `projectbrief.md`, `techContext.md`, `infra/` ni `mcps/`.
 - La exportación CSV mantiene su formato y cabeceras.
+- El cambio de respuesta de registro se refleja en el cliente Backoffice; la UI continúa autenticando al usuario con email y password tras crear la cuenta.
 
 ## 7. Validaciones pendientes
 

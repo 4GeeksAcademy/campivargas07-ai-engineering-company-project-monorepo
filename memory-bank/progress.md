@@ -174,3 +174,10 @@
   inicial, estado final, contratos especiales, riesgos y validaciones pendientes.
 - **Estado:** implementación funcional aplicada; pruebas completas, typecheck,
   lint y verificación manual mediante `/docs` quedan pendientes de ejecución.
+
+## Revisión de comentarios PR #15: contratos de registro y CSV
+- **Autorregistro seguro:** `UserCreate` ya no admite `role` y rechaza campos extra; el servicio fija `user` desde servidor. Las cuentas privilegiadas deben asignarse desde una ruta autenticada con autorización administrativa.
+- **Minimización de datos:** `POST /users` devuelve `UserRegistrationResponse` (`detail`, `id`) sin email ni rol. Backoffice ya no envía ni tipa un rol al registrar y posteriormente inicia sesión con las credenciales del formulario.
+- **OpenAPI CSV:** `GET /api/incidents/results/export` declara `text/csv`, contenido binario, `Content-Disposition` y error 404, sin cambiar la descarga CSV.
+- **Regresión:** pruebas cubren rechazo de `role`, rol asignado por servidor, respuesta sin email, contrato OpenAPI y cabeceras reales CSV.
+- **Validación:** `uv run --directory services/api pytest`: 67 passed, 5 skipped (integraciones PostgreSQL sin entorno). Typecheck frontend pendiente de sanear `.next/types` obsoleto, que referencia páginas inexistentes en este checkout; no reportó errores en el código auth actualizado.

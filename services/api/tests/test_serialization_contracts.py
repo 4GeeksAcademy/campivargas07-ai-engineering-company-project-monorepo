@@ -54,3 +54,21 @@ def test_openapi_declares_special_response_models(client: TestClient) -> None:
     assert delete_response["content"]["application/json"]["schema"]["$ref"].endswith(
         "/DeleteResponse"
     )
+
+
+def test_openapi_documents_registration_and_csv_export(client: TestClient) -> None:
+    schema = client.get("/openapi.json").json()
+
+    registration = schema["paths"]["/users"]["post"]["responses"]["201"]
+    registration_schema = registration["content"]["application/json"]["schema"]
+    assert registration_schema["$ref"].endswith("/UserRegistrationResponse")
+    registration_model = schema["components"]["schemas"]["UserRegistrationResponse"]
+    assert "email" not in registration_model["properties"]
+
+    export = schema["paths"]["/api/incidents/results/export"]["get"]["responses"]["200"]
+    assert "text/csv" in export["content"]
+    assert export["content"]["text/csv"]["schema"] == {
+        "type": "string",
+        "format": "binary",
+    }
+    assert "Content-Disposition" in export["headers"]
