@@ -174,6 +174,38 @@
 - **Documentación:** diagnóstico en `AUDIT.md`, comparativa en `REPORT.md` y
   evidencia completa en `audit/before/` y `audit/after/`.
 
+## Implementación: Auditoría de serialización del backend (`feature/serialization-audit`)
+
+- **Alcance confirmado:** `services/api` es el backend activo; `services/backend`
+  permanece fuera de alcance por pertenecer a un hito anterior.
+- **Contratos añadidos:** `HealthResponse` para `GET /health` y `DeleteResponse`
+  para `DELETE /users/{user_id}` y `DELETE /api/suppliers/{supplier_id}`.
+- **Seguridad:** se conservan respuestas de usuarios sin `password` ni
+  `hashed_password`; el JWT de login sigue siendo el único token contractual
+  expuesto. Se conserva `user_uuid` en movimientos por trazabilidad del ledger.
+- **Frontend:** `AuthMeResponse` en `uis/backoffice` se alineó con la respuesta
+  anidada `{ user, profile }` del backend.
+- **Pruebas agregadas:** `services/api/tests/test_serialization_contracts.py`
+  cubre health, filtrado de hashes, borrado y presencia de modelos en OpenAPI.
+- **Auditoría:** creada `docs/serialization-audit.md`, conservando diagnóstico
+  inicial, estado final, contratos especiales, riesgos y validaciones pendientes.
+- **Estado:** implementación funcional aplicada; pruebas completas, typecheck,
+  lint y verificación manual mediante `/docs` quedan pendientes de ejecución.
+
+## Revisión de comentarios PR #15: contratos de registro y CSV
+- **Autorregistro seguro:** `UserCreate` ya no admite `role` y rechaza campos extra; el servicio fija `user` desde servidor. Las cuentas privilegiadas deben asignarse desde una ruta autenticada con autorización administrativa.
+- **Minimización de datos:** `POST /users` devuelve `UserRegistrationResponse` (`detail`, `id`) sin email ni rol. Backoffice ya no envía ni tipa un rol al registrar y posteriormente inicia sesión con las credenciales del formulario.
+- **OpenAPI CSV:** `GET /api/incidents/results/export` declara `text/csv`, contenido binario, `Content-Disposition` y error 404, sin cambiar la descarga CSV.
+- **Regresión:** pruebas cubren rechazo de `role`, rol asignado por servidor, respuesta sin email, contrato OpenAPI y cabeceras reales CSV.
+- **Validación:** `uv run --directory services/api pytest`: 67 passed, 5 skipped (integraciones PostgreSQL sin entorno). Typecheck frontend pendiente de sanear `.next/types` obsoleto, que referencia páginas inexistentes en este checkout; no reportó errores en el código auth actualizado.
+
+## Resolución de conflictos del merge de `main` en PR #15
+- Se conservaron en la misma integración los cambios de serialización/seguridad de PR #15 y los dominios de incidentes y recuperación de contraseña ya presentes en `main`.
+- `GET /health` mantiene `HealthResponse`; la API del backoffice incluye tipos y métodos de cambio/recuperación de contraseña, y el registro continúa sin aceptar `role`.
+- Se corrigió la página de perfil para leer `user.email`, `user.role` y `user.is_active` desde la respuesta anidada real de `/auth/me`.
+- Se eliminaron los marcadores literales de conflicto en cinco archivos y se preservaron las dos series de documentación histórica.
+- **Validación del merge:** API 91 passed, 5 skipped; backoffice 67 tests y lint sin errores. Typecheck ya no reporta errores de código: persisten dos referencias antiguas bajo `.next/types/validator.ts` a páginas que no existen en este checkout.
+
 ## Integración PR #10: Gestor de Incidentes
 
 - **Conflictos resueltos:** se conservó el analizador CSV ya integrado en
@@ -236,5 +268,5 @@
 - **Integración Transversal y Core Web Vitals**: Componente `<WebVitals />` (`useReportWebVitals`), `<TelemetryBootstrap />` (navegación y captura de errores globales), medición monotónica de latencia en `InventoryApiClient` y sincronización de usuario en `AuthProvider`.
 - **Instrumentación de Negocio en Vistas Reales**: Captura semántica en `InboundOrderForm` (`inbound_order_created`), `OutboundOrderForm` (`outbound_order_created`, `outbound_insufficient_stock_attempted`, `form_abandoned`), `ProductsTable` (`inventory_catalog_viewed`, `inventory_filter_applied` debounced 500ms) y `LoginPage` (`user_logged_in`, `user_login_failed`).
 - **Validación Integral**: 97 pruebas backend en Pytest (13 nuevas en `test_telemetry_stub.py`), 78 pruebas frontend en Vitest (11 nuevas en `telemetry-service.test.ts`), 0 errores TypeScript, 0 errores ESLint y compilación de producción con Turbopack exitosa (19/19 páginas estáticas).
-
-
+- **Contexto histórico:** esta integración de PR #9 se documentó antes de los
+  cambios posteriores de serialización y feedback de PR #15.

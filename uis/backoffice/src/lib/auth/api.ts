@@ -9,6 +9,7 @@ import type {
   RegisterRequest,
   ResetPasswordRequest,
   TokenResponse,
+  UserRegistrationResponse,
 } from '../types/auth';
 
 export class AuthApiClient {
@@ -19,7 +20,7 @@ export class AuthApiClient {
       return '/api';
     }
     const raw = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    return raw.replace(/\/+$/, '');
+    return raw.replace(/\/$/, '');
   }
 
   setToken(token: string | null) {
@@ -83,7 +84,7 @@ export class AuthApiClient {
     return result;
   }
 
-  async register(data: RegisterRequest): Promise<{ id: string; email: string; role: string; is_active: boolean }> {
+  async register(data: RegisterRequest): Promise<UserRegistrationResponse> {
     const response = await fetch(`${this.getBaseUrl()}/users`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

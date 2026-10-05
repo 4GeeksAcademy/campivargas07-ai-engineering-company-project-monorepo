@@ -101,10 +101,13 @@ describe("Backoffice route protection", () => {
   it("sends authenticated users away from login to the protected overview", async () => {
     vi.mocked(useAuth).mockReturnValue({
       user: {
-        id: "user-1",
-        email: "felipe@brasaland.co",
-        role: "admin",
-        is_active: true,
+        user: {
+          id: "user-1",
+          email: "felipe@brasaland.co",
+          role: "admin",
+          is_active: true,
+          created_at: "2026-09-18T00:00:00Z",
+        },
         profile: null,
       },
       loading: false,
