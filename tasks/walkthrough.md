@@ -1,5 +1,22 @@
 # Walkthrough: Dominio de Inventario con SQLModel y Doble Base de Datos en `services/api`
 
+## Walkthrough: Correcciones de revisión PR #15 — registro público y CSV
+
+### Cambios
+- Se retiró `role` del contrato público `UserCreate` y se configuró el rechazo de propiedades extra. Aunque se envíe `role: "admin"`, Pydantic responde 422 sin crear el usuario.
+- `create_user` asigna explícitamente el rol `user`. `POST /users` responde con `{ "detail": "User registered successfully", "id": "..." }` y no incluye email.
+- Se alineó el cliente de registro del Backoffice; registra sin rol y continúa autenticando mediante el login con email/password.
+- OpenAPI especifica para la descarga CSV `text/csv`, formato binario, cabecera `Content-Disposition` y respuesta 404, conservando la respuesta `Response` existente.
+- `docs/serialization-audit.md` refleja el estado corregido de `POST /users` y los contratos de exportación.
+
+### Validación
+- `uv run --directory services/api pytest`: 67 passed, 5 skipped (requieren `TEST_DATABASE_URL`).
+- Typecheck Backoffice reporta referencias antiguas en `.next/types/validator.ts` a páginas que no existen en el checkout, sin errores restantes en los archivos auth modificados.
+- `git diff --check` ejecutado. Pytest actualizó bytecode `.pyc` y metadatos `egg-info` versionados, que deben revertirse antes de entregar.
+
+### Por qué se produjo el hallazgo
+El trabajo original priorizó añadir modelos de respuesta y documentar la superficie existente. En ese momento se consideró la asignación de rol una decisión de producto pendiente y se interpretó “no devolver secretos” como excluir contraseñas/hashes; no se aplicó el principio de mínimo privilegio ni minimización de PII al endpoint público. La exportación se trató como una respuesta no JSON correctamente en runtime, pero no se describió expresamente en el esquema OpenAPI ni se probó esa parte del contrato.
+
 Se ha implementado la extensión de `services/api` con el dominio de inventario para Brasaland, integrando PostgreSQL mediante SQLModel junto con TinyDB, preservando la autenticación existente y documentando las interfaces y validaciones.
 
 ---
@@ -500,6 +517,61 @@ móvil, sin convertir esta auditoría en una reestructuración arquitectónica.
 
 ---
 
+# Walkthrough: Implementación de contratos de serialización
+
+## Resolución de conflictos al integrar `main`
+
+- Se conservaron los contratos y pruebas de serialización/seguridad junto con
+  las rutas de recuperación de contraseña y los dominios de incidencias que ya
+  estaban integrados en `main`.
+- `/health` conserva su `response_model=HealthResponse`; el cliente de auth
+  conserva sus métodos y tipos de recuperación/cambio de contraseña. El
+  registro público no admite `role`.
+- Se alineó la página de perfil con el contrato anidado `{ user, profile }` de
+  `/auth/me` y se quitaron los marcadores de conflicto de cinco archivos.
+- **Verificación:** API 91 passed, 5 skipped; backoffice 67 tests y lint OK.
+  Typecheck sólo falla por dos referencias obsoletas en `.next/types` a rutas
+  ausentes del checkout (`reporting/inventory-health` y `telemetry`).
+
+## Estado
+
+Implementación aplicada en la rama `feature/serialization-audit`. Este hito no
+reescribe el backend ni modifica `services/backend`; trabaja únicamente sobre
+el backend activo `services/api` y su consumidor de autenticación en el
+backoffice.
+
+## Cambios
+
+- `GET /health` ahora tiene el esquema explícito `HealthResponse`.
+- Las respuestas de `DELETE /users/{user_id}` y
+  `DELETE /api/suppliers/{supplier_id}` usan `DeleteResponse`, manteniendo el
+  código `200` y el cuerpo `{detail}` por compatibilidad.
+- Se alineó `AuthMeResponse` de TypeScript con el contrato backend anidado.
+- Se añadieron pruebas de contratos, OpenAPI y ausencia de contraseñas/hashes.
+- Se creó `docs/serialization-audit.md` con el inventario, diagnóstico inicial,
+  estado final, contratos CSV, riesgos y plan restante.
+
+## Seguridad y compatibilidad
+
+Las respuestas siguen sin incluir `password` ni `hashed_password`. El
+`access_token` de login se conserva porque forma parte del contrato del cliente.
+La exportación de incidencias continúa siendo CSV con `Content-Disposition`; no
+se transformó a JSON. `user_uuid` permanece en las órdenes porque el ledger lo
+usa para trazabilidad.
+
+## Validaciones pendientes
+
+En el momento de documentar este walkthrough todavía queda por ejecutar:
+
+```bash
+uv run --directory services/api pytest
+npm --prefix uis/backoffice run test
+npm --prefix uis/backoffice run typecheck
+npm --prefix uis/backoffice run lint
+```
+
+También debe verificarse manualmente `/docs` con al menos tres endpoints.
+
 # Walkthrough: Integración del Gestor de Incidentes (PR #10)
 
 Se resolvió la divergencia de la rama del gestor contra `main` conservando el
@@ -602,7 +674,8 @@ sin reemplazar los dominios ya fusionados desde otras ramas.
 - Typecheck y lint del backoffice: sin errores.
 - Build de producción: 19 rutas generadas, incluidas las tres rutas nuevas.
 
-## 5. Exclusiones
+## 5. Contexto histórico
 
-Las PR #15 y #16 permanecieron abiertas e intactas durante toda la
-integración.
+Este walkthrough describe la integración histórica de recuperación de
+contraseña; la auditoría posterior de serialización y el feedback de PR #15
+se documentan arriba.

@@ -14,16 +14,27 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.domains.auth.dependencies import get_current_user
 
-from .schemas import UserCreate, UserListResponse, UserResponse, UserUpdate
+from .schemas import (
+    DeleteResponse,
+    UserCreate,
+    UserListResponse,
+    UserRegistrationResponse,
+    UserResponse,
+    UserUpdate,
+)
 from . import service
 
 router = APIRouter(prefix="/users", tags=["users"])
 
 
-@router.post("", response_model=UserResponse, status_code=201)
-def create_user(data: UserCreate) -> UserResponse:
+@router.post("", response_model=UserRegistrationResponse, status_code=201)
+def create_user(data: UserCreate) -> UserRegistrationResponse:
     """Register a new user. Profile fields (name, phone, address) are optional."""
-    return service.create_user(data)
+    user = service.create_user(data)
+    return UserRegistrationResponse(
+        detail="User registered successfully",
+        id=user.id,
+    )
 
 
 @router.get("", response_model=UserListResponse)
@@ -75,11 +86,11 @@ def update_user(
     return user
 
 
-@router.delete("/{user_id}")
+@router.delete("/{user_id}", response_model=DeleteResponse)
 def delete_user(
     user_id: str,
     current_user: dict = Depends(get_current_user),
-) -> dict:
+) -> DeleteResponse:
     """Delete a user and their linked profile. Admin only."""
     caller_role = current_user.get("role", "user")
     if caller_role != "admin":
@@ -90,4 +101,4 @@ def delete_user(
     deleted = service.delete_user(user_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="User not found")
-    return {"detail": "User and linked profile deleted"}
+    return DeleteResponse(detail="User and linked profile deleted")
