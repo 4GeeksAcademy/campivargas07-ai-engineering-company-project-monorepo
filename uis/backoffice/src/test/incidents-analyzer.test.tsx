@@ -28,6 +28,36 @@ describe("IncidentsAnalyzer Component", () => {
     });
   });
 
+  it("analyzes CSV text pasted by the operator", async () => {
+    const mockPayload: incidentsApi.IncidentAnalysisResponse = {
+      source_file: "pasted-incidents.csv",
+      total_records: 1,
+      valid_records: 1,
+      invalid_records: 0,
+      invalid_breakdown: [],
+      category_breakdown: [],
+      status_breakdown: [],
+      satisfaction: {
+        scored_closed_cases: 0,
+        total_closed_cases: 0,
+        average_score: 0,
+        score_breakdown: [],
+      },
+    };
+    const analyzeText = vi.spyOn(incidentsApi, "analyzeIncidentsText").mockResolvedValue(mockPayload);
+
+    render(<IncidentsAnalyzer />);
+    fireEvent.click(screen.getByRole("button", { name: /Pegar CSV/i }));
+    fireEvent.change(screen.getByLabelText("Contenido CSV de incidencias"), {
+      target: { value: "id,status\n1,OPEN" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Analizar incidencias/i }));
+
+    await waitFor(() => {
+      expect(analyzeText).toHaveBeenCalledWith("id,status\n1,OPEN", "pasted-incidents.csv");
+    });
+  });
+
   it("renders analysis KPI cards and breakdown tables after successful analysis", async () => {
     const mockPayload: incidentsApi.IncidentAnalysisResponse = {
       source_file: "incidents-sample.csv",
@@ -71,4 +101,3 @@ describe("IncidentsAnalyzer Component", () => {
     expect(downloadBtn).not.toBeDisabled();
   });
 });
-

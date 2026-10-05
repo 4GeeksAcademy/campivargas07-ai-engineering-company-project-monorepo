@@ -519,6 +519,20 @@ móvil, sin convertir esta auditoría en una reestructuración arquitectónica.
 
 # Walkthrough: Implementación de contratos de serialización
 
+## Resolución de conflictos al integrar `main`
+
+- Se conservaron los contratos y pruebas de serialización/seguridad junto con
+  las rutas de recuperación de contraseña y los dominios de incidencias que ya
+  estaban integrados en `main`.
+- `/health` conserva su `response_model=HealthResponse`; el cliente de auth
+  conserva sus métodos y tipos de recuperación/cambio de contraseña. El
+  registro público no admite `role`.
+- Se alineó la página de perfil con el contrato anidado `{ user, profile }` de
+  `/auth/me` y se quitaron los marcadores de conflicto de cinco archivos.
+- **Verificación:** API 91 passed, 5 skipped; backoffice 67 tests y lint OK.
+  Typecheck sólo falla por dos referencias obsoletas en `.next/types` a rutas
+  ausentes del checkout (`reporting/inventory-health` y `telemetry`).
+
 ## Estado
 
 Implementación aplicada en la rama `feature/serialization-audit`. Este hito no
@@ -557,3 +571,111 @@ npm --prefix uis/backoffice run lint
 ```
 
 También debe verificarse manualmente `/docs` con al menos tres endpoints.
+
+# Walkthrough: Integración del Gestor de Incidentes (PR #10)
+
+Se resolvió la divergencia de la rama del gestor contra `main` conservando el
+análisis CSV existente y sumando el flujo operativo CRUD sin mezclar ambos
+dominios ni sobrescribir autenticación, proveedores o inventario.
+
+## 1. Resolución de conflictos
+
+- Se mantuvo `app.domains.analytics.incidents` para carga, análisis y
+  exportación CSV.
+- Se incorporó `app.domains.incidents` para crear, listar, consultar, resumir y
+  cambiar el estado de incidencias autenticadas.
+- `app/main.py` registra el router de análisis antes del router CRUD para que
+  `/analyze` y `/results/export` tengan precedencia sobre la ruta dinámica.
+- El manejador de validación personalizado devuelve 400 únicamente bajo
+  `/api/incidents`; el resto de FastAPI conserva su contrato 422.
+- Se preservaron íntegramente las implementaciones actuales de autenticación,
+  proveedores e inventario provenientes de `main`.
+
+## 2. Correcciones de seguridad e aislamiento
+
+- `IncidentRepository` distingue correctamente una tabla TinyDB vacía de la
+  ausencia de una dependencia inyectada.
+- La base por defecto se abre de forma diferida, evitando crear un JSON local al
+  importar el módulo.
+- La suite usa TinyDB temporal por prueba y elimina `DATABASE_URL` del entorno
+  de test para no contactar una base configurada por el desarrollador.
+- No se integraron `.env`, bases JSON locales, cachés Python, cobertura ni
+  metadatos de paquete presentes en la rama de trabajo.
+
+## 3. Integración frontend
+
+- El paquete `@repo/shared-types` exporta el contrato de incidencias desde su
+  punto de entrada.
+- El cliente web centraliza autenticación Bearer, filtros, altas, consultas,
+  resumen, cambios de estado y análisis CSV a través del proxy de Next.js.
+- El tablero protegido reúne listado, formulario, resumen y analizador; los
+  hooks evitan actualizaciones después del desmontaje y exponen errores de
+  mutación accesibles.
+
+## 4. Evidencias de validación
+
+- `uv run --directory services/api --extra dev pytest -q`: 77 pruebas pasando y
+  5 pruebas PostgreSQL omitidas al no definir `TEST_DATABASE_URL`.
+- `npm --prefix uis/backoffice test`: 65 pruebas pasando en 14 suites.
+- `npm --prefix uis/backoffice run typecheck`: sin errores.
+- `npm --prefix uis/backoffice run lint`: sin errores.
+- `npm --prefix uis/backoffice run build`: compilación exitosa y 16 rutas
+  estáticas generadas.
+
+## 5. Alcance protegido
+
+La integración no modificó ni fusionó las PR #15 y #16. Los archivos de
+infraestructura y la memoria arquitectónica protegida se conservaron desde
+`main`.
+
+---
+
+# Walkthrough: Integración de Recuperación de Contraseña (PR #9)
+
+Se integró el flujo de recuperación sobre la autenticación vigente de `main`,
+sin reemplazar los dominios ya fusionados desde otras ramas.
+
+## 1. Resolución de conflictos
+
+- Se conservaron desde `main` el gestor de incidentes, proveedor, inventario,
+  rutas protegidas, tipos compartidos y configuración de pruebas.
+- Se incorporaron únicamente el servicio de correo, endpoints, esquemas,
+  persistencia de tokens, pantallas y métodos del cliente relacionados con
+  contraseñas.
+- Los archivos de datos locales, `.env`, bytecode, cobertura y metadatos de
+  instalación de la rama se excluyeron del resultado.
+
+## 2. Seguridad y privacidad
+
+- Los tokens de recuperación están firmados con una clave distinta, contienen
+  propósito y `jti`, expiran y sólo pueden consumirse una vez.
+- Una nueva solicitud invalida los tokens activos anteriores del usuario.
+- La respuesta de `/auth/forgot-password` no indica si el correo existe ni si
+  el proveedor logró entregar el mensaje.
+- El enlace de depuración requiere `AUTH_DEBUG_RESET_LINKS=true`; el valor por
+  defecto es seguro incluso cuando `FRONTEND_URL` apunta a localhost.
+- El cambio autenticado comprueba la contraseña actual, rechaza reutilización y
+  aplica la política de contraseña nueva.
+
+## 3. Frontend
+
+- Login enlaza a `/forgot-password` y perfil a
+  `/account/change-password`.
+- `/reset-password` consume el token del query string, valida confirmación y
+  fortaleza, e informa estados de error y éxito de forma accesible.
+- El cliente usa `getBaseUrl()` en los tres métodos nuevos, manteniendo el proxy
+  `/api` en navegador y la URL directa durante SSR/pruebas.
+
+## 4. Evidencias
+
+- `uv run --directory services/api --extra dev pytest -q`: 84 pruebas pasando y
+  5 integraciones PostgreSQL omitidas sin `TEST_DATABASE_URL`.
+- `npm --prefix uis/backoffice test`: 67 pruebas pasando en 14 suites.
+- Typecheck y lint del backoffice: sin errores.
+- Build de producción: 19 rutas generadas, incluidas las tres rutas nuevas.
+
+## 5. Contexto histórico
+
+Este walkthrough describe la integración histórica de recuperación de
+contraseña; la auditoría posterior de serialización y el feedback de PR #15
+se documentan arriba.

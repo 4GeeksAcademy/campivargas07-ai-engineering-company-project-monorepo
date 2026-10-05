@@ -20,6 +20,23 @@
 - Lógica TypeScript del Hito 2 incorporada al branch main (src/types + src/utils).
 - Existe una app previa en uis/talent-pipeline-tracker (fuera del alcance funcional directo de este hito).
 
+## Milestone 4 completado
+- Workspaces npm configurados en raíz para `uis/*` y `packages/*`.
+- Infraestructura AI-ready creada: `AGENTS.md`, `memory-bank/`, `.agents/rules/` y `.agents/skills/`.
+- Cuatro apps Next.js operativas en `uis/website`, `uis/backoffice`, `uis/loyalty-app`, `uis/operations-ui`.
+- Web corporativa del Hito 1 migrada y funcional en `uis/website` (incluye `/careers`).
+- Backoffice integrado con lógica real del Hito 2 mediante imports directos desde `src/utils` y `src/types`.
+- Evidencias de entrega generadas en `docs/pr-assets/website-home.png` y `docs/pr-assets/backoffice-hito2.png`.
+
+## Validación ejecutada
+1. `npm run typecheck` (root): OK.
+2. `npm run typecheck:uis`: OK.
+3. `npm run build:uis`: OK.
+
+## Estado de entrega
+- Rama de trabajo: `milestone-4`.
+- Evidencias preservadas en `docs/pr-assets/` e integración consolidada en `main`.
+
 ## En progreso (Milestone 4 / AUTH-088)
 - Configuración de workspaces npm en raíz.
 - Creación de infraestructura de agentes (AGENTS.md, .agents/rules, .agents/skills).
@@ -181,3 +198,58 @@
 - **OpenAPI CSV:** `GET /api/incidents/results/export` declara `text/csv`, contenido binario, `Content-Disposition` y error 404, sin cambiar la descarga CSV.
 - **Regresión:** pruebas cubren rechazo de `role`, rol asignado por servidor, respuesta sin email, contrato OpenAPI y cabeceras reales CSV.
 - **Validación:** `uv run --directory services/api pytest`: 67 passed, 5 skipped (integraciones PostgreSQL sin entorno). Typecheck frontend pendiente de sanear `.next/types` obsoleto, que referencia páginas inexistentes en este checkout; no reportó errores en el código auth actualizado.
+
+## Resolución de conflictos del merge de `main` en PR #15
+- Se conservaron en la misma integración los cambios de serialización/seguridad de PR #15 y los dominios de incidentes y recuperación de contraseña ya presentes en `main`.
+- `GET /health` mantiene `HealthResponse`; la API del backoffice incluye tipos y métodos de cambio/recuperación de contraseña, y el registro continúa sin aceptar `role`.
+- Se corrigió la página de perfil para leer `user.email`, `user.role` y `user.is_active` desde la respuesta anidada real de `/auth/me`.
+- Se eliminaron los marcadores literales de conflicto en cinco archivos y se preservaron las dos series de documentación histórica.
+- **Validación del merge:** API 91 passed, 5 skipped; backoffice 67 tests y lint sin errores. Typecheck ya no reporta errores de código: persisten dos referencias antiguas bajo `.next/types/validator.ts` a páginas que no existen en este checkout.
+
+## Integración PR #10: Gestor de Incidentes
+
+- **Conflictos resueltos:** se conservó el analizador CSV ya integrado en
+  `app.domains.analytics.incidents` y se añadió el dominio CRUD independiente
+  `app.domains.incidents`, registrando primero las rutas estáticas de análisis
+  para evitar colisiones con `/{incident_id}`.
+- **Persistencia segura:** el repositorio TinyDB abre su archivo de producción
+  de forma diferida; las pruebas inyectan una tabla temporal y no crean ni
+  modifican datos reales del repositorio.
+- **Contrato compartido:** tipos, etiquetas y transiciones de incidencias viven
+  en `packages/shared`; el backoffice consume el paquete en vez de duplicar el
+  modelo de dominio.
+- **Backoffice protegido:** `/backoffice/incidents` integra tablero, alta,
+  filtros, resumen, transiciones de estado y el analizador CSV existente bajo
+  `AuthGuard`. `/incidents` continúa siendo sólo una redirección.
+- **Compatibilidad de pruebas:** se agregó `httpx2` al grupo de desarrollo,
+  requerido por el `TestClient` de Starlette 1.6, y se impidió que una variable
+  `DATABASE_URL` local conecte las pruebas unitarias a recursos externos.
+- **Validación:** 77 pruebas backend verdes y 5 integraciones PostgreSQL
+  omitidas sin `TEST_DATABASE_URL`; 65 pruebas frontend, typecheck y lint sin
+  errores; build de producción exitoso con 16 rutas estáticas.
+- **Higiene:** se excluyeron `.env`, archivos TinyDB locales, bytecode,
+  cobertura y metadatos generados. Las PR #15 y #16 permanecen intactas.
+
+## Integración PR #9: Recuperación y Cambio de Contraseña
+
+- **Alcance aislado:** se descartaron las copias antiguas de incidentes,
+  proveedores y autenticación incluidas en la rama, conservando las versiones
+  ya verificadas de `main`.
+- **Flujo completo:** se añadieron solicitud de recuperación, token JWT de uso
+  único con expiración, restablecimiento, cambio autenticado y envío por Resend.
+- **Privacidad:** la respuesta pública de recuperación es idéntica para cuentas
+  existentes e inexistentes. El enlace sólo se devuelve si
+  `AUTH_DEBUG_RESET_LINKS=true`; nunca se expone automáticamente por usar
+  localhost.
+- **Persistencia aislada:** los metadatos de tokens usan una tabla TinyDB
+  dedicada y las pruebas la reemplazan por almacenamiento temporal.
+- **Frontend:** nuevas rutas `/forgot-password`, `/reset-password` y
+  `/account/change-password`, enlazadas desde login y perfil; cliente API
+  corregido para respetar el proxy de Next.js y autorización Bearer.
+- **Validación:** 84 pruebas backend verdes y 5 integraciones PostgreSQL
+  omitidas; 67 pruebas frontend, typecheck y lint sin errores; build exitoso de
+  19 rutas.
+- **Dependencias:** `httpx` queda disponible en producción para Resend y
+  `httpx2` se conserva en desarrollo para el `TestClient` de Starlette 1.6.
+- **Contexto histórico:** esta integración de PR #9 se documentó antes de los
+  cambios posteriores de serialización y feedback de PR #15.
