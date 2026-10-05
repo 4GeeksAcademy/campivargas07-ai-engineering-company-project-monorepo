@@ -860,7 +860,7 @@ Para reconstruir la causalidad completa de un suceso a lo largo de los diferente
    - Cuando un evento de dominio se persiste en la base de datos (e.g. tabla `telemetry_outbox`), el `requestId` viaja como atributo de correlación hacia el bus de eventos y pipelines posteriores.
 
 ```
-[Usuario en Backoffice] 
+[Usuario en Backoffice]
        │ Clic en "Registrar Salida" (Genera requestId: e2a74c10...)
        ▼
 [Cliente HTTP / Next.js] ── Headers: X-Request-ID: e2a74c10... ──► [FastAPI Middleware]
