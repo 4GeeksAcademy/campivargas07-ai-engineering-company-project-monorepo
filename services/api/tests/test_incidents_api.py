@@ -40,6 +40,25 @@ def test_export_requires_previous_analysis(
     assert response.json()["detail"] == "No analysis results are available yet."
 
 
+def test_export_returns_csv_with_download_headers(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    with FIXTURE.open("rb") as handle:
+        analyze_response = client.post(
+            "/api/incidents/analyze",
+            files={"file": ("incidents-brasaland.csv", handle, "text/csv")},
+            headers=auth_headers,
+        )
+    assert analyze_response.status_code == 200
+
+    response = client.get("/api/incidents/results/export", headers=auth_headers)
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/csv")
+    assert response.headers["content-disposition"] == 'attachment; filename="results.csv"'
+    assert response.text.startswith("metric,value,percentage\n")
+
+
 def test_analyze_rejects_invalid_headers(
     client: TestClient, auth_headers: dict[str, str]
 ) -> None:
