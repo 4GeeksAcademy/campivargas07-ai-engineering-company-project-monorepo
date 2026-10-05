@@ -91,12 +91,13 @@ def test_build_key_is_deterministic():
 
 
 def test_normalize_filter_handles_none_blank_and_spaces():
-    assert normalize_filter(None) == "*"
-    assert normalize_filter("") == "*"
-    assert normalize_filter("  ") == "*"
-    assert normalize_filter("  Colombia ") == "Colombia"
-    assert normalize_filter("some  thing") == "some thing"
-
+    assert normalize_filter(None) == "None"
+    assert normalize_filter("") == "''"
+    assert normalize_filter("  ") == "'  '"
+    assert normalize_filter("  Colombia ") == "'  Colombia '"
+    assert normalize_filter("some  thing") == "'some  thing'"
+    assert normalize_filter(None) != normalize_filter("")
+    assert normalize_filter("") != normalize_filter(" ")
 
 def test_ttl_cache_set_get_and_stats():
     clock = FakeClock()
@@ -168,6 +169,29 @@ def test_ttl_cache_zero_ttl_disables_caching():
     assert cache.get("k")[0] is False
 
 
+def test_ttl_cache_generation_prevents_stale_repopulation():
+    cache = TTLCache(max_size=4, default_ttl=10, clock=FakeClock(), namespace="unit")
+    observed_generation = cache.generation("suppliers:")
+
+    cache.invalidate_prefix("suppliers:")
+    assert cache.set_if_generation(
+        "suppliers:list:all",
+        ["stale"],
+        prefix="suppliers:",
+        generation=observed_generation,
+    ) is False
+    assert cache.get("suppliers:list:all")[0] is False
+
+    current_generation = cache.generation("suppliers:")
+    assert cache.set_if_generation(
+        "suppliers:list:all",
+        ["fresh"],
+        prefix="suppliers:",
+        generation=current_generation,
+    ) is True
+    assert cache.get("suppliers:list:all") == (True, ["fresh"])
+
+
 # ── Integration: suppliers endpoints ─────────────────────────
 
 
@@ -235,6 +259,61 @@ def test_distinct_params_use_distinct_keys(client: TestClient):
     stats = suppliers_router_module.cache.cache_stats()
     assert stats["hits"] >= 4
     assert stats["size"] == 4  # four distinct list variants cached
+
+
+def test_filter_whitespace_matches_exact_service_semantics(client: TestClient):
+    _create_supplier(client, 1, pais="Colombia", categoriasQueProvee=["carne"])
+
+    exact = client.get("/api/suppliers?country=Colombia")
+    leading_space = client.get("/api/suppliers?country=%20Colombia")
+    trailing_space = client.get("/api/suppliers?country=Colombia%20")
+
+    assert exact.json()["total"] == 1
+    assert leading_space.json()["total"] == 0
+    assert trailing_space.json()["total"] == 0
+    # Different exact filter values have independent cached entries.
+    assert suppliers_router_module.cache.cache_stats()["size"] == 3
+
+
+def test_inflight_list_read_cannot_repopulate_after_mutation(client: TestClient, monkeypatch):
+    import threading
+
+    _create_supplier(client, 1, montoMinimoOrden=100.0)
+    entered_service = threading.Event()
+    continue_service = threading.Event()
+    original_get_all = suppliers_router_module.service.get_all_suppliers
+
+    def paused_get_all(*, country=None, category=None):
+        result = original_get_all(country=country, category=category)
+        entered_service.set()
+        assert continue_service.wait(timeout=5)
+        return result
+
+    monkeypatch.setattr(suppliers_router_module.service, "get_all_suppliers", paused_get_all)
+    response_holder = {}
+
+    def perform_inflight_get():
+        response_holder["response"] = client.get("/api/suppliers")
+
+    get_thread = threading.Thread(target=perform_inflight_get)
+    get_thread.start()
+    assert entered_service.wait(timeout=5)
+
+    # Mutate and invalidate while the GET is paused after capturing its generation.
+    updated = client.patch(
+        "/api/suppliers/1/rate", json={"montoMinimoOrden": 250.0}
+    )
+    assert updated.status_code == 200
+    continue_service.set()
+    get_thread.join(timeout=5)
+    assert not get_thread.is_alive()
+    assert response_holder["response"].status_code == 200
+    assert response_holder["response"].json()["suppliers"][0]["montoMinimoOrden"] == 100.0
+
+    # Restore normal service access and ensure no stale result was cached.
+    monkeypatch.setattr(suppliers_router_module.service, "get_all_suppliers", original_get_all)
+    fresh = client.get("/api/suppliers")
+    assert fresh.json()["suppliers"][0]["montoMinimoOrden"] == 250.0
 
 
 def test_ttl_expiry_via_injected_clock(client: TestClient, fake_clock: FakeClock, monkeypatch):

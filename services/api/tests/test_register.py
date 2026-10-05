@@ -20,7 +20,6 @@ def test_register_user_success_with_full_profile(
     payload = {
         "email": "carlos.gerente@brasaland.com",
         "password": "Password123!",
-        "role": "manager",
         "name": "Carlos Vargas",
         "phone": "+57 300 987 6543",
         "address": "Carrera 7 # 72-41, Bogotá",
@@ -30,17 +29,15 @@ def test_register_user_success_with_full_profile(
     assert response.status_code == 201
     data = response.json()
 
-    assert data["email"] == "carlos.gerente@brasaland.com"
-    assert data["role"] == "manager"
-    assert data["is_active"] is True
-    assert "id" in data
-    assert "created_at" in data
+    assert data["detail"] == "User registered successfully"
+    assert set(data) == {"detail", "id"}
 
     # Verify TinyDB persistence
     users_tbl = test_db.table("users")
     user_doc = users_tbl.get(doc_id=int(data["id"]))
     assert user_doc is not None
     assert user_doc["email"] == "carlos.gerente@brasaland.com"
+    assert user_doc["role"] == "user"
     # Password must be stored as a hash, not plain text
     assert user_doc["hashed_password"] != "Password123!"
     assert verify_password("Password123!", user_doc["hashed_password"]) is True
@@ -67,8 +64,10 @@ def test_register_user_success_with_empty_optional_fields(
     assert response.status_code == 201
     data = response.json()
 
-    assert data["email"] == "solo.usuario@brasaland.com"
-    assert data["role"] == "user"  # Default role
+    assert data["detail"] == "User registered successfully"
+    assert set(data) == {"detail", "id"}
+    user_doc = test_db.table("users").get(doc_id=int(data["id"]))
+    assert user_doc["role"] == "user"
 
     profiles_tbl = test_db.table("profiles")
     profile_doc = profiles_tbl.get(Query().user_id == data["id"])
@@ -100,17 +99,30 @@ def test_register_password_too_short_returns_422(client: TestClient) -> None:
     assert response.status_code == 422
 
 
-def test_register_public_admin_role_assignment(client: TestClient) -> None:
-    """
-    Documents and validates current behavior:
-    The public registration endpoint accepts role='admin' in payload.
-    """
+def test_register_rejects_public_role_assignment(
+    client: TestClient, test_db: TinyDB
+) -> None:
+    """Public callers cannot choose admin (or any other role) during signup."""
     payload = {
         "email": "admin.solicitado@brasaland.com",
         "password": "AdminPassword123",
         "role": "admin",
     }
     response = client.post("/users", json=payload)
+    assert response.status_code == 422
+    assert test_db.table("users").get(Query().email == payload["email"]) is None
+
+
+def test_public_registration_assigns_user_role_on_server(
+    client: TestClient, test_db: TinyDB
+) -> None:
+    response = client.post(
+        "/users",
+        json={"email": "publico@brasaland.com", "password": "Password123"},
+    )
+
     assert response.status_code == 201
-    assert response.json()["role"] == "admin"
+    user = test_db.table("users").get(Query().email == "publico@brasaland.com")
+    assert user["role"] == "user"
+    assert "email" not in response.json()
 

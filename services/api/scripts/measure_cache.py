@@ -1,21 +1,10 @@
 #!/usr/bin/env python3
-"""
-measure_cache.py — Brasaland · Cache measurement scenario (cold/warm/invalidation/expiry)
+"""Measure supplier cache MISS and HIT requests against a live API.
 
-Runs an identical request scenario against a live API and reports per-phase
-statistics. Phases (per task spec):
-
-  1. COLD      — first call of each endpoint variant (guaranteed MISS).
-  2. WARM      — N repeated identical calls (should be HITs).
-  3. POST-INVALIDATION — same calls right after a write (create/rate/status/delete).
-  4. POST-EXPIRY — same calls after advancing beyond TTL (simulated by cache
-     flush + artificial wait in real time OR by measuring with a short TTL;
-     here we wait past TTL using the real clock — TTL 60s is too long, so we
-     use the cache_stats endpoint? No: we restart with a tiny-TTL server OR
-     we simply flush. To keep runtime short we measure expiry by launching the
-     scenario twice: once with default TTLs, once with TTL=1s env override).
-
-Outputs a compact table suitable for CACHING_REPORT.md.
+Cold phases record exactly one request per variant immediately after a
+namespace invalidation. Warm phases report only repeated requests made after a
+separate cache-population request. Expiry mode warms keys and waits beyond the
+longest TTL before taking one MISS sample per variant.
 """
 
 from __future__ import annotations
@@ -51,62 +40,86 @@ def fetch(path: str) -> tuple[int, float, int]:
     return status, elapsed, len(body)
 
 
-def run_phase(label: str) -> dict:
+def summarize(status: int, times: list[float]) -> dict:
+    return {
+        "status": status,
+        "samples": len(times),
+        "median_ms": round(statistics.median(times), 2),
+        "mean_ms": round(statistics.fmean(times), 2),
+        "min_ms": round(min(times), 2),
+        "max_ms": round(max(times), 2),
+    }
+
+
+def run_cold_phase(label: str) -> dict:
+    """Measure exactly one request per variant; caller invalidates first."""
     results = {}
     for name, path in SCENARIO:
+        status, ms, _ = fetch(path)
+        results[name] = summarize(status, [ms])
+    return {label: results}
+
+
+def run_warm_phase(label: str) -> dict:
+    results = {}
+    for name, path in SCENARIO:
+        # Populate the key independently from the measured HIT samples.
+        status, _, _ = fetch(path)
         times = []
-        status = None
         for _ in range(REPEATS):
             status, ms, _ = fetch(path)
             times.append(ms)
-        results[name] = {
-            "status": status,
-            "median_ms": round(statistics.median(times), 2),
-            "mean_ms": round(statistics.fmean(times), 2),
-            "min_ms": round(min(times), 2),
-            "max_ms": round(max(times), 2),
-        }
+        results[name] = summarize(status, times)
     return {label: results}
+
+
+def invalidate_with_rate_update() -> None:
+    """Perform an authenticated write that invalidates all supplier keys."""
+    login = urlopen(
+        Request(
+            f"{BASE}/auth/login",
+            data=json.dumps({"email": "medicion@brasaland.com", "password": "medicion123"}).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        ),
+        timeout=30,
+    )
+    token = json.load(login).get("access_token")
+    if not token:
+        raise RuntimeError("no token from /auth/login; create the measurement user first")
+
+    req = Request(
+        f"{BASE}/api/suppliers/2/rate",
+        data=json.dumps({"montoMinimoOrden": 999.5}).encode(),
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"},
+        method="PATCH",
+    )
+    with urlopen(req, timeout=30) as resp:
+        resp.read()
 
 
 def main() -> None:
     mode = sys.argv[1] if len(sys.argv) > 1 else "cold_warm"
 
     if mode == "cold_warm":
+        invalidate_with_rate_update()
         out = {}
-        out.update(run_phase("cold_miss"))
-        out.update(run_phase("warm_hit"))
+        out.update(run_cold_phase("cold_miss"))
+        out.update(run_warm_phase("warm_hit"))
         print(json.dumps(out, indent=2))
     elif mode == "post_invalidation":
-        # Mutate (rate update on supplier 1) then measure immediately.
-        import urllib.error
-
-        login = urlopen(
-            Request(
-                f"{BASE}/auth/login",
-                data=json.dumps({"email": "medicion@brasaland.com", "password": "medicion123"}).encode(),
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-        )
-        token = json.load(login).get("access_token")
-        if not token:
-            print("ERROR: no token from /auth/login; create the user first.", file=sys.stderr)
-            sys.exit(1)
-
-        req = Request(
-            f"{BASE}/api/suppliers/2/rate",
-            data=json.dumps({"montoMinimoOrden": 999.5}).encode(),
-            headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"},
-            method="PATCH",
-        )
-        with urlopen(req) as resp:
-            resp.read()
-
-        out = run_phase("post_invalidation_miss")
+        invalidate_with_rate_update()
+        out = run_cold_phase("post_invalidation_miss")
+        out.update(run_warm_phase("post_invalidation_warm_hit"))
         print(json.dumps(out, indent=2))
     elif mode == "post_expiry":
-        out = run_phase("post_expiry_miss")
+        for _, path in SCENARIO:
+            fetch(path)
+        wait_seconds = float(os.environ.get("MEASURE_EXPIRY_WAIT", "121"))
+        print(f"Waiting {wait_seconds:g}s for supplier cache TTL expiry...", file=sys.stderr)
+        time.sleep(wait_seconds)
+        out = run_cold_phase("post_expiry_miss")
+        out.update(run_warm_phase("post_expiry_warm_hit"))
         print(json.dumps(out, indent=2))
     else:
         print(f"unknown mode {mode}", file=sys.stderr)

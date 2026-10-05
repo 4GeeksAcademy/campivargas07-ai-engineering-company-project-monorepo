@@ -13,12 +13,14 @@ class UserRole(str, Enum):
     admin = "admin"
     manager = "manager"
     user = "user"
+    employee = "employee"
 
 
 class UserCreate(BaseModel):
+    model_config = {"extra": "forbid"}
+
     email: str = Field(..., description="User email address (unique)")
     password: str = Field(..., min_length=6, description="User password (min 6 chars)")
-    role: UserRole = Field(default=UserRole.user, description="User role")
     name: str | None = Field(default=None, description="Display name for linked profile")
     phone: str | None = Field(default=None, description="Phone for linked profile")
     address: str | None = Field(default=None, description="Address for linked profile")
@@ -36,6 +38,11 @@ class UserResponse(BaseModel):
     role: str
     is_active: bool
     created_at: str
+
+
+class UserRegistrationResponse(BaseModel):
+    detail: str
+    id: str
 
 
 class UserListResponse(BaseModel):

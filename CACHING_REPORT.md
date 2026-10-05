@@ -40,8 +40,9 @@ menor que el del transporte.
 
 - Servidor: `uvicorn app.main:app` sobre el TinyDB sembrado (`SUPPLIERS_DB_PATH`).
 - Script de escenario: `services/api/scripts/measure_cache.py` (agregado en este reto);
-  fases **cold (MISS) → warm (HIT) → post-invalidation → post-expiry**, 25 repeticiones
-  por variante, mediana/mean/min/max con `time.perf_counter()`.
+  cada MISS se mide con una única solicitud inmediatamente después de invalidar
+  el namespace; los HIT se miden en una fase separada con 25 solicitudes luego
+  de poblar la clave. Se reportan mediana/mean/min/max con `time.perf_counter()`.
 - Variantes medidas: `list_all`, `list_country`, `list_category`, `list_mix`, `detail_2`, `detail_4`.
 - Evidencia HIT/MISS/EXPIRED/INVALIDATE: logs `brasaland.cache` (DEBUG) capturados con
   `LOG_LEVEL=debug` + `uvicorn.run(..., log_config=None)`; timing de cada request con
@@ -51,10 +52,9 @@ menor que el del transporte.
 
 ## 3. Decisiones de frontend (lazy loading y useMemo)
 
-1. **Lazy loading nivel 1 — página server → analizador**: en
-   `uis/backoffice/src/app/backoffice/incidents/page.tsx` el Server Component carga el
-   cliente con `next/dynamic` + fallback de carga. **No** se usó `ssr: false`
-   (prohibido en Server Components en Next 16); se usa `loading` con `role="status"`.
+1. **Lazy loading nivel 1 — tablero → analizador CSV**: `IncidentBoard` carga el
+  analizador con `next/dynamic` únicamente al abrir la pestaña de análisis; la
+  ruta mantiene el tablero de incidencias integrado desde `main`.
 2. **Lazy loading nivel 2 — analizador → panel de resultados**: el nuevo componente
    `IncidentsResults` (todo el render de tablas/KPIs) se importa con
    `dynamic(() => import(...).then(m => m.IncidentsResults), { loading })`. Al no haber
@@ -87,7 +87,8 @@ menor que el del transporte.
 
 - `TTLCache(max_size=256, default_ttl, clock=time.monotonic, namespace)`:
   - Claves deterministas con `build_key(*parts)` (join `:`, bools en minúscula) y
-    `normalize_filter(v)` (None/vacío → `*`; colapsa espacios, preserva mayúsculas).
+    `normalize_filter(v)` que preserva el valor exacto, incluidos `None`, vacío y
+    espacios, alineado con los filtros de igualdad exacta del servicio.
   - Expiración **monotónica** (`expire_at = clock() + ttl`); nunca usa wall clock.
   - `OrderedDict` LRU con `RLock`; eviction: primero expirados, luego el menos usado.
   - Valores se copian **en profundidad** al entrar y al salir (aislamiento entre
@@ -100,8 +101,9 @@ menor que el del transporte.
   - `GET /api/suppliers/{id}` → TTL **120 s** (`DETAIL_TTL_SECONDS`).
 - **Invalidación total**: POST crear / PATCH rate / PATCH status / DELETE llaman
   `_invalidate_all()` → `cache.invalidate_prefix("suppliers:")`, que borra la lista
-  **y todas sus variantes de filtros** y el detalle; tras escribir la siguiente lectura
-  es MISS (datos frescos garantizados en escritura).
+  **y todas sus variantes de filtros** y el detalle. Un contador de generación bajo
+  el mismo lock impide que una lectura que comenzó antes de la invalidación repueble
+  la caché con un valor viejo.
 - 404 (proveedor inexistente) se lanza **antes** de tocar el cache → nunca se cachea.
 
 ---
@@ -183,17 +185,16 @@ real del usuario) el código del panel no se ejecuta ni descarga.
 
 | Escenario | list_all | list_country | list_category | list_mix | detail_2 | detail_4 |
 |---|---|---|---|---|---|---|
-| **Cold (MISS)** | 95.04 | 53.97 | 59.97 | 26.70 | 1.49 | 2.22 |
-| **Warm (HIT)** | 115.80 | 48.86 | 61.75 | 28.78 | 1.50 | 1.48 |
-| **Post-invalidación (MISS)** | 90.67 | 49.71 | 60.64 | 28.24 | 1.51 | 1.49 |
-| **Post-expiración (MISS, TTL real 60/120 s)** | 98.92 | 49.33 | 76.97 | 28.67 | 1.49 | 1.48 |
+| **Cold (MISS)** | No válida: mezclaba la primera solicitud MISS con 24 HIT por variante; no se usa como evidencia. |
+| **Warm (HIT)** | No válida como contraste anterior: la fase cold ya había calentado las claves y no separaba muestras. |
+| **Post-invalidación (MISS)** | No válida: mezclaba MISS con HIT en una misma mediana. |
+| **Post-expiración (MISS)** | No válida: el script previo no esperaba el TTL; solo repetía las solicitudes. |
 
-Lectura honesta: en listas el tiempo está dominado por **serialización Pydantic +
-transporte de ~2 MB de JSON** (FastAPI re-serializa la respuesta cacheada), por lo que
-el HIT no reduce la mediana de lista de forma notable; el cache elimina el coste de
-consulta/filtrado de TinyDB (visiblemente en `detail`: −32 % y min 1.44 ms estable) y
-desacopla la latencia del crecimiento del dataset para consultas no transporte-limitadas.
-Medición adicional n=200 (warm): list_all 105.21 ms mediana; detail_2 1.54 ms mediana.
+Las cifras anteriores quedan retiradas: el script medía una solicitud MISS seguida
+de HITs en una sola distribución, por lo que sus etiquetas y comparaciones no son
+confiables. Ejecutar el script corregido y reemplazar esta tabla con los nuevos
+resultados antes de afirmar una mejora de latencia. La hipótesis de que el cuerpo
+JSON domina la latencia de listas debe tratarse como hipótesis hasta repetir la prueba.
 
 ### Evidencia de logs (extracto real del servidor de medición)
 
@@ -288,8 +289,9 @@ import logging, sys, os
 logging.basicConfig(level=getattr(logging, os.environ.get('LOG_LEVEL','INFO').upper()), stream=sys.stdout, format='%(name)s %(levelname)s %(message)s')
 import uvicorn; uvicorn.run('app.main:app', host='127.0.0.1', port=8000, log_config=None)"
 
-# 3) Fases
+# 3) Medición. cold_warm y post_invalidation miden MISS por separado de HIT.
+#    post_expiry espera 121 s (configurable con MEASURE_EXPIRY_WAIT).
 .venv/bin/python scripts/measure_cache.py cold_warm          # MISS → HIT
 .venv/bin/python scripts/measure_cache.py post_invalidation  # tras PATCH /rate
-.venv/bin/python scripts/measure_cache.py post_expiry        # tras TTL 60/120 s
+.venv/bin/python scripts/measure_cache.py post_expiry        # espera TTL 60/120 s
 ```

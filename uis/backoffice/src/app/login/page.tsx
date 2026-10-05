@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 
@@ -80,6 +81,12 @@ export default function LoginPage() {
             />
           </div>
 
+          <div style={{ textAlign: 'right', marginTop: '-0.4rem' }}>
+            <Link href="/forgot-password" style={{ color: '#7bd6ff', fontSize: '0.82rem' }}>
+              ¿Olvidaste tu contraseña?
+            </Link>
+          </div>
+
           <button
             type="submit"
             disabled={loading}
@@ -88,8 +95,11 @@ export default function LoginPage() {
             {loading ? 'Iniciando sesión...' : 'Entrar a la consola'}
           </button>
         </form>
+
+        <p style={{ color: 'var(--muted, #8ea0b4)', fontSize: '0.85rem', marginTop: '1.25rem', textAlign: 'center' }}>
+          ¿Necesitas una cuenta? <Link href="/register" style={{ color: '#7bd6ff', fontWeight: 700 }}>Regístrate</Link>
+        </p>
       </div>
     </div>
   );
 }
-

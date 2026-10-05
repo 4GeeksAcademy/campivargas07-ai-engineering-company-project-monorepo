@@ -76,6 +76,9 @@ def list_suppliers(
     category: Optional[str] = Query(None, description="Filter by product category"),
 ) -> SupplierListResponse:
     """List all suppliers with optional country and category filters (cached, TTL 60s)."""
+    # Keep the cache key semantically identical to TinyDB filtering: the
+    # service performs exact equality/membership on the original values.
+    generation = cache.generation("suppliers:")
     key = build_key(
         LIST_KEY_PREFIX,
         f"country={normalize_filter(country)}",
@@ -86,7 +89,13 @@ def list_suppliers(
         return cached
     suppliers = service.get_all_suppliers(country=country, category=category)
     response = SupplierListResponse(suppliers=suppliers, total=len(suppliers))
-    cache.set(key, response, ttl=LIST_TTL_SECONDS)
+    cache.set_if_generation(
+        key,
+        response,
+        prefix="suppliers:",
+        generation=generation,
+        ttl=LIST_TTL_SECONDS,
+    )
     return response
 
 
@@ -95,6 +104,7 @@ def list_suppliers(
 def get_supplier(supplier_id: str) -> SupplierResponse:
     """Get a single supplier by ID (cached, TTL 120s). 404s are never cached."""
     key = build_key(DETAIL_KEY_PREFIX, f"id={supplier_id}")
+    generation = cache.generation("suppliers:")
     hit, cached = cache.get(key)
     if hit:
         return cached
@@ -102,7 +112,13 @@ def get_supplier(supplier_id: str) -> SupplierResponse:
     if supplier is None:
         # Important: raise BEFORE caching — negative responses are not stored.
         raise HTTPException(status_code=404, detail="Supplier not found")
-    cache.set(key, supplier, ttl=DETAIL_TTL_SECONDS)
+    cache.set_if_generation(
+        key,
+        supplier,
+        prefix="suppliers:",
+        generation=generation,
+        ttl=DETAIL_TTL_SECONDS,
+    )
     return supplier
 
 

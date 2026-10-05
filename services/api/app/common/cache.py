@@ -61,6 +61,9 @@ class TTLCache:
         # Ordered oldest-insertion -> newest; most recently used moved to end.
         self._store: "OrderedDict[str, Tuple[float, Any]]" = OrderedDict()
         self._lock = threading.RLock()
+        # Prefix generations prevent a slow cache-miss read from repopulating
+        # stale data after a concurrent writer invalidated that namespace.
+        self._generations: Dict[str, int] = {}
         # Stats
         self._hits = 0
         self._misses = 0
@@ -105,6 +108,38 @@ class TTLCache:
             self._store.move_to_end(key)
             self._evict_over_capacity(now)
 
+    def generation(self, prefix: str) -> int:
+        """Return the current invalidation generation for ``prefix``."""
+        with self._lock:
+            return self._generations.get(prefix, 0)
+
+    def set_if_generation(
+        self,
+        key: str,
+        value: Any,
+        *,
+        prefix: str,
+        generation: int,
+        ttl: Optional[float] = None,
+    ) -> bool:
+        """Set only if no invalidation for ``prefix`` occurred since the read.
+
+        The generation comparison and insertion happen under the same lock as
+        invalidation, so an older in-flight read cannot resurrect stale data.
+        """
+        effective_ttl = self._default_ttl if ttl is None else ttl
+        if effective_ttl <= 0:
+            return False
+        now = self._clock()
+        with self._lock:
+            if self._generations.get(prefix, 0) != generation:
+                logger.debug("cache[%s] SKIP_STALE_SET key=%s", self._namespace, key)
+                return False
+            self._store[key] = (now + effective_ttl, copy.deepcopy(value))
+            self._store.move_to_end(key)
+            self._evict_over_capacity(now)
+            return True
+
     def delete(self, key: str) -> bool:
         """Remove a specific key. Returns True if it existed."""
         with self._lock:
@@ -123,6 +158,7 @@ class TTLCache:
         """
         removed = 0
         with self._lock:
+            self._generations[prefix] = self._generations.get(prefix, 0) + 1
             for key in list(self._store.keys()):
                 if key.startswith(prefix):
                     del self._store[key]
@@ -134,9 +170,15 @@ class TTLCache:
         return removed
 
     def clear(self) -> None:
-        """Drop all entries (used between tests to avoid cross-test pollution)."""
+        """Drop all entries and advance all known generations.
+
+        Advancing generations ensures test resets and administrative clears also
+        fence any in-flight readers that began before the clear.
+        """
         with self._lock:
             self._store.clear()
+            for prefix in self._generations:
+                self._generations[prefix] += 1
             logger.debug("cache[%s] CLEAR", self._namespace)
 
     def cache_stats(self) -> Dict[str, Any]:
@@ -193,14 +235,10 @@ def build_key(*parts: Hashable) -> str:
 
 
 def normalize_filter(value: Optional[str]) -> str:
-    """Normalize an optional filter query param for cache keys.
+    """Encode an exact optional query value without changing its semantics.
 
-    Rules (deterministic, explicit):
-    - ``None``  -> ``"*"`` (all)
-    - otherwise: trimmed, case-preserved (values are exact enum strings in
-      this API, e.g. ``Colombia`` / ``carne``), spaces collapsed.
+    Supplier filters use exact equality. ``None``, an empty string and values
+    containing whitespace are distinct requests and must never share a cache
+    entry. ``repr`` also keeps ``None`` distinct from any string value.
     """
-    if value is None:
-        return "*"
-    collapsed = " ".join(value.strip().split())
-    return collapsed if collapsed else "*"
+    return repr(value)

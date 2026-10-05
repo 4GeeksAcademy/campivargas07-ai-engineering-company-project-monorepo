@@ -1,5 +1,41 @@
 # Walkthrough: Dominio de Inventario con SQLModel y Doble Base de Datos en `services/api`
 
+# Walkthrough: Revisión de PR #16 — cache coherente y conflictos con main
+
+## Cambios implementados
+- Resueltos los conflictos del merge manteniendo el middleware de timing y los manejadores de errores de incidencias. La página protegida monta `IncidentBoard`; el analizador CSV queda en carga dinámica dentro de la pestaña `Análisis CSV`.
+- `TTLCache` agrega generations por prefijo y `set_if_generation`, comparando e insertando bajo el lock compartido con la invalidación. Las consultas GET que atraviesan una mutación concurrente ya no pueden volver a cachear su resultado anterior.
+- Las claves de filtros conservan los valores exactos; la consulta `country=Colombia` ya no colisiona con `country=%20Colombia` o `country=Colombia%20`.
+- El script de medición recoge una sola muestra MISS luego de invalidar y distribuye los HIT en otra fase. `post_expiry` espera el TTL real configurable por `MEASURE_EXPIRY_WAIT`.
+- El informe `CACHING_REPORT.md` descarta resultados históricos obtenidos con fases mezcladas, sin inventar cifras sustitutas; se requiere correr la medición corregida para publicar nuevas cifras.
+
+## Pruebas agregadas
+- Filtros con espacios validan comportamiento exacto y cachés separadas.
+- Generación desfasada no puede insertar datos tras invalidación.
+- Prueba concurrente con `threading.Event` captura resultado antiguo, ejecuta PATCH que invalida y reanuda GET sin `sleep`.
+
+## Validación
+- Backend: `services/api/.venv/bin/python -m pytest tests -q` → 116 passed, 5 skipped.
+- Backoffice: typecheck PASS tras build que regeneró `.next/types`; Vitest `77 passed` en 15 suites; ESLint PASS; `next build` PASS (19 rutas).
+- Higiene merge: ambos conflictos marcados como resueltos, cero entradas UU y `git diff --cached --check` PASS. Cifras nuevas de rendimiento no publicadas; deben medirse con el script corregido.
+
+## Walkthrough: Correcciones de revisión PR #15 — registro público y CSV
+
+### Cambios
+- Se retiró `role` del contrato público `UserCreate` y se configuró el rechazo de propiedades extra. Aunque se envíe `role: "admin"`, Pydantic responde 422 sin crear el usuario.
+- `create_user` asigna explícitamente el rol `user`. `POST /users` responde con `{ "detail": "User registered successfully", "id": "..." }` y no incluye email.
+- Se alineó el cliente de registro del Backoffice; registra sin rol y continúa autenticando mediante el login con email/password.
+- OpenAPI especifica para la descarga CSV `text/csv`, formato binario, cabecera `Content-Disposition` y respuesta 404, conservando la respuesta `Response` existente.
+- `docs/serialization-audit.md` refleja el estado corregido de `POST /users` y los contratos de exportación.
+
+### Validación
+- `uv run --directory services/api pytest`: 67 passed, 5 skipped (requieren `TEST_DATABASE_URL`).
+- Typecheck Backoffice reporta referencias antiguas en `.next/types/validator.ts` a páginas que no existen en el checkout, sin errores restantes en los archivos auth modificados.
+- `git diff --check` ejecutado. Pytest actualizó bytecode `.pyc` y metadatos `egg-info` versionados, que deben revertirse antes de entregar.
+
+### Por qué se produjo el hallazgo
+El trabajo original priorizó añadir modelos de respuesta y documentar la superficie existente. En ese momento se consideró la asignación de rol una decisión de producto pendiente y se interpretó “no devolver secretos” como excluir contraseñas/hashes; no se aplicó el principio de mínimo privilegio ni minimización de PII al endpoint público. La exportación se trató como una respuesta no JSON correctamente en runtime, pero no se describió expresamente en el esquema OpenAPI ni se probó esa parte del contrato.
+
 Se ha implementado la extensión de `services/api` con el dominio de inventario para Brasaland, integrando PostgreSQL mediante SQLModel junto con TinyDB, preservando la autenticación existente y documentando las interfaces y validaciones.
 
 ---
@@ -502,6 +538,20 @@ móvil, sin convertir esta auditoría en una reestructuración arquitectónica.
 
 # Walkthrough: Implementación de contratos de serialización
 
+## Resolución de conflictos al integrar `main`
+
+- Se conservaron los contratos y pruebas de serialización/seguridad junto con
+  las rutas de recuperación de contraseña y los dominios de incidencias que ya
+  estaban integrados en `main`.
+- `/health` conserva su `response_model=HealthResponse`; el cliente de auth
+  conserva sus métodos y tipos de recuperación/cambio de contraseña. El
+  registro público no admite `role`.
+- Se alineó la página de perfil con el contrato anidado `{ user, profile }` de
+  `/auth/me` y se quitaron los marcadores de conflicto de cinco archivos.
+- **Verificación:** API 91 passed, 5 skipped; backoffice 67 tests y lint OK.
+  Typecheck sólo falla por dos referencias obsoletas en `.next/types` a rutas
+  ausentes del checkout (`reporting/inventory-health` y `telemetry`).
+
 ## Estado
 
 Implementación aplicada en la rama `feature/serialization-audit`. Este hito no
@@ -540,3 +590,111 @@ npm --prefix uis/backoffice run lint
 ```
 
 También debe verificarse manualmente `/docs` con al menos tres endpoints.
+
+# Walkthrough: Integración del Gestor de Incidentes (PR #10)
+
+Se resolvió la divergencia de la rama del gestor contra `main` conservando el
+análisis CSV existente y sumando el flujo operativo CRUD sin mezclar ambos
+dominios ni sobrescribir autenticación, proveedores o inventario.
+
+## 1. Resolución de conflictos
+
+- Se mantuvo `app.domains.analytics.incidents` para carga, análisis y
+  exportación CSV.
+- Se incorporó `app.domains.incidents` para crear, listar, consultar, resumir y
+  cambiar el estado de incidencias autenticadas.
+- `app/main.py` registra el router de análisis antes del router CRUD para que
+  `/analyze` y `/results/export` tengan precedencia sobre la ruta dinámica.
+- El manejador de validación personalizado devuelve 400 únicamente bajo
+  `/api/incidents`; el resto de FastAPI conserva su contrato 422.
+- Se preservaron íntegramente las implementaciones actuales de autenticación,
+  proveedores e inventario provenientes de `main`.
+
+## 2. Correcciones de seguridad e aislamiento
+
+- `IncidentRepository` distingue correctamente una tabla TinyDB vacía de la
+  ausencia de una dependencia inyectada.
+- La base por defecto se abre de forma diferida, evitando crear un JSON local al
+  importar el módulo.
+- La suite usa TinyDB temporal por prueba y elimina `DATABASE_URL` del entorno
+  de test para no contactar una base configurada por el desarrollador.
+- No se integraron `.env`, bases JSON locales, cachés Python, cobertura ni
+  metadatos de paquete presentes en la rama de trabajo.
+
+## 3. Integración frontend
+
+- El paquete `@repo/shared-types` exporta el contrato de incidencias desde su
+  punto de entrada.
+- El cliente web centraliza autenticación Bearer, filtros, altas, consultas,
+  resumen, cambios de estado y análisis CSV a través del proxy de Next.js.
+- El tablero protegido reúne listado, formulario, resumen y analizador; los
+  hooks evitan actualizaciones después del desmontaje y exponen errores de
+  mutación accesibles.
+
+## 4. Evidencias de validación
+
+- `uv run --directory services/api --extra dev pytest -q`: 77 pruebas pasando y
+  5 pruebas PostgreSQL omitidas al no definir `TEST_DATABASE_URL`.
+- `npm --prefix uis/backoffice test`: 65 pruebas pasando en 14 suites.
+- `npm --prefix uis/backoffice run typecheck`: sin errores.
+- `npm --prefix uis/backoffice run lint`: sin errores.
+- `npm --prefix uis/backoffice run build`: compilación exitosa y 16 rutas
+  estáticas generadas.
+
+## 5. Alcance protegido
+
+La integración no modificó ni fusionó las PR #15 y #16. Los archivos de
+infraestructura y la memoria arquitectónica protegida se conservaron desde
+`main`.
+
+---
+
+# Walkthrough: Integración de Recuperación de Contraseña (PR #9)
+
+Se integró el flujo de recuperación sobre la autenticación vigente de `main`,
+sin reemplazar los dominios ya fusionados desde otras ramas.
+
+## 1. Resolución de conflictos
+
+- Se conservaron desde `main` el gestor de incidentes, proveedor, inventario,
+  rutas protegidas, tipos compartidos y configuración de pruebas.
+- Se incorporaron únicamente el servicio de correo, endpoints, esquemas,
+  persistencia de tokens, pantallas y métodos del cliente relacionados con
+  contraseñas.
+- Los archivos de datos locales, `.env`, bytecode, cobertura y metadatos de
+  instalación de la rama se excluyeron del resultado.
+
+## 2. Seguridad y privacidad
+
+- Los tokens de recuperación están firmados con una clave distinta, contienen
+  propósito y `jti`, expiran y sólo pueden consumirse una vez.
+- Una nueva solicitud invalida los tokens activos anteriores del usuario.
+- La respuesta de `/auth/forgot-password` no indica si el correo existe ni si
+  el proveedor logró entregar el mensaje.
+- El enlace de depuración requiere `AUTH_DEBUG_RESET_LINKS=true`; el valor por
+  defecto es seguro incluso cuando `FRONTEND_URL` apunta a localhost.
+- El cambio autenticado comprueba la contraseña actual, rechaza reutilización y
+  aplica la política de contraseña nueva.
+
+## 3. Frontend
+
+- Login enlaza a `/forgot-password` y perfil a
+  `/account/change-password`.
+- `/reset-password` consume el token del query string, valida confirmación y
+  fortaleza, e informa estados de error y éxito de forma accesible.
+- El cliente usa `getBaseUrl()` en los tres métodos nuevos, manteniendo el proxy
+  `/api` en navegador y la URL directa durante SSR/pruebas.
+
+## 4. Evidencias
+
+- `uv run --directory services/api --extra dev pytest -q`: 84 pruebas pasando y
+  5 integraciones PostgreSQL omitidas sin `TEST_DATABASE_URL`.
+- `npm --prefix uis/backoffice test`: 67 pruebas pasando en 14 suites.
+- Typecheck y lint del backoffice: sin errores.
+- Build de producción: 19 rutas generadas, incluidas las tres rutas nuevas.
+
+## 5. Contexto histórico
+
+Este walkthrough describe la integración histórica de recuperación de
+contraseña; la auditoría posterior de serialización y el feedback de PR #15
+se documentan arriba.

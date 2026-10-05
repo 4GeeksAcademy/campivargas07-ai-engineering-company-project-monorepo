@@ -30,6 +30,7 @@ db = TinyDB(_db_path)
 suppliers_table = db.table("suppliers")
 users_table = db.table("users")
 profiles_table = db.table("profiles")
+password_resets_table = db.table("password_resets")
 
 
 def backfill_users_uuid() -> int:
