@@ -9,6 +9,7 @@ dependencies = [
   "fastapi>=0.116,<1.0",
   "httpx>=0.27,<1.0",
   "pandas>=3.0.6",
+  "prefect>=3,<4",
   "psycopg2-binary>=2.9.9,<3.0",
   "pydantic>=2.7.0,<3.0",
   "python-dotenv>=1.0.0,<2.0",
@@ -34,6 +35,7 @@ build-backend = "setuptools.build_meta"
 packages = { find = { where = ["."], include = ["app*"] } }
 
 [tool.pytest.ini_options]
+pythonpath = [".", "../.."]
 markers = [
   "postgres: PostgreSQL integration tests requiring TEST_DATABASE_URL",
 ]
