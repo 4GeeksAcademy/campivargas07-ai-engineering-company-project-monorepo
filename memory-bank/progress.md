@@ -330,12 +330,50 @@
 - **Frontend (`uis/backoffice/`)**: La fase original de almacenamiento no modificó componentes, hooks, tipos ni servicios; la rama integrada hereda ahora la instrumentación de la PR #18.
 - **Validación Integral**: 122 pruebas backend verdes en Pytest (incluyendo 20 pruebas nuevas en `test_telemetry_storage.py` y 4 pruebas de integración PostgreSQL en `test_telemetry_postgres.py`), 78 pruebas frontend verdes en Vitest y verificación E2E en vivo contra contenedor PostgreSQL `brasaland_db`.
 
+## Hito: Telemetría de tu compañía — Reporte técnico (Backoffice Brasaland, rama `feat/telemetry-technical-report`)
+
+- **Pipeline Analítico PostgreSQL → Pandas → JSON**:
+  - `services/api/app/domains/telemetry/analysis.py`: cuatro funciones puras y deterministas (`get_events_per_day`, `get_error_rate_by_type`, `get_login_failure_rate_per_day`, `get_api_latency_by_route`).
+  - Filtrado temporal estricto en SQL sobre marcas de tiempo UTC con inicio inclusivo y fin exclusivo (`timestamp >= :start_date AND timestamp < :end_date`).
+  - Filtrado SQL por `event_type` donde aplica (`IN` o igualdad), sin cargar filas innecesarias ni ejecutar `SELECT *`.
+  - Normalización en Pandas (`pd.to_datetime(..., utc=True)`, extracción de dimensiones desde `tags`, descarte seguro de nulos y orden determinista con `reset_index()`).
+  - Conversión exhaustiva a tipos nativos de Python (cero `NaN`, `NaT`, `Timestamp` o tipos NumPy en la respuesta).
+- **Caché en Memoria Desacoplado (`cache.py`)**:
+  - `TelemetryReportCache` con TTL de 60 segundos y reloj monotónico (`time.monotonic()`).
+  - Clave de caché por tupla `(start_date, end_date)`.
+  - Tratamiento explícito de llamadas sin parámetros como `(None, None)` reteniendo tanto el periodo resuelto como el resultado durante el TTL (sin desincronización por milisegundos).
+  - Aceleración de 34x en respuestas repetidas (de ~107 ms a ~3.1 ms).
+- **Servicio y Endpoint HTTP (`service.py`, `router.py`, `schemas.py`)**:
+  - `GET /telemetry/report`: parámetros opcionales `start_date` y `end_date` (ISO 8601), resolución uniforme de ventana de 7 días hacia atrás en UTC por defecto.
+  - Validación de rango temporal (`start_date < end_date`), retornando HTTP 400 ante rangos invertidos.
+  - Manejo de base de datos vacía (HTTP 200 con arreglos vacíos) y fallos de conexión (HTTP 503 sin fugar credenciales).
+  - Modelos tipados Pydantic V2 (`TelemetryReportResponse`, `ReportPeriod`, `ReportMetrics`).
+  - Preservación íntegra del contrato de `POST /telemetry/events`.
+- **Población de Datos Mínimos**:
+  - Ingestión de 21 eventos adicionales a través de la API oficial `POST /telemetry/events`, alcanzando 28 eventos reales en `brasaland_db` distribuidos en 11 tipos de eventos (incluyendo operacionales y técnicos).
+- **Dashboard en Backoffice (`uis/backoffice/`)**:
+  - Nueva ruta protegida `/backoffice/telemetry` (`page.tsx`) envuelta en `AuthGuard`.
+  - Componente `TelemetryReportDashboard` (`src/components/telemetry/telemetry-report-dashboard.tsx`): visualización de volumen diario (barras CSS), errores por tipo (tabla), fallos de inicio de sesión diarios y latencia de API por ruta.
+  - Manejo de estados de carga, error accesible con botón de reintento y estado vacío.
+  - Enlace incorporado en `BackofficeHeader` con navegación coherente.
+- **Validación y Pruebas**:
+  - Backend: 141 pruebas totales en Pytest (132 verdes en SQLite in-memory + 4 de integración PostgreSQL ejecutadas y verdes contra `TEST_DATABASE_URL`).
+  - Frontend: 87 pruebas totales en Vitest (83 en backoffice incluyendo 4 de `telemetry-report-dashboard.test.tsx` y 1 de `backoffice-header.test.tsx`, 4 en website).
+  - ESLint limpio en componentes creados y modificados.
+  - Verificación manual comparativa: paridad matemática del 100% entre las respuestas del endpoint y consultas de control directas en PostgreSQL.
+
+## Feedback docente PR #20: denominador del porcentaje de errores
+
+- La descripción OpenAPI de `error_rate` aclara que cada tipo se divide por el total de eventos de error incluidos en el período: `form_validation_failed`, `system_exception_captured` y `external_integration_failed`. Otros eventos se excluyen del denominador.
+- La fórmula no cambia; se añade una prueba del contrato JSON Schema para preservar esta aclaración. Validación enfocada: `test_telemetry_analysis.py -k error_rate`, 3 pruebas pasaron.
+
 ## Feedback docente PR #18: cobertura de eventos obligatorios
 
 - `OutboundOrderForm` ahora emite `stock_threshold_triggered` tras una salida aceptada cuando el saldo cruza el mínimo configurado; los valores de stock, déficit y severidad se derivan de la actualización optimista del formulario.
 - Se añadió una prueba de regresión para el cruce de 25 a 19 con mínimo 20. Validación enfocada: `npm --prefix uis/backoffice run test -- src/test/inventory-orders-forms.test.tsx` pasó (8 pruebas).
 - ESLint de los dos archivos modificados pasó. El typecheck completo sigue reportando 9 errores en otros archivos de la rama; ninguno corresponde a los archivos de este cambio.
 - Siguen sin productor real los eventos obligatorios de compras, variación de precio, ventas/POS y alerta de sede sin ventas; no se fabricaron emisiones sin flujos de origen. El walkthrough registra ese alcance pendiente.
+
 ## Revisión de comentarios del profesor — PR #17 (telemetría)
 - **Zero PII en propiedades diagnósticas:** `rejection_reason`, `field_name`, `error_rule`, `exception_class` y `error_code` quedaron restringidos por enums sincronizados entre el catálogo Markdown y el JSON Schema. Los valores desconocidos deben normalizarse o provocar descarte del evento; no se permite fallback a mensajes, stack traces ni cuerpos externos.
 - **Métrica:** renombrada a `METRIC_AVERAGE_SPEND_PER_COVER` y propiedad `average_spend_per_cover`, con fórmula `total_sales_amount / total_covers` y aclaración de que no es ticket por transacción.
@@ -348,3 +386,9 @@
 - Se integró el head actualizado de `feat/telemetry-event-capture`, que contiene el merge de #17. `progress.md` combinó automáticamente los hitos y observaciones de ambas ramas.
 - Se resolvió el único conflicto restante en `tasks/walkthrough.md`, conservando las secciones de #17, #18 y #19 y eliminando una copia duplicada del feedback de #18.
 - Validación enfocada de almacenamiento: `test_telemetry_storage.py` pasó (16 pruebas).
+
+## Integración #19 en #20 tras el merge de #18
+
+- Se integró el head vigente de `feat/telemetry-event-storage`, conservando el reporte técnico y la aclaración del denominador de `error_rate`.
+- Se combinaron los historiales de #17, #18 y #19 con el registro de #20.
+- Validación enfocada: `test_telemetry_analysis.py -k error_rate` pasó (3 pruebas).

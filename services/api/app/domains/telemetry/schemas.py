@@ -433,3 +433,56 @@ class TelemetryBatchResponse(BaseModel):
     received: int
     stored: int = 0
     rejected: int = 0
+
+
+# --- Telemetry Report Response Models ---
+
+class EventsPerDayItem(BaseModel):
+    date: str
+    event_count: int
+
+
+class ErrorRateByTypeItem(BaseModel):
+    event_type: str
+    error_count: int
+    error_rate: float = Field(
+        description=(
+            "Percentage of this error type among all technical-error events in the selected date range. "
+            "The denominator includes only form_validation_failed, system_exception_captured, "
+            "and external_integration_failed events; all other events are excluded."
+        )
+    )
+
+
+class LoginFailureRateItem(BaseModel):
+    date: str
+    successful_logins: int
+    failed_logins: int
+    total_attempts: int
+    login_failure_rate: float
+
+
+class ApiLatencyByRouteItem(BaseModel):
+    route_path: str
+    request_count: int
+    average_duration_ms: float
+    p95_duration_ms: float
+
+
+class ReportPeriod(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    from_: datetime = Field(..., alias="from", serialization_alias="from")
+    to: datetime
+
+
+class ReportMetrics(BaseModel):
+    events_per_day: list[EventsPerDayItem] = Field(default_factory=list)
+    error_rate_by_type: list[ErrorRateByTypeItem] = Field(default_factory=list)
+    login_failure_rate_per_day: list[LoginFailureRateItem] = Field(default_factory=list)
+    api_latency_by_route: list[ApiLatencyByRouteItem] = Field(default_factory=list)
+
+
+class TelemetryReportResponse(BaseModel):
+    period: ReportPeriod
+    metrics: ReportMetrics
