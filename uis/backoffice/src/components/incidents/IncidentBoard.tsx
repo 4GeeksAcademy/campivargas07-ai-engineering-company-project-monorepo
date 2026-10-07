@@ -4,13 +4,21 @@
 'use client';
 
 import { useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useIncidentList, useIncidentMutations, useIncidentSummary } from '@/lib/hooks/useIncidents';
 import { IncidentForm } from './IncidentForm';
 import { IncidentList } from './IncidentList';
 import { IncidentSummary } from './IncidentSummary';
-import { IncidentsAnalyzer } from '@/components/incidents-analyzer';
 import type { IncidentBranch, IncidentCategory, IncidentStatus } from '@/lib/incidents-api';
 import styles from './IncidentBoard.module.css';
+
+// Keep the CSV analysis bundle out of the initial incidents-board payload.
+const IncidentsAnalyzer = dynamic(
+  () => import('@/components/incidents-analyzer').then((mod) => mod.IncidentsAnalyzer),
+  {
+    loading: () => <p role="status">Cargando analizador de incidencias…</p>,
+  },
+);
 
 type Tab = 'board' | 'create' | 'analysis';
 

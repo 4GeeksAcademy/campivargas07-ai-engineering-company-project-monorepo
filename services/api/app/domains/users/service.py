@@ -50,7 +50,8 @@ def create_user(data: UserCreate) -> UserResponse:
         "uuid": user_uuid,
         "email": data.email,
         "hashed_password": hash_password(data.password),
-        "role": data.role.value,
+        # Public self-registration can never select a privileged role.
+        "role": "user",
         "is_active": True,
         "created_at": now,
     }

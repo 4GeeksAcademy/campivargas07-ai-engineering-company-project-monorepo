@@ -69,10 +69,13 @@ describe("Route Protection & AuthGuard", () => {
   it("renders children without redirect when authenticated user exists", () => {
     vi.mocked(useAuth).mockReturnValue({
       user: {
-        id: "user-1",
-        email: "felipe@brasaland.co",
-        role: "admin",
-        is_active: true,
+        user: {
+          id: "user-1",
+          email: "felipe@brasaland.co",
+          role: "admin",
+          is_active: true,
+          created_at: "2026-09-18T00:00:00Z",
+        },
         profile: null,
       },
       loading: false,

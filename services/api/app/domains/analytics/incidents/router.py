@@ -59,7 +59,27 @@ async def analyze_incidents(
         ) from exc
 
 
-@router.get("/results/export")
+@router.get(
+    "/results/export",
+    response_class=Response,
+    responses={
+        200: {
+            "description": "CSV file containing the latest incident analysis export.",
+            "content": {
+                "text/csv": {
+                    "schema": {"type": "string", "format": "binary"},
+                }
+            },
+            "headers": {
+                "Content-Disposition": {
+                    "description": "Attachment filename for the exported CSV.",
+                    "schema": {"type": "string"},
+                }
+            },
+        },
+        404: {"description": "No analysis results are available yet."},
+    },
+)
 def export_latest_results(
     current_user: dict = Depends(get_current_user),
 ) -> Response:
