@@ -42,9 +42,9 @@ function ProfileContent() {
       setEditing(false);
       setMessage({ type: 'success', text: 'Perfil actualizado correctamente' });
     } catch (error) {
-      setMessage({ 
-        type: 'error', 
-        text: error instanceof Error ? error.message : 'Error al actualizar el perfil' 
+      setMessage({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'Error al actualizar el perfil'
       });
     } finally {
       setSaving(false);
@@ -101,7 +101,7 @@ function ProfileContent() {
               <label style={{ display: 'block', color: 'var(--muted)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.3rem' }}>
                 Email
               </label>
-              <div style={{ fontSize: '1.05rem', fontWeight: 600 }}>{user.email}</div>
+              <div style={{ fontSize: '1.05rem', fontWeight: 600 }}>{user.user.email}</div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
@@ -110,7 +110,7 @@ function ProfileContent() {
                   Rol de Acceso
                 </label>
                 <div>
-                  <span className="chip chip-ok" style={{ textTransform: 'uppercase' }}>{user.role}</span>
+                  <span className="chip chip-ok" style={{ textTransform: 'uppercase' }}>{user.user.role}</span>
                 </div>
               </div>
 
@@ -119,8 +119,8 @@ function ProfileContent() {
                   Estado de Cuenta
                 </label>
                 <div>
-                  <span className={`chip ${user.is_active ? 'chip-ok' : 'chip-danger'}`}>
-                    {user.is_active ? 'Activo' : 'Inactivo'}
+                  <span className={`chip ${user.user.is_active ? 'chip-ok' : 'chip-danger'}`}>
+                    {user.user.is_active ? 'Activo' : 'Inactivo'}
                   </span>
                 </div>
               </div>

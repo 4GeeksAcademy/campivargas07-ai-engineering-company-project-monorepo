@@ -55,6 +55,44 @@
 3. Definir persistencia o histórico si el área operativa necesita conservar múltiples análisis.
 4. Revisar con producto la política de auto-asignación de roles en el registro público (`POST /users`).
 
+## Hito: Optimización de rendimiento — Lazy Loading, useMemo y caché TTL (rama `feature/caching-optimisation`)
+
+- **Fase 0 (línea base)**: registrada antes de tocar código — pytest 64 passed/5 skipped;
+  backoffice: typecheck PASS, vitest 54 tests, build PASS; JS inicial de
+  `/backoffice/incidents` = 644 997 bytes (9 chunks). Fallos preexistentes: ninguno.
+- **Fase 1 (timing)**: `app/common/timing.py` — middleware ASGI que registra
+  `método ruta → status (ms)` con `time.perf_counter()`, sin query strings/headers
+  (sin datos sensibles); cableado en `app/main.py` antes de CORS.
+- **Fase 2 (lazy loading)**: 2 niveles con `next/dynamic` — página server
+  (`incidents/page.tsx`) → `IncidentsAnalyzer`, y el analizador → nuevo
+  `IncidentsResults` (panel completo de tablas/KPIs) con fallback `loading` y sin
+  `ssr:false`. El panel queda en chunk propio (`1f6cd-uud07yr.js`, 6 830 B) fuera del
+  HTML/RSC inicial; payload inicial casi sin cambio (644 070 B) porque domina el shell.
+- **Fase 3 (useMemo)**: `src/lib/incidents-derive.ts` (derivación pura: ranking
+  consolidado de 4 tablas con % por tabla y % acumulado, Pareto 80 %, códigos únicos)
+  memoizada en `IncidentsResults` con `useMemo([analysis])`; 10 tests unitarios.
+- **Fase 4 (caché TTL)**: `app/common/cache.py` — `TTLCache` stdlib-only: claves
+  deterministas (`build_key` + `normalize_filter`), TTL por entrada, expiración con
+  reloj monotónico inyectable, LRU con `max_size=256`, copias profundas de valores,
+  estadísticas (hits/misses/evictions/expired/size/hit_rate) y logs `brasaland.cache`.
+  En suppliers: listas TTL 60 s, detalle TTL 120 s, 404 nunca cacheado, y
+  POST/rate/status/delete invalidan por prefijo `suppliers:` (lista + todas las
+  variantes + detalle).
+- **Fase 5 (tests backend)**: `tests/test_suppliers_cache.py` — 22 tests: MISS→HIT,
+  variantes de filtros → claves distintas, expiración con reloj inyectado (sin sleeps),
+  invalidación tras cada escritura, 404 sin cachear, copias defensivas, eviction LRU,
+  ttl<=0, sanity de TTLs y middleware de timing (estado/cuerpo intactos + regex del
+  formato de log + sin fuga de password/Authorization).
+- **Fase 6 (medición)**: dataset de 5 000 proveedores en `/tmp/brasa-seed/` generado
+  con `scripts/seed_suppliers.py` (nunca toca `services/api/data/`); escenario
+  cold/warm/invalidación/expiración (n=25 por variante) con
+  `scripts/measure_cache.py`. Detalle: 2.2→1.5 ms mediana (−32 %). En listas domina la
+  serialización/transporte de ~2 MB (HIT ≈ MISS en mediana; el cache elimina consulta
+  TinyDB y refiltrado). Expiración de 60/120 s observada en tiempo real con logs
+  EXPIRED. Detalle completo en `CACHING_REPORT.md`.
+- **Verificación final**: pytest 86 passed/5 skipped (+22 tests); typecheck:uis PASS;
+  test:uis 64+4 passed; lint backoffice PASS; build:uis 4/4 PASS.
+
 ## Validaciones ejecutadas
 - `python3 /workspaces/campivargas07-ai-engineering-company-project-monorepo/scripts/analyze.py /workspaces/campivargas07-ai-engineering-company-project-monorepo/docs/incidents-brasaland.csv` con conteos esperados: 100 totales, 96 válidos, 4 inválidos y promedio 3.46.
 - Exportación interactiva del script con generación de `results.csv`.
@@ -174,6 +212,46 @@
 - **Documentación:** diagnóstico en `AUDIT.md`, comparativa en `REPORT.md` y
   evidencia completa en `audit/before/` y `audit/after/`.
 
+## Implementación: Auditoría de serialización del backend (`feature/serialization-audit`)
+
+- **Alcance confirmado:** `services/api` es el backend activo; `services/backend`
+  permanece fuera de alcance por pertenecer a un hito anterior.
+- **Contratos añadidos:** `HealthResponse` para `GET /health` y `DeleteResponse`
+  para `DELETE /users/{user_id}` y `DELETE /api/suppliers/{supplier_id}`.
+- **Seguridad:** se conservan respuestas de usuarios sin `password` ni
+  `hashed_password`; el JWT de login sigue siendo el único token contractual
+  expuesto. Se conserva `user_uuid` en movimientos por trazabilidad del ledger.
+- **Frontend:** `AuthMeResponse` en `uis/backoffice` se alineó con la respuesta
+  anidada `{ user, profile }` del backend.
+- **Pruebas agregadas:** `services/api/tests/test_serialization_contracts.py`
+  cubre health, filtrado de hashes, borrado y presencia de modelos en OpenAPI.
+- **Auditoría:** creada `docs/serialization-audit.md`, conservando diagnóstico
+  inicial, estado final, contratos especiales, riesgos y validaciones pendientes.
+- **Estado:** implementación funcional aplicada; pruebas completas, typecheck,
+  lint y verificación manual mediante `/docs` quedan pendientes de ejecución.
+
+## Revisión de comentarios PR #15: contratos de registro y CSV
+- **Autorregistro seguro:** `UserCreate` ya no admite `role` y rechaza campos extra; el servicio fija `user` desde servidor. Las cuentas privilegiadas deben asignarse desde una ruta autenticada con autorización administrativa.
+- **Minimización de datos:** `POST /users` devuelve `UserRegistrationResponse` (`detail`, `id`) sin email ni rol. Backoffice ya no envía ni tipa un rol al registrar y posteriormente inicia sesión con las credenciales del formulario.
+- **OpenAPI CSV:** `GET /api/incidents/results/export` declara `text/csv`, contenido binario, `Content-Disposition` y error 404, sin cambiar la descarga CSV.
+- **Regresión:** pruebas cubren rechazo de `role`, rol asignado por servidor, respuesta sin email, contrato OpenAPI y cabeceras reales CSV.
+- **Validación:** `uv run --directory services/api pytest`: 67 passed, 5 skipped (integraciones PostgreSQL sin entorno). Typecheck frontend pendiente de sanear `.next/types` obsoleto, que referencia páginas inexistentes en este checkout; no reportó errores en el código auth actualizado.
+
+## Resolución de conflictos del merge de `main` en PR #15
+- Se conservaron en la misma integración los cambios de serialización/seguridad de PR #15 y los dominios de incidentes y recuperación de contraseña ya presentes en `main`.
+- `GET /health` mantiene `HealthResponse`; la API del backoffice incluye tipos y métodos de cambio/recuperación de contraseña, y el registro continúa sin aceptar `role`.
+- Se corrigió la página de perfil para leer `user.email`, `user.role` y `user.is_active` desde la respuesta anidada real de `/auth/me`.
+- Se eliminaron los marcadores literales de conflicto en cinco archivos y se preservaron las dos series de documentación histórica.
+- **Validación del merge:** API 91 passed, 5 skipped; backoffice 67 tests y lint sin errores. Typecheck ya no reporta errores de código: persisten dos referencias antiguas bajo `.next/types/validator.ts` a páginas que no existen en este checkout.
+
+## Revisión de comentarios PR #16 — caché y conflictos de `main`
+- **Conflictos integrados:** `services/api/app/main.py` conserva `RequestTimingMiddleware` y `register_incident_error_handlers`; la ruta de incidencias usa `IncidentBoard` de `main` y el analizador CSV se separó como chunk dinámico dentro de la pestaña de análisis.
+- **Race de invalidación:** `TTLCache` mantiene generaciones por prefijo; cada GET captura la generación antes de consultar servicio y solo escribe si sigue vigente. `invalidate_prefix` y `clear` avanzan la generación bajo el mismo lock. Agregada prueba concurrente determinista con eventos para intercalar GET antiguo y PATCH.
+- **Filtros exactos:** eliminada la normalización de whitespace de las claves; `None`, vacío y valores con espacios se codifican de forma distinta, conforme a igualdad exacta en `get_all_suppliers`. Añadido test endpoint para espacios inicial/final.
+- **Medición:** `measure_cache.py` ahora emite una muestra MISS por variante tras invalidación y calcula estadísticas HIT separadas. Expiración espera más que el TTL máximo. Se retiraron las cifras anteriores de `CACHING_REPORT.md` porque mezclaban MISS/HIT y la fase expiry no esperaba.
+- **Validación:** backend `116 passed, 5 skipped`; backoffice Vitest `77 passed`, lint PASS, build PASS y typecheck PASS tras regenerar `.next/types`. Un mock de perfil que seguía usando la forma antigua se alineó a `{ user, profile }`.
+- **Estado:** ambos conflictos resueltos, índice sin archivos unmerged y `git diff --cached --check` limpio. Merge y cambios listos en staging; aún no se ha hecho commit ni push.
+
 ## Integración PR #10: Gestor de Incidentes
 
 - **Conflictos resueltos:** se conservó el analizador CSV ya integrado en
@@ -220,6 +298,8 @@
 - **Dependencias:** `httpx` queda disponible en producción para Resend y
   `httpx2` se conserva en desarrollo para el `TestClient` de Starlette 1.6.
 - **Alcance protegido:** no se modificaron ni fusionaron las PR #15 y #16.
+- **Contexto histórico:** esta integración de PR #9 se documentó antes de los
+  cambios posteriores de serialización y feedback de PR #15.
 
 ## Hito: Plan de Telemetría de Brasaland (rama `docs/telemetry-design-plan`)
 
@@ -236,6 +316,8 @@
 - **Integración Transversal y Core Web Vitals**: Componente `<WebVitals />` (`useReportWebVitals`), `<TelemetryBootstrap />` (navegación y captura de errores globales), medición monotónica de latencia en `InventoryApiClient` y sincronización de usuario en `AuthProvider`.
 - **Instrumentación de Negocio en Vistas Reales**: Captura semántica en `InboundOrderForm` (`inbound_order_created`), `OutboundOrderForm` (`outbound_order_created`, `outbound_insufficient_stock_attempted`, `form_abandoned`), `ProductsTable` (`inventory_catalog_viewed`, `inventory_filter_applied` debounced 500ms) y `LoginPage` (`user_logged_in`, `user_login_failed`).
 - **Validación Integral**: 97 pruebas backend en Pytest (13 nuevas en `test_telemetry_stub.py`), 78 pruebas frontend en Vitest (11 nuevas en `telemetry-service.test.ts`), 0 errores TypeScript, 0 errores ESLint y compilación de producción con Turbopack exitosa (19/19 páginas estáticas).
+- **Contexto histórico:** esta integración de PR #9 se documentó antes de los
+  cambios posteriores de serialización y feedback de PR #15.
 
 ## Hito: Telemetría de tu compañía — Almacenamiento (Backoffice Brasaland, rama `feat/telemetry-event-storage`)
 
@@ -245,7 +327,7 @@
 - **Validación Parcial por Evento (`router.py`, `schemas.py`)**: Envelope exterior ligero `TelemetryBatchRequest` (`events: list[dict[str, Any]]` hasta 20 eventos, `extra="forbid"`), validación individual de elementos con `TypeAdapter(TelemetryEvent)` a nivel de módulo, aislando `ValidationError` sin rechazar con 422 el lote completo. Lotes parseables responden HTTP 200.
 - **Mapeo Puro y Seguro (`mapping.py`)**: Función `telemetry_event_to_row` que mapea camelCase a snake_case, serializa UUID/fecha, preserva el allowlist de `properties` dentro de `tags` (sin fugar datos del envelope), asigna `service="backoffice"` en el servidor y valida pero no persiste `entity_action` ni `schemaVersion`.
 - **Inserción Masiva e Idempotencia (`repository.py`)**: Inserción bulk única mediante `ON CONFLICT (event_id) DO NOTHING RETURNING event_id`. Respuesta exacta `{"received": N, "stored": S, "rejected": R}` cumpliendo `received = stored + rejected`. Si ocurren fallos de BD, rollback defensivo y respuesta HTTP 503 sin fuga de credenciales.
-- **Frontend Intacto (`uis/backoffice/`)**: Cero modificaciones en componentes, hooks, tipos o servicios del backoffice (`git diff` vacío contra commit inicial de la fase).
+- **Frontend (`uis/backoffice/`)**: La fase original de almacenamiento no modificó componentes, hooks, tipos ni servicios; la rama integrada hereda ahora la instrumentación de la PR #18.
 - **Validación Integral**: 122 pruebas backend verdes en Pytest (incluyendo 20 pruebas nuevas en `test_telemetry_storage.py` y 4 pruebas de integración PostgreSQL en `test_telemetry_postgres.py`), 78 pruebas frontend verdes en Vitest y verificación E2E en vivo contra contenedor PostgreSQL `brasaland_db`.
 
 ## Hito: Telemetría de tu compañía — Reporte técnico (Backoffice Brasaland, rama `feat/telemetry-technical-report`)
@@ -284,3 +366,29 @@
 
 - La descripción OpenAPI de `error_rate` aclara que cada tipo se divide por el total de eventos de error incluidos en el período: `form_validation_failed`, `system_exception_captured` y `external_integration_failed`. Otros eventos se excluyen del denominador.
 - La fórmula no cambia; se añade una prueba del contrato JSON Schema para preservar esta aclaración. Validación enfocada: `test_telemetry_analysis.py -k error_rate`, 3 pruebas pasaron.
+
+## Feedback docente PR #18: cobertura de eventos obligatorios
+
+- `OutboundOrderForm` ahora emite `stock_threshold_triggered` tras una salida aceptada cuando el saldo cruza el mínimo configurado; los valores de stock, déficit y severidad se derivan de la actualización optimista del formulario.
+- Se añadió una prueba de regresión para el cruce de 25 a 19 con mínimo 20. Validación enfocada: `npm --prefix uis/backoffice run test -- src/test/inventory-orders-forms.test.tsx` pasó (8 pruebas).
+- ESLint de los dos archivos modificados pasó. El typecheck completo sigue reportando 9 errores en otros archivos de la rama; ninguno corresponde a los archivos de este cambio.
+- Siguen sin productor real los eventos obligatorios de compras, variación de precio, ventas/POS y alerta de sede sin ventas; no se fabricaron emisiones sin flujos de origen. El walkthrough registra ese alcance pendiente.
+
+## Revisión de comentarios del profesor — PR #17 (telemetría)
+- **Zero PII en propiedades diagnósticas:** `rejection_reason`, `field_name`, `error_rule`, `exception_class` y `error_code` quedaron restringidos por enums sincronizados entre el catálogo Markdown y el JSON Schema. Los valores desconocidos deben normalizarse o provocar descarte del evento; no se permite fallback a mensajes, stack traces ni cuerpos externos.
+- **Métrica:** renombrada a `METRIC_AVERAGE_SPEND_PER_COVER` y propiedad `average_spend_per_cover`, con fórmula `total_sales_amount / total_covers` y aclaración de que no es ticket por transacción.
+- **Clasificación:** catálogo confirmado en 32 eventos: 10 `mandatory` y 22 `opportunity`; `user_logged_in` es `opportunity`.
+- **Autenticación:** guía corregida para emitir eventos en `login()` de `services/api/app/domains/auth/router.py`; fallos usan códigos normalizados y omiten credenciales y mensajes de excepción.
+- **Validación:** metaschema Draft 2020-12 correcto, 32 IDs iguales entre Markdown y JSON, conjuntos de propiedades/requeridos coincidentes, y `git diff --check` limpio.
+
+## Integración #18 en #19 tras el merge de #17
+
+- Se integró el head actualizado de `feat/telemetry-event-capture`, que contiene el merge de #17. `progress.md` combinó automáticamente los hitos y observaciones de ambas ramas.
+- Se resolvió el único conflicto restante en `tasks/walkthrough.md`, conservando las secciones de #17, #18 y #19 y eliminando una copia duplicada del feedback de #18.
+- Validación enfocada de almacenamiento: `test_telemetry_storage.py` pasó (16 pruebas).
+
+## Integración #19 en #20 tras el merge de #18
+
+- Se integró el head vigente de `feat/telemetry-event-storage`, conservando el reporte técnico y la aclaración del denominador de `error_rate`.
+- Se combinaron los historiales de #17, #18 y #19 con el registro de #20.
+- Validación enfocada: `test_telemetry_analysis.py -k error_rate` pasó (3 pruebas).

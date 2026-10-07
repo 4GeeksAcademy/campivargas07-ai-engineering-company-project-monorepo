@@ -243,6 +243,27 @@ export function OutboundOrderForm() {
         // Non-blocking
       }
 
+      if (
+        selectedIngredient &&
+        baseStock > selectedIngredient.minimum_stock &&
+        newStock <= selectedIngredient.minimum_stock
+      ) {
+        try {
+          telemetryService.track('stock_threshold_triggered', {
+            local_id: order.local_id,
+            ingredient_id: order.ingredient_id,
+            ingredient_sku: order.ingredient_sku,
+            current_stock: newStock,
+            minimum_stock: selectedIngredient.minimum_stock,
+            deficit: Math.max(0, selectedIngredient.minimum_stock - newStock),
+            unit_of_measure: selectedIngredient.unit_of_measure,
+            severity: newStock <= 0 ? 'critical_depletion' : 'minimum_reached',
+          });
+        } catch {
+          // Non-blocking
+        }
+      }
+
       // Reconcile with authoritative backend stock
       await reconcileStock(order.ingredient_id, order.local_id);
     } catch (err) {

@@ -15,10 +15,14 @@ export interface TokenResponse {
 export interface RegisterRequest {
   email: string;
   password: string;
-  role?: string;
   name?: string;
   phone?: string;
   address?: string;
+}
+
+export interface UserRegistrationResponse {
+  detail: string;
+  id: string;
 }
 
 export interface UserOut {
@@ -37,10 +41,10 @@ export interface ProfileOut {
 }
 
 export interface AuthMeResponse {
-  id: string;
-  email: string;
-  role: string;
-  is_active: boolean;
+  user: UserOut & {
+    uuid?: string | null;
+    created_at: string;
+  };
   profile: ProfileOut | null;
 }
 

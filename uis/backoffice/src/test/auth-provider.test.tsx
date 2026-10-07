@@ -56,10 +56,13 @@ describe('AuthProvider hydration state', () => {
   it('loads the authenticated user after mounting', async () => {
     vi.mocked(authApi.isAuthenticated).mockReturnValue(true);
     vi.mocked(authApi.getMe).mockResolvedValue({
-      id: 'user-1',
-      email: 'audit@brasaland.local',
-      role: 'admin',
-      is_active: true,
+      user: {
+        id: 'user-1',
+        email: 'audit@brasaland.local',
+        role: 'admin',
+        is_active: true,
+        created_at: '2026-09-18T00:00:00Z',
+      },
       profile: null,
     });
 

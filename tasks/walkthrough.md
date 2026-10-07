@@ -1,5 +1,41 @@
 # Walkthrough: Dominio de Inventario con SQLModel y Doble Base de Datos en `services/api`
 
+# Walkthrough: Revisión de PR #16 — cache coherente y conflictos con main
+
+## Cambios implementados
+- Resueltos los conflictos del merge manteniendo el middleware de timing y los manejadores de errores de incidencias. La página protegida monta `IncidentBoard`; el analizador CSV queda en carga dinámica dentro de la pestaña `Análisis CSV`.
+- `TTLCache` agrega generations por prefijo y `set_if_generation`, comparando e insertando bajo el lock compartido con la invalidación. Las consultas GET que atraviesan una mutación concurrente ya no pueden volver a cachear su resultado anterior.
+- Las claves de filtros conservan los valores exactos; la consulta `country=Colombia` ya no colisiona con `country=%20Colombia` o `country=Colombia%20`.
+- El script de medición recoge una sola muestra MISS luego de invalidar y distribuye los HIT en otra fase. `post_expiry` espera el TTL real configurable por `MEASURE_EXPIRY_WAIT`.
+- El informe `CACHING_REPORT.md` descarta resultados históricos obtenidos con fases mezcladas, sin inventar cifras sustitutas; se requiere correr la medición corregida para publicar nuevas cifras.
+
+## Pruebas agregadas
+- Filtros con espacios validan comportamiento exacto y cachés separadas.
+- Generación desfasada no puede insertar datos tras invalidación.
+- Prueba concurrente con `threading.Event` captura resultado antiguo, ejecuta PATCH que invalida y reanuda GET sin `sleep`.
+
+## Validación
+- Backend: `services/api/.venv/bin/python -m pytest tests -q` → 116 passed, 5 skipped.
+- Backoffice: typecheck PASS tras build que regeneró `.next/types`; Vitest `77 passed` en 15 suites; ESLint PASS; `next build` PASS (19 rutas).
+- Higiene merge: ambos conflictos marcados como resueltos, cero entradas UU y `git diff --cached --check` PASS. Cifras nuevas de rendimiento no publicadas; deben medirse con el script corregido.
+
+## Walkthrough: Correcciones de revisión PR #15 — registro público y CSV
+
+### Cambios
+- Se retiró `role` del contrato público `UserCreate` y se configuró el rechazo de propiedades extra. Aunque se envíe `role: "admin"`, Pydantic responde 422 sin crear el usuario.
+- `create_user` asigna explícitamente el rol `user`. `POST /users` responde con `{ "detail": "User registered successfully", "id": "..." }` y no incluye email.
+- Se alineó el cliente de registro del Backoffice; registra sin rol y continúa autenticando mediante el login con email/password.
+- OpenAPI especifica para la descarga CSV `text/csv`, formato binario, cabecera `Content-Disposition` y respuesta 404, conservando la respuesta `Response` existente.
+- `docs/serialization-audit.md` refleja el estado corregido de `POST /users` y los contratos de exportación.
+
+### Validación
+- `uv run --directory services/api pytest`: 67 passed, 5 skipped (requieren `TEST_DATABASE_URL`).
+- Typecheck Backoffice reporta referencias antiguas en `.next/types/validator.ts` a páginas que no existen en el checkout, sin errores restantes en los archivos auth modificados.
+- `git diff --check` ejecutado. Pytest actualizó bytecode `.pyc` y metadatos `egg-info` versionados, que deben revertirse antes de entregar.
+
+### Por qué se produjo el hallazgo
+El trabajo original priorizó añadir modelos de respuesta y documentar la superficie existente. En ese momento se consideró la asignación de rol una decisión de producto pendiente y se interpretó “no devolver secretos” como excluir contraseñas/hashes; no se aplicó el principio de mínimo privilegio ni minimización de PII al endpoint público. La exportación se trató como una respuesta no JSON correctamente en runtime, pero no se describió expresamente en el esquema OpenAPI ni se probó esa parte del contrato.
+
 Se ha implementado la extensión de `services/api` con el dominio de inventario para Brasaland, integrando PostgreSQL mediante SQLModel junto con TinyDB, preservando la autenticación existente y documentando las interfaces y validaciones.
 
 ---
@@ -500,6 +536,67 @@ móvil, sin convertir esta auditoría en una reestructuración arquitectónica.
 
 ---
 
+# Walkthrough: Implementación de contratos de serialización
+
+## Resolución de conflictos al integrar `main`
+
+- Se conservaron los contratos y pruebas de serialización/seguridad junto con
+  las rutas de recuperación de contraseña y los dominios de incidencias que ya
+  estaban integrados en `main`.
+- `/health` conserva su `response_model=HealthResponse`; el cliente de auth
+  conserva sus métodos y tipos de recuperación/cambio de contraseña. El
+  registro público no admite `role`.
+- Se conservaron tanto la captura y sincronización del usuario de telemetría
+  (`telemetryService.setUserContext`) como la integración del receptor
+  (`telemetry_router`) en FastAPI.
+- Se quitaron los marcadores de conflicto en los dos documentos.
+- **Verificación de este merge:** API 104 passed, 5 skipped. El test suite del
+  backoffice se ejecutó, pero no quedó verde: no resuelve `@repo/shared-types`
+  bajo la instalación local y reporta dos fallos en las pruebas de perfil por
+  fixtures incompatibles con el contrato `{ user, profile }`. El typecheck
+  reporta errores en esos contratos, alias compartido y telemetría; lint no se
+  completó por el encadenamiento después del fallo de TypeScript. Debe revisarse
+  antes de declarar la integración validada.
+
+## Estado
+
+Implementación aplicada en la rama `feature/serialization-audit`. Este hito no
+reescribe el backend ni modifica `services/backend`; trabaja únicamente sobre
+el backend activo `services/api` y su consumidor de autenticación en el
+backoffice.
+
+## Cambios
+
+- `GET /health` ahora tiene el esquema explícito `HealthResponse`.
+- Las respuestas de `DELETE /users/{user_id}` y
+  `DELETE /api/suppliers/{supplier_id}` usan `DeleteResponse`, manteniendo el
+  código `200` y el cuerpo `{detail}` por compatibilidad.
+- Se alineó `AuthMeResponse` de TypeScript con el contrato backend anidado.
+- Se añadieron pruebas de contratos, OpenAPI y ausencia de contraseñas/hashes.
+- Se creó `docs/serialization-audit.md` con el inventario, diagnóstico inicial,
+  estado final, contratos CSV, riesgos y plan restante.
+
+## Seguridad y compatibilidad
+
+Las respuestas siguen sin incluir `password` ni `hashed_password`. El
+`access_token` de login se conserva porque forma parte del contrato del cliente.
+La exportación de incidencias continúa siendo CSV con `Content-Disposition`; no
+se transformó a JSON. `user_uuid` permanece en las órdenes porque el ledger lo
+usa para trazabilidad.
+
+## Validaciones pendientes
+
+En el momento de documentar este walkthrough todavía queda por ejecutar:
+
+```bash
+uv run --directory services/api pytest
+npm --prefix uis/backoffice run test
+npm --prefix uis/backoffice run typecheck
+npm --prefix uis/backoffice run lint
+```
+
+También debe verificarse manualmente `/docs` con al menos tres endpoints.
+
 # Walkthrough: Integración del Gestor de Incidentes (PR #10)
 
 Se resolvió la divergencia de la rama del gestor contra `main` conservando el
@@ -602,7 +699,7 @@ sin reemplazar los dominios ya fusionados desde otras ramas.
 - Typecheck y lint del backoffice: sin errores.
 - Build de producción: 19 rutas generadas, incluidas las tres rutas nuevas.
 
-## 5. Exclusiones
+## 5. Contexto histórico
 
 Las PR #15 y #16 permanecieron abiertas e intactas durante toda la
 integración.
@@ -653,7 +750,7 @@ Se implementó la infraestructura completa de captura y recepción de telemetrí
 ### 2.1 Eventos Instrumentados en Flujos Reales
 1. `inbound_order_created` (Obligatorio) -> `InboundOrderForm`
 2. `outbound_order_created` (Obligatorio) -> `OutboundOrderForm`
-3. `user_logged_in` (Obligatorio) -> `LoginPage` / `AuthProvider`
+3. `user_logged_in` (Oportunidad) -> `LoginPage` / `AuthProvider`
 4. `outbound_insufficient_stock_attempted` (Oportunidad) -> `OutboundOrderForm`
 5. `inventory_catalog_viewed` (Oportunidad) -> `ProductsTable`
 6. `inventory_filter_applied` (Oportunidad) -> `ProductsTable`
@@ -663,10 +760,11 @@ Se implementó la infraestructura completa de captura y recepción de telemetrí
 10. `system_exception_captured` (Oportunidad) -> `TelemetryBootstrap`
 11. `backoffice_page_viewed` (Oportunidad) -> `TelemetryBootstrap`
 12. `form_abandoned` (Oportunidad) -> `OutboundOrderForm`
+13. `stock_threshold_triggered` (Obligatorio) -> `OutboundOrderForm` al cruzar el mínimo tras una salida exitosa
 
 ### 2.2 Eventos Bloqueados por Ausencia de Flujo en el Monorepo
 Los siguientes eventos del catálogo quedan formalmente documentados como bloqueados hasta la implementación de sus módulos respectivos:
-- `stock_threshold_triggered`: Requiere worker en backend de monitoreo continuo de umbrales de stock.
+- `stock_threshold_triggered`: El formulario de salida emite el evento al cruzar el mínimo tras una respuesta exitosa; sigue pendiente un productor backend que observe cambios originados fuera del Backoffice.
 - `purchase_order_suggested`, `purchase_order_approved`, `purchase_order_dispatched`, `purchase_order_received`, `purchase_order_rejected`: Requieren la interfaz y módulo de compras/aprovisionamiento (Lucía Fernández / motor IA).
 - `supplier_price_variance_detected`, `consolidated_procurement_report_generated`: Requieren el módulo de conciliación de facturas de proveedores.
 - `daily_sales_recorded`, `pos_order_completed`, `location_zero_sales_alert_triggered`, `pos_heartbeat_recorded`: Pertenecen al software de punto de venta (TPV/POS) y monitoreo de cajas físicas en restaurantes.
@@ -687,7 +785,7 @@ Los siguientes eventos del catálogo quedan formalmente documentados como bloque
 
 # Walkthrough: Telemetría de tu compañía — Almacenamiento (Persistencia PostgreSQL / Supabase)
 
-Se ha implementado la fase de persistencia y almacenamiento de telemetría para Brasaland, sustituyendo el stub receptor temporal de `POST /telemetry/events` por persistencia real en PostgreSQL/Supabase, basada en una tabla append-only `telemetry_events`, validación parcial individual por evento y una única inserción masiva idempotente por lote, preservando intacto el frontend del backoffice.
+Se ha implementado la fase de persistencia y almacenamiento de telemetría para Brasaland, sustituyendo el stub receptor temporal de `POST /telemetry/events` por persistencia real en PostgreSQL/Supabase, basada en una tabla append-only `telemetry_events`, validación parcial individual por evento y una única inserción masiva idempotente por lote. La fase original de almacenamiento no modificó el frontend; esta rama integrada también contiene la instrumentación de Backoffice de la PR #18.
 
 ## 1. Arquitectura y Decisiones Técnicas
 
@@ -737,9 +835,11 @@ Se ha implementado la fase de persistencia y almacenamiento de telemetría para 
 - **Resiliencia y manejo de errores de base de datos**:
   - Si ocurre un fallo en la conexión o ejecución en base de datos, se ejecuta `session.rollback()`, se registra el error con Zero-PII y se devuelve HTTP 503 (`Database service temporarily unavailable`) para que el frontend reintente según su política de backoff.
 
-### 1.4 Frontend Intacto (`uis/backoffice`)
-- Ningún archivo bajo `uis/backoffice/` fue modificado (`git diff` vacío contra el commit inicial de la fase).
+### 1.4 Alcance de Frontend
+- La fase de almacenamiento de #19 no modifica componentes, hooks, tipos ni servicios del backoffice; la rama integrada incluye además los cambios de UI que pertenecen a su base #18.
 - El contrato de respuesta (`received`, `stored`, `rejected`) es 100% transparente para `TelemetryService`, que evalúa `response.ok` y vacía los eventos transmitidos exitosamente.
+- Tras el merge de #17, se actualizó la base con el head vigente de #18. El conflicto documental se resolvió conservando los walkthroughs de diseño (#17), captura (#18) y persistencia (#19), sin duplicar el feedback de cobertura de #18.
+- Validación posterior a la integración: `test_telemetry_storage.py` pasó (16 pruebas).
 
 ---
 
@@ -1033,7 +1133,7 @@ Ubicación principal: `services/api/app/domains/telemetry/analysis.py`.
 
 ## 4. Limitaciones y Notas de Aislamiento
 
-- **Aislamiento de Ramas Precursoras**: Cero force-push, rebase o modificación sobre `origin/docs/telemetry-design-plan` (PR #17), `origin/feat/telemetry-event-capture` (PR #18) ni `origin/feat/telemetry-event-storage` (PR #19).
+- **Aislamiento durante la implementación original**: No se hizo force-push, rebase ni modificación de las ramas precursoras #17, #18 o #19. La actualización posterior de esta rama sobre el head vigente de #19 se registra al final de este walkthrough.
 - **Error TypeScript Preexistente en `uis/backoffice`**:
   Conforme a la instrucción *"Si la base heredada falla, documenta el fallo y determina si pertenece realmente a esta nueva fase antes de continuar"* y la restricción negativa *"No modificar TelemetryService, el envelope ni la captura existente"*, se identificó que la rama base `origin/feat/telemetry-event-storage` heredó de la PR #18 dos inconsistencias de tipado en `src/services/telemetry.ts:175` y `src/test/telemetry-service.test.ts:17`. Para no violar la restricción que prohíbe alterar `TelemetryService`, dichos archivos se conservaron intactos. El código de esta nueva fase (`telemetry/page.tsx`, `TelemetryReportDashboard` y sus tests) está 100% libre de errores.
 
@@ -1043,3 +1143,40 @@ Ubicación principal: `services/api/app/domains/telemetry/analysis.py`.
 - `total_errors` incluye solo `form_validation_failed`, `system_exception_captured` y `external_integration_failed`; eventos como `user_login_failed` no forman parte del denominador.
 - Se mantiene la fórmula existente; una prueba verifica que el esquema JSON publicado preserve la aclaración.
 - Validación: `test_telemetry_analysis.py -k error_rate` pasó (3 pruebas; 7 deseleccionadas).
+
+## Feedback docente PR #18: cobertura de eventos obligatorios
+
+- `OutboundOrderForm` emite `stock_threshold_triggered` después de una salida aceptada cuando el saldo calculado cruza de encima del mínimo a dicho umbral o por debajo.
+- El evento usa el mínimo configurado y etiqueta como `critical_depletion` los saldos en cero; en los demás cruces usa `minimum_reached`. La llamada a `TelemetryService.track()` no bloquea la operación.
+- La prueba de regresión cubre un cruce de 25 a 19 con mínimo 20 y comprueba el payload emitido.
+- Validación enfocada: 8 pruebas del formulario y ESLint de los archivos modificados pasaron. El typecheck general reporta 9 errores heredados; el build falla porque `@repo/shared-types` no se resuelve en `incidents-api.ts`.
+- No se simulan eventos de compras, conciliación de precios, ventas ni POS: sus productores aún no existen en los flujos del monorepo.
+
+## Contexto histórico
+
+Este walkthrough describe la integración histórica de recuperación de
+contraseña; la auditoría posterior de serialización y el feedback de PR #15
+se documentan en sus respectivas secciones anteriores.
+
+# Walkthrough: Correcciones de revisión del profesor — PR #17 (plan de telemetría)
+
+## Hallazgos atendidos
+- Se restringieron `rejection_reason`, `field_name`, `error_rule`, `exception_class` y `error_code` a allowlists; las mismas enumeraciones están documentadas en el catálogo Markdown y aplicadas en JSON Schema. La política indica descartar eventos con valores no normalizables, sin copiar mensajes de usuario, excepción o proveedor.
+- Se renombró la métrica a `METRIC_AVERAGE_SPEND_PER_COVER` y el campo a `average_spend_per_cover`, haciendo explícito `total_sales_amount / total_covers`; se aclara que no es un ticket promedio por transacción.
+- Se verificó el conteo solicitado: 32 eventos, 10 `mandatory`, 22 `opportunity`; `user_logged_in` está en `opportunity`.
+- Se corrigió la referencia a `authenticate_user()` (inexistente) y la guía ubica ambos eventos de login en `login()`; sólo emite códigos normalizados para fallo, sin email, contraseña ni mensaje de excepción.
+
+## Validación
+- `jsonschema.Draft202012Validator.check_schema`: PASS.
+- 32 ramas `oneOf`; 32 IDs del catálogo coinciden con los 32 IDs del schema.
+- Cada evento tiene el mismo conjunto de propiedades y campos requeridos; conteo 10/22 verificado por script.
+- `git diff --check`: PASS.
+
+## Aislamiento y estado
+El trabajo se hizo en el worktree aislado `/tmp/campivargas-pr17` sobre la rama de PR #17. No se tocaron el checkout, merge ni cambios staged de PR #16.
+
+## Integración #19 en #20 tras el merge de #18
+
+- Se actualizó la base de #20 al head vigente de #19, que incluye los cambios de diseño (#17), captura (#18) y persistencia (#19).
+- Se conservaron el reporte técnico, la aclaración del denominador de errores y los walkthroughs previos, sin duplicar secciones.
+- Validación enfocada: `test_telemetry_analysis.py -k error_rate` pasó (3 pruebas).
