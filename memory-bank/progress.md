@@ -319,6 +319,17 @@
 - **Contexto histórico:** esta integración de PR #9 se documentó antes de los
   cambios posteriores de serialización y feedback de PR #15.
 
+## Hito: Telemetría de tu compañía — Almacenamiento (Backoffice Brasaland, rama `feat/telemetry-event-storage`)
+
+- **Persistencia en PostgreSQL (`services/api/app/domains/telemetry/`)**: Sustitución del stub temporal de `POST /telemetry/events` por almacenamiento real en PostgreSQL/Supabase en tabla `telemetry_events`.
+- **Migración DDL Idempotente (`services/api/migrations/001_create_telemetry_events.sql`)**: Creación de tabla append-only con exactamente 8 columnas (`event_id` UUID PK, `event_type`, `timestamp` TIMESTAMPTZ, `service` servidor, `session_id`, `user_id`, `request_id`, `tags` JSONB) y 3 índices explícitos (`timestamp`, `event_type`, GIN sobre `tags`).
+- **Modelo SQLModel e Inicialización (`models.py`, `database.py`)**: `TelemetryEventRecord` registrado en `init_db()` con compatibilidad para dialectos PostgreSQL y SQLite sin migraciones manuales.
+- **Validación Parcial por Evento (`router.py`, `schemas.py`)**: Envelope exterior ligero `TelemetryBatchRequest` (`events: list[dict[str, Any]]` hasta 20 eventos, `extra="forbid"`), validación individual de elementos con `TypeAdapter(TelemetryEvent)` a nivel de módulo, aislando `ValidationError` sin rechazar con 422 el lote completo. Lotes parseables responden HTTP 200.
+- **Mapeo Puro y Seguro (`mapping.py`)**: Función `telemetry_event_to_row` que mapea camelCase a snake_case, serializa UUID/fecha, preserva el allowlist de `properties` dentro de `tags` (sin fugar datos del envelope), asigna `service="backoffice"` en el servidor y valida pero no persiste `entity_action` ni `schemaVersion`.
+- **Inserción Masiva e Idempotencia (`repository.py`)**: Inserción bulk única mediante `ON CONFLICT (event_id) DO NOTHING RETURNING event_id`. Respuesta exacta `{"received": N, "stored": S, "rejected": R}` cumpliendo `received = stored + rejected`. Si ocurren fallos de BD, rollback defensivo y respuesta HTTP 503 sin fuga de credenciales.
+- **Frontend (`uis/backoffice/`)**: La fase original de almacenamiento no modificó componentes, hooks, tipos ni servicios; la rama integrada hereda ahora la instrumentación de la PR #18.
+- **Validación Integral**: 122 pruebas backend verdes en Pytest (incluyendo 20 pruebas nuevas en `test_telemetry_storage.py` y 4 pruebas de integración PostgreSQL en `test_telemetry_postgres.py`), 78 pruebas frontend verdes en Vitest y verificación E2E en vivo contra contenedor PostgreSQL `brasaland_db`.
+
 ## Feedback docente PR #18: cobertura de eventos obligatorios
 
 - `OutboundOrderForm` ahora emite `stock_threshold_triggered` tras una salida aceptada cuando el saldo cruza el mínimo configurado; los valores de stock, déficit y severidad se derivan de la actualización optimista del formulario.
@@ -331,3 +342,9 @@
 - **Clasificación:** catálogo confirmado en 32 eventos: 10 `mandatory` y 22 `opportunity`; `user_logged_in` es `opportunity`.
 - **Autenticación:** guía corregida para emitir eventos en `login()` de `services/api/app/domains/auth/router.py`; fallos usan códigos normalizados y omiten credenciales y mensajes de excepción.
 - **Validación:** metaschema Draft 2020-12 correcto, 32 IDs iguales entre Markdown y JSON, conjuntos de propiedades/requeridos coincidentes, y `git diff --check` limpio.
+
+## Integración #18 en #19 tras el merge de #17
+
+- Se integró el head actualizado de `feat/telemetry-event-capture`, que contiene el merge de #17. `progress.md` combinó automáticamente los hitos y observaciones de ambas ramas.
+- Se resolvió el único conflicto restante en `tasks/walkthrough.md`, conservando las secciones de #17, #18 y #19 y eliminando una copia duplicada del feedback de #18.
+- Validación enfocada de almacenamiento: `test_telemetry_storage.py` pasó (16 pruebas).

@@ -1,6 +1,6 @@
 """Telemetry domain Pydantic schemas generated from docs/telemetry/event-schemas.json."""
 from datetime import date, datetime
-from typing import Annotated, Literal, Optional, Union
+from typing import Annotated, Any, Literal, Optional, Union
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -422,9 +422,14 @@ class FormAbandonedEvent(TelemetryEnvelopeBase):
 
 TelemetryEvent = Annotated[Union[InboundOrderCreatedEvent, OutboundOrderCreatedEvent, StockThresholdTriggeredEvent, OutboundInsufficientStockAttemptedEvent, DirectStockEditRejectedEvent, InventoryCatalogViewedEvent, IngredientDetailQueriedEvent, InventoryFilterAppliedEvent, PurchaseOrderSuggestedEvent, PurchaseOrderApprovedEvent, PurchaseOrderDispatchedEvent, PurchaseOrderReceivedEvent, PurchaseOrderRejectedEvent, SupplierPriceVarianceDetectedEvent, ConsolidatedProcurementReportGeneratedEvent, DailySalesRecordedEvent, PosOrderCompletedEvent, LocationZeroSalesAlertTriggeredEvent, PosHeartbeatRecordedEvent, UserLoggedInEvent, UserLoginFailedEvent, SessionExpiredEvent, PermissionDeniedEvent, PasswordResetRequestedEvent, ApiLatencyRecordedEvent, ClientWebVitalsRecordedEvent, DbQuerySlowDetectedEvent, FormValidationFailedEvent, SystemExceptionCapturedEvent, ExternalIntegrationFailedEvent, BackofficePageViewedEvent, FormAbandonedEvent], Field(discriminator='event_type')]
 
-class TelemetryBatch(BaseModel):
+class TelemetryBatchRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    events: list[TelemetryEvent] = Field(..., max_length=20)
+    events: list[dict[str, Any]] = Field(..., max_length=20)
+
+# Backward-compatible alias
+TelemetryBatch = TelemetryBatchRequest
 
 class TelemetryBatchResponse(BaseModel):
     received: int
+    stored: int = 0
+    rejected: int = 0
