@@ -785,7 +785,7 @@ Los siguientes eventos del catálogo quedan formalmente documentados como bloque
 
 # Walkthrough: Telemetría de tu compañía — Almacenamiento (Persistencia PostgreSQL / Supabase)
 
-Se ha implementado la fase de persistencia y almacenamiento de telemetría para Brasaland, sustituyendo el stub receptor temporal de `POST /telemetry/events` por persistencia real en PostgreSQL/Supabase, basada en una tabla append-only `telemetry_events`, validación parcial individual por evento y una única inserción masiva idempotente por lote, preservando intacto el frontend del backoffice.
+Se ha implementado la fase de persistencia y almacenamiento de telemetría para Brasaland, sustituyendo el stub receptor temporal de `POST /telemetry/events` por persistencia real en PostgreSQL/Supabase, basada en una tabla append-only `telemetry_events`, validación parcial individual por evento y una única inserción masiva idempotente por lote. La fase original de almacenamiento no modificó el frontend; esta rama integrada también contiene la instrumentación de Backoffice de la PR #18.
 
 ## 1. Arquitectura y Decisiones Técnicas
 
@@ -838,6 +838,8 @@ Se ha implementado la fase de persistencia y almacenamiento de telemetría para 
 ### 1.4 Alcance de Frontend
 - La fase de almacenamiento de #19 no modifica componentes, hooks, tipos ni servicios del backoffice; la rama integrada incluye además los cambios de UI que pertenecen a su base #18.
 - El contrato de respuesta (`received`, `stored`, `rejected`) es 100% transparente para `TelemetryService`, que evalúa `response.ok` y vacía los eventos transmitidos exitosamente.
+- Tras el merge de #17, se actualizó la base con el head vigente de #18. El conflicto documental se resolvió conservando los walkthroughs de diseño (#17), captura (#18) y persistencia (#19), sin duplicar el feedback de cobertura de #18.
+- Validación posterior a la integración: `test_telemetry_storage.py` pasó (16 pruebas).
 
 ---
 
@@ -946,3 +948,20 @@ git diff 730726afea32d5f1e32fb0a6bab5d302580d1835 -- uis/backoffice/
 Este walkthrough describe la integración histórica de recuperación de
 contraseña; la auditoría posterior de serialización y el feedback de PR #15
 se documentan en sus respectivas secciones anteriores.
+
+# Walkthrough: Correcciones de revisión del profesor — PR #17 (plan de telemetría)
+
+## Hallazgos atendidos
+- Se restringieron `rejection_reason`, `field_name`, `error_rule`, `exception_class` y `error_code` a allowlists; las mismas enumeraciones están documentadas en el catálogo Markdown y aplicadas en JSON Schema. La política indica descartar eventos con valores no normalizables, sin copiar mensajes de usuario, excepción o proveedor.
+- Se renombró la métrica a `METRIC_AVERAGE_SPEND_PER_COVER` y el campo a `average_spend_per_cover`, haciendo explícito `total_sales_amount / total_covers`; se aclara que no es un ticket promedio por transacción.
+- Se verificó el conteo solicitado: 32 eventos, 10 `mandatory`, 22 `opportunity`; `user_logged_in` está en `opportunity`.
+- Se corrigió la referencia a `authenticate_user()` (inexistente) y la guía ubica ambos eventos de login en `login()`; sólo emite códigos normalizados para fallo, sin email, contraseña ni mensaje de excepción.
+
+## Validación
+- `jsonschema.Draft202012Validator.check_schema`: PASS.
+- 32 ramas `oneOf`; 32 IDs del catálogo coinciden con los 32 IDs del schema.
+- Cada evento tiene el mismo conjunto de propiedades y campos requeridos; conteo 10/22 verificado por script.
+- `git diff --check`: PASS.
+
+## Aislamiento y estado
+El trabajo se hizo en el worktree aislado `/tmp/campivargas-pr17` sobre la rama de PR #17. No se tocaron el checkout, merge ni cambios staged de PR #16.

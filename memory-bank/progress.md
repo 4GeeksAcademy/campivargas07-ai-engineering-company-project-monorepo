@@ -298,6 +298,8 @@
 - **Dependencias:** `httpx` queda disponible en producción para Resend y
   `httpx2` se conserva en desarrollo para el `TestClient` de Starlette 1.6.
 - **Alcance protegido:** no se modificaron ni fusionaron las PR #15 y #16.
+- **Contexto histórico:** esta integración de PR #9 se documentó antes de los
+  cambios posteriores de serialización y feedback de PR #15.
 
 ## Hito: Plan de Telemetría de Brasaland (rama `docs/telemetry-design-plan`)
 
@@ -334,3 +336,15 @@
 - Se añadió una prueba de regresión para el cruce de 25 a 19 con mínimo 20. Validación enfocada: `npm --prefix uis/backoffice run test -- src/test/inventory-orders-forms.test.tsx` pasó (8 pruebas).
 - ESLint de los dos archivos modificados pasó. El typecheck completo sigue reportando 9 errores en otros archivos de la rama; ninguno corresponde a los archivos de este cambio.
 - Siguen sin productor real los eventos obligatorios de compras, variación de precio, ventas/POS y alerta de sede sin ventas; no se fabricaron emisiones sin flujos de origen. El walkthrough registra ese alcance pendiente.
+## Revisión de comentarios del profesor — PR #17 (telemetría)
+- **Zero PII en propiedades diagnósticas:** `rejection_reason`, `field_name`, `error_rule`, `exception_class` y `error_code` quedaron restringidos por enums sincronizados entre el catálogo Markdown y el JSON Schema. Los valores desconocidos deben normalizarse o provocar descarte del evento; no se permite fallback a mensajes, stack traces ni cuerpos externos.
+- **Métrica:** renombrada a `METRIC_AVERAGE_SPEND_PER_COVER` y propiedad `average_spend_per_cover`, con fórmula `total_sales_amount / total_covers` y aclaración de que no es ticket por transacción.
+- **Clasificación:** catálogo confirmado en 32 eventos: 10 `mandatory` y 22 `opportunity`; `user_logged_in` es `opportunity`.
+- **Autenticación:** guía corregida para emitir eventos en `login()` de `services/api/app/domains/auth/router.py`; fallos usan códigos normalizados y omiten credenciales y mensajes de excepción.
+- **Validación:** metaschema Draft 2020-12 correcto, 32 IDs iguales entre Markdown y JSON, conjuntos de propiedades/requeridos coincidentes, y `git diff --check` limpio.
+
+## Integración #18 en #19 tras el merge de #17
+
+- Se integró el head actualizado de `feat/telemetry-event-capture`, que contiene el merge de #17. `progress.md` combinó automáticamente los hitos y observaciones de ambas ramas.
+- Se resolvió el único conflicto restante en `tasks/walkthrough.md`, conservando las secciones de #17, #18 y #19 y eliminando una copia duplicada del feedback de #18.
+- Validación enfocada de almacenamiento: `test_telemetry_storage.py` pasó (16 pruebas).
