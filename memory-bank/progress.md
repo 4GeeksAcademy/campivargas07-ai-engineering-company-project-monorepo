@@ -55,6 +55,44 @@
 3. Definir persistencia o histórico si el área operativa necesita conservar múltiples análisis.
 4. Revisar con producto la política de auto-asignación de roles en el registro público (`POST /users`).
 
+## Hito: Optimización de rendimiento — Lazy Loading, useMemo y caché TTL (rama `feature/caching-optimisation`)
+
+- **Fase 0 (línea base)**: registrada antes de tocar código — pytest 64 passed/5 skipped;
+  backoffice: typecheck PASS, vitest 54 tests, build PASS; JS inicial de
+  `/backoffice/incidents` = 644 997 bytes (9 chunks). Fallos preexistentes: ninguno.
+- **Fase 1 (timing)**: `app/common/timing.py` — middleware ASGI que registra
+  `método ruta → status (ms)` con `time.perf_counter()`, sin query strings/headers
+  (sin datos sensibles); cableado en `app/main.py` antes de CORS.
+- **Fase 2 (lazy loading)**: 2 niveles con `next/dynamic` — página server
+  (`incidents/page.tsx`) → `IncidentsAnalyzer`, y el analizador → nuevo
+  `IncidentsResults` (panel completo de tablas/KPIs) con fallback `loading` y sin
+  `ssr:false`. El panel queda en chunk propio (`1f6cd-uud07yr.js`, 6 830 B) fuera del
+  HTML/RSC inicial; payload inicial casi sin cambio (644 070 B) porque domina el shell.
+- **Fase 3 (useMemo)**: `src/lib/incidents-derive.ts` (derivación pura: ranking
+  consolidado de 4 tablas con % por tabla y % acumulado, Pareto 80 %, códigos únicos)
+  memoizada en `IncidentsResults` con `useMemo([analysis])`; 10 tests unitarios.
+- **Fase 4 (caché TTL)**: `app/common/cache.py` — `TTLCache` stdlib-only: claves
+  deterministas (`build_key` + `normalize_filter`), TTL por entrada, expiración con
+  reloj monotónico inyectable, LRU con `max_size=256`, copias profundas de valores,
+  estadísticas (hits/misses/evictions/expired/size/hit_rate) y logs `brasaland.cache`.
+  En suppliers: listas TTL 60 s, detalle TTL 120 s, 404 nunca cacheado, y
+  POST/rate/status/delete invalidan por prefijo `suppliers:` (lista + todas las
+  variantes + detalle).
+- **Fase 5 (tests backend)**: `tests/test_suppliers_cache.py` — 22 tests: MISS→HIT,
+  variantes de filtros → claves distintas, expiración con reloj inyectado (sin sleeps),
+  invalidación tras cada escritura, 404 sin cachear, copias defensivas, eviction LRU,
+  ttl<=0, sanity de TTLs y middleware de timing (estado/cuerpo intactos + regex del
+  formato de log + sin fuga de password/Authorization).
+- **Fase 6 (medición)**: dataset de 5 000 proveedores en `/tmp/brasa-seed/` generado
+  con `scripts/seed_suppliers.py` (nunca toca `services/api/data/`); escenario
+  cold/warm/invalidación/expiración (n=25 por variante) con
+  `scripts/measure_cache.py`. Detalle: 2.2→1.5 ms mediana (−32 %). En listas domina la
+  serialización/transporte de ~2 MB (HIT ≈ MISS en mediana; el cache elimina consulta
+  TinyDB y refiltrado). Expiración de 60/120 s observada en tiempo real con logs
+  EXPIRED. Detalle completo en `CACHING_REPORT.md`.
+- **Verificación final**: pytest 86 passed/5 skipped (+22 tests); typecheck:uis PASS;
+  test:uis 64+4 passed; lint backoffice PASS; build:uis 4/4 PASS.
+
 ## Validaciones ejecutadas
 - `python3 /workspaces/campivargas07-ai-engineering-company-project-monorepo/scripts/analyze.py /workspaces/campivargas07-ai-engineering-company-project-monorepo/docs/incidents-brasaland.csv` con conteos esperados: 100 totales, 96 válidos, 4 inválidos y promedio 3.46.
 - Exportación interactiva del script con generación de `results.csv`.
@@ -205,6 +243,14 @@
 - Se corrigió la página de perfil para leer `user.email`, `user.role` y `user.is_active` desde la respuesta anidada real de `/auth/me`.
 - Se eliminaron los marcadores literales de conflicto en cinco archivos y se preservaron las dos series de documentación histórica.
 - **Validación del merge:** API 91 passed, 5 skipped; backoffice 67 tests y lint sin errores. Typecheck ya no reporta errores de código: persisten dos referencias antiguas bajo `.next/types/validator.ts` a páginas que no existen en este checkout.
+
+## Revisión de comentarios PR #16 — caché y conflictos de `main`
+- **Conflictos integrados:** `services/api/app/main.py` conserva `RequestTimingMiddleware` y `register_incident_error_handlers`; la ruta de incidencias usa `IncidentBoard` de `main` y el analizador CSV se separó como chunk dinámico dentro de la pestaña de análisis.
+- **Race de invalidación:** `TTLCache` mantiene generaciones por prefijo; cada GET captura la generación antes de consultar servicio y solo escribe si sigue vigente. `invalidate_prefix` y `clear` avanzan la generación bajo el mismo lock. Agregada prueba concurrente determinista con eventos para intercalar GET antiguo y PATCH.
+- **Filtros exactos:** eliminada la normalización de whitespace de las claves; `None`, vacío y valores con espacios se codifican de forma distinta, conforme a igualdad exacta en `get_all_suppliers`. Añadido test endpoint para espacios inicial/final.
+- **Medición:** `measure_cache.py` ahora emite una muestra MISS por variante tras invalidación y calcula estadísticas HIT separadas. Expiración espera más que el TTL máximo. Se retiraron las cifras anteriores de `CACHING_REPORT.md` porque mezclaban MISS/HIT y la fase expiry no esperaba.
+- **Validación:** backend `116 passed, 5 skipped`; backoffice Vitest `77 passed`, lint PASS, build PASS y typecheck PASS tras regenerar `.next/types`. Un mock de perfil que seguía usando la forma antigua se alineó a `{ user, profile }`.
+- **Estado:** ambos conflictos resueltos, índice sin archivos unmerged y `git diff --cached --check` limpio. Merge y cambios listos en staging; aún no se ha hecho commit ni push.
 
 ## Integración PR #10: Gestor de Incidentes
 

@@ -11,10 +11,12 @@ const register = vi.fn();
 const refreshUser = vi.fn();
 
 const authenticatedUser = {
-  id: "1",
-  email: "manager@brasaland.com",
-  role: "manager",
-  is_active: true,
+  user: {
+    id: "1",
+    email: "manager@brasaland.com",
+    role: "manager",
+    is_active: true,
+  },
   profile: {
     id: "10",
     user_id: "1",

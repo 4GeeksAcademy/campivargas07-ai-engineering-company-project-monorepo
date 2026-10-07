@@ -1,5 +1,24 @@
 # Walkthrough: Dominio de Inventario con SQLModel y Doble Base de Datos en `services/api`
 
+# Walkthrough: Revisión de PR #16 — cache coherente y conflictos con main
+
+## Cambios implementados
+- Resueltos los conflictos del merge manteniendo el middleware de timing y los manejadores de errores de incidencias. La página protegida monta `IncidentBoard`; el analizador CSV queda en carga dinámica dentro de la pestaña `Análisis CSV`.
+- `TTLCache` agrega generations por prefijo y `set_if_generation`, comparando e insertando bajo el lock compartido con la invalidación. Las consultas GET que atraviesan una mutación concurrente ya no pueden volver a cachear su resultado anterior.
+- Las claves de filtros conservan los valores exactos; la consulta `country=Colombia` ya no colisiona con `country=%20Colombia` o `country=Colombia%20`.
+- El script de medición recoge una sola muestra MISS luego de invalidar y distribuye los HIT en otra fase. `post_expiry` espera el TTL real configurable por `MEASURE_EXPIRY_WAIT`.
+- El informe `CACHING_REPORT.md` descarta resultados históricos obtenidos con fases mezcladas, sin inventar cifras sustitutas; se requiere correr la medición corregida para publicar nuevas cifras.
+
+## Pruebas agregadas
+- Filtros con espacios validan comportamiento exacto y cachés separadas.
+- Generación desfasada no puede insertar datos tras invalidación.
+- Prueba concurrente con `threading.Event` captura resultado antiguo, ejecuta PATCH que invalida y reanuda GET sin `sleep`.
+
+## Validación
+- Backend: `services/api/.venv/bin/python -m pytest tests -q` → 116 passed, 5 skipped.
+- Backoffice: typecheck PASS tras build que regeneró `.next/types`; Vitest `77 passed` en 15 suites; ESLint PASS; `next build` PASS (19 rutas).
+- Higiene merge: ambos conflictos marcados como resueltos, cero entradas UU y `git diff --cached --check` PASS. Cifras nuevas de rendimiento no publicadas; deben medirse con el script corregido.
+
 ## Walkthrough: Correcciones de revisión PR #15 — registro público y CSV
 
 ### Cambios
