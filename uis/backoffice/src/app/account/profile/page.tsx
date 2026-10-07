@@ -42,9 +42,9 @@ function ProfileContent() {
       setEditing(false);
       setMessage({ type: 'success', text: 'Perfil actualizado correctamente' });
     } catch (error) {
-      setMessage({ 
-        type: 'error', 
-        text: error instanceof Error ? error.message : 'Error al actualizar el perfil' 
+      setMessage({
+        type: 'error',
+        text: error instanceof Error ? error.message : 'Error al actualizar el perfil'
       });
     } finally {
       setSaving(false);
