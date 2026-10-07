@@ -731,7 +731,7 @@ Se implementó la infraestructura completa de captura y recepción de telemetrí
 ### 2.1 Eventos Instrumentados en Flujos Reales
 1. `inbound_order_created` (Obligatorio) -> `InboundOrderForm`
 2. `outbound_order_created` (Obligatorio) -> `OutboundOrderForm`
-3. `user_logged_in` (Obligatorio) -> `LoginPage` / `AuthProvider`
+3. `user_logged_in` (Oportunidad) -> `LoginPage` / `AuthProvider`
 4. `outbound_insufficient_stock_attempted` (Oportunidad) -> `OutboundOrderForm`
 5. `inventory_catalog_viewed` (Oportunidad) -> `ProductsTable`
 6. `inventory_filter_applied` (Oportunidad) -> `ProductsTable`
@@ -741,10 +741,11 @@ Se implementó la infraestructura completa de captura y recepción de telemetrí
 10. `system_exception_captured` (Oportunidad) -> `TelemetryBootstrap`
 11. `backoffice_page_viewed` (Oportunidad) -> `TelemetryBootstrap`
 12. `form_abandoned` (Oportunidad) -> `OutboundOrderForm`
+13. `stock_threshold_triggered` (Obligatorio) -> `OutboundOrderForm` al cruzar el mínimo tras una salida exitosa
 
 ### 2.2 Eventos Bloqueados por Ausencia de Flujo en el Monorepo
 Los siguientes eventos del catálogo quedan formalmente documentados como bloqueados hasta la implementación de sus módulos respectivos:
-- `stock_threshold_triggered`: Requiere worker en backend de monitoreo continuo de umbrales de stock.
+- `stock_threshold_triggered`: El formulario de salida emite el evento al cruzar el mínimo tras una respuesta exitosa; sigue pendiente un productor backend que observe cambios originados fuera del Backoffice.
 - `purchase_order_suggested`, `purchase_order_approved`, `purchase_order_dispatched`, `purchase_order_received`, `purchase_order_rejected`: Requieren la interfaz y módulo de compras/aprovisionamiento (Lucía Fernández / motor IA).
 - `supplier_price_variance_detected`, `consolidated_procurement_report_generated`: Requieren el módulo de conciliación de facturas de proveedores.
 - `daily_sales_recorded`, `pos_order_completed`, `location_zero_sales_alert_triggered`, `pos_heartbeat_recorded`: Pertenecen al software de punto de venta (TPV/POS) y monitoreo de cajas físicas en restaurantes.
@@ -766,3 +767,12 @@ Los siguientes eventos del catálogo quedan formalmente documentados como bloque
 Este walkthrough describe la integración histórica de recuperación de
 contraseña; la auditoría posterior de serialización y el feedback de PR #15
 se documentan en sus respectivas secciones anteriores.
+
+## Feedback docente PR #18: Cobertura de eventos obligatorios
+
+- `OutboundOrderForm` emite `stock_threshold_triggered` después de una salida aceptada cuando el saldo calculado cruza de encima del mínimo a dicho umbral o por debajo.
+- El evento usa la lista de ingredientes para obtener el mínimo y etiqueta como `critical_depletion` los saldos en cero; en los demás cruces usa `minimum_reached`.
+- La emisión está desacoplada mediante `TelemetryService.track()` y no bloquea la operación de inventario.
+- La prueba de regresión cubre un cruce de 25 a 19 con mínimo 20 y comprueba el payload emitido.
+- Validación enfocada: 8 pruebas del formulario pasaron y ESLint de los dos archivos modificados pasó. El typecheck general aún reporta 9 errores en otros archivos de la rama, ninguno en este cambio.
+- No se simulan eventos de compras, conciliación de precios, ventas ni POS: esos flujos y productores aún no existen en el monorepo. Su cobertura sigue pendiente de los módulos correspondientes.
