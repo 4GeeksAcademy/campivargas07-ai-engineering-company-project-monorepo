@@ -3,6 +3,7 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { InboundOrderForm } from "@/components/inventory/inbound-order-form";
 import { OutboundOrderForm } from "@/components/inventory/outbound-order-form";
 import { inventoryApi, InventoryApiError } from "@/lib/inventory";
+import { telemetryService } from "@/services/telemetry";
 
 // Mock next/navigation
 vi.mock("next/navigation", () => ({
@@ -27,6 +28,10 @@ vi.mock("@/lib/inventory", () => ({
       this.detail = detail;
     }
   },
+}));
+
+vi.mock("@/services/telemetry", () => ({
+  telemetryService: { track: vi.fn() },
 }));
 
 describe("Inventory Orders Forms", () => {
@@ -317,6 +322,49 @@ describe("Inventory Orders Forms", () => {
         expect(screen.getByText("10 kg")).toBeInTheDocument();
       });
       expect((qtyInput as HTMLInputElement).value).toBe("");
+    });
+
+    it("records a stock threshold event when a successful outbound order crosses the minimum", async () => {
+      const ingredient = { ...mockIngredients[0], current_stock: 25 };
+      vi.mocked(inventoryApi.listProducts).mockResolvedValueOnce([ingredient]);
+      vi.mocked(inventoryApi.getProduct)
+        .mockResolvedValueOnce(ingredient)
+        .mockResolvedValueOnce({ ...ingredient, current_stock: 19 });
+      vi.mocked(inventoryApi.createOutboundOrder).mockResolvedValue({
+        id: "ord-out-2",
+        type: "outbound",
+        ingredient_id: "ing-1",
+        ingredient_sku: "ING-001",
+        ingredient_name: "Carne de Res (kg)",
+        local_id: "MED-001",
+        quantity: 6,
+        user_uuid: "user-123",
+        created_at: "2026-09-12T00:00:00Z",
+      });
+
+      render(<OutboundOrderForm />);
+
+      await waitFor(() => {
+        expect(screen.getByText("25 kg")).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByLabelText(/Cantidad a retirar/i), {
+        target: { value: "6" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: /Registrar Salida de Stock/i }));
+
+      await waitFor(() => {
+        expect(telemetryService.track).toHaveBeenCalledWith("stock_threshold_triggered", {
+          local_id: "MED-001",
+          ingredient_id: "ing-1",
+          ingredient_sku: "ING-001",
+          current_stock: 19,
+          minimum_stock: 20,
+          deficit: 1,
+          unit_of_measure: "kg",
+          severity: "minimum_reached",
+        });
+      });
     });
   });
 });

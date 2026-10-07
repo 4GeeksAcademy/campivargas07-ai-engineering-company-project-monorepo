@@ -308,6 +308,23 @@
 - **Trazabilidad de Métricas**: Cobertura demostrable de alertas de stock crítico, ciclo de pedidos de ingredientes, ventas en COP/USD, alerta de cero ventas en horario operativo y visibilidad consolidada de compras/proveedores.
 - **Validación Formal**: 100% de paridad semántica entre Markdown y JSON Schema, validado con `Draft202012Validator` en Python y suite de 32 payloads de prueba sin errores ni dependencias añadidas.
 
+## Hito: Captura de Eventos de Telemetría (Backoffice Brasaland, rama `feat/telemetry-event-capture`)
+
+- **Receptor FastAPI (`services/api/app/domains/telemetry/`)**: Endpoint `POST /telemetry/events` con modelos Pydantic V2 (`extra="forbid"`), envelope canónico SemVer 1.0.0, validación de lote (hasta 20 eventos), respuesta `{"received": N}`, logging Zero-PII y sin persistencia en base de datos ni archivos.
+- **Configuración de Backend**: Variable de entorno `TELEMETRY_ENDPOINT` documentada en `services/api/.env.example`.
+- **Servicio Frontend (`uis/backoffice/src/services/telemetry.ts`)**: `TelemetryService` singleton con `track()`, autocompletado de envelope con UUIDs y timestamp UTC, sesión diferida en `sessionStorage` (sin JWT), `userId` seudonimizado, buffer en memoria con disparador doble (20 eventos o 10s de espera), reintentos exponenciales con jitter (hasta 3 reintentos conservando `eventId`) y vaciado en cierre/ocultamiento (`navigator.sendBeacon` con fallback `keepalive: true`).
+- **Integración Transversal y Core Web Vitals**: Componente `<WebVitals />` (`useReportWebVitals`), `<TelemetryBootstrap />` (navegación y captura de errores globales), medición monotónica de latencia en `InventoryApiClient` y sincronización de usuario en `AuthProvider`.
+- **Instrumentación de Negocio en Vistas Reales**: Captura semántica en `InboundOrderForm` (`inbound_order_created`), `OutboundOrderForm` (`outbound_order_created`, `outbound_insufficient_stock_attempted`, `form_abandoned`), `ProductsTable` (`inventory_catalog_viewed`, `inventory_filter_applied` debounced 500ms) y `LoginPage` (`user_logged_in`, `user_login_failed`).
+- **Validación Integral**: 97 pruebas backend en Pytest (13 nuevas en `test_telemetry_stub.py`), 78 pruebas frontend en Vitest (11 nuevas en `telemetry-service.test.ts`), 0 errores TypeScript, 0 errores ESLint y compilación de producción con Turbopack exitosa (19/19 páginas estáticas).
+- **Contexto histórico:** esta integración de PR #9 se documentó antes de los
+  cambios posteriores de serialización y feedback de PR #15.
+
+## Feedback docente PR #18: cobertura de eventos obligatorios
+
+- `OutboundOrderForm` ahora emite `stock_threshold_triggered` tras una salida aceptada cuando el saldo cruza el mínimo configurado; los valores de stock, déficit y severidad se derivan de la actualización optimista del formulario.
+- Se añadió una prueba de regresión para el cruce de 25 a 19 con mínimo 20. Validación enfocada: `npm --prefix uis/backoffice run test -- src/test/inventory-orders-forms.test.tsx` pasó (8 pruebas).
+- ESLint de los dos archivos modificados pasó. El typecheck completo sigue reportando 9 errores en otros archivos de la rama; ninguno corresponde a los archivos de este cambio.
+- Siguen sin productor real los eventos obligatorios de compras, variación de precio, ventas/POS y alerta de sede sin ventas; no se fabricaron emisiones sin flujos de origen. El walkthrough registra ese alcance pendiente.
 ## Revisión de comentarios del profesor — PR #17 (telemetría)
 - **Zero PII en propiedades diagnósticas:** `rejection_reason`, `field_name`, `error_rule`, `exception_class` y `error_code` quedaron restringidos por enums sincronizados entre el catálogo Markdown y el JSON Schema. Los valores desconocidos deben normalizarse o provocar descarte del evento; no se permite fallback a mensajes, stack traces ni cuerpos externos.
 - **Métrica:** renombrada a `METRIC_AVERAGE_SPEND_PER_COVER` y propiedad `average_spend_per_cover`, con fórmula `total_sales_amount / total_covers` y aclaración de que no es ticket por transacción.

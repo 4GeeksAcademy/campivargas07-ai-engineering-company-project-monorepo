@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Inter, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { AuthProviderWrapper } from "@/components/auth-provider";
+import { WebVitals } from "@/components/telemetry/web-vitals";
+import { TelemetryBootstrap } from "@/components/telemetry/telemetry-bootstrap";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -27,6 +29,8 @@ export default function RootLayout({
   return (
     <html lang="es" className={`${inter.variable} ${jakarta.variable}`}>
       <body>
+        <WebVitals />
+        <TelemetryBootstrap />
         <AuthProviderWrapper>{children}</AuthProviderWrapper>
       </body>
     </html>

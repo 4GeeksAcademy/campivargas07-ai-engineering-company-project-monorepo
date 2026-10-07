@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import {
   RESTAURANT_LOCATIONS,
@@ -10,6 +10,7 @@ import {
 } from '@/lib/constants/restaurants';
 import { inventoryApi, type IngredientWithStock } from '@/lib/inventory';
 import { RestaurantSelect } from './restaurant-select';
+import { telemetryService } from '@/services/telemetry';
 
 export function ProductsTable() {
   const [selectedRestaurant, setSelectedRestaurant] = useState<string>(() => {
@@ -48,6 +49,20 @@ export function ProductsTable() {
           setProducts(data);
           setError(null);
           setLoading(false);
+
+          // Track catalog viewed event
+          try {
+            const lowStockCount = data.filter((p) => p.current_stock > 0 && p.current_stock <= p.minimum_stock).length;
+            const depletedCount = data.filter((p) => p.current_stock <= 0).length;
+            telemetryService.track('inventory_catalog_viewed', {
+              local_id: selectedRestaurant,
+              total_items_rendered: data.length,
+              low_stock_items_count: lowStockCount,
+              depleted_items_count: depletedCount,
+            });
+          } catch {
+            // Non-blocking
+          }
         }
       })
       .catch((err) => {
@@ -62,11 +77,30 @@ export function ProductsTable() {
     };
   }, [selectedRestaurant]);
 
+  const filterTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const handleRestaurantChange = (newId: string) => {
     setLoading(true);
     setError(null);
     setSelectedRestaurant(newId);
     localStorage.setItem(RESTAURANT_STORAGE_KEY, newId);
+
+    // Debounced filter event (500 ms) as specified in telemetry plan
+    if (filterTimerRef.current) {
+      clearTimeout(filterTimerRef.current);
+    }
+    filterTimerRef.current = setTimeout(() => {
+      try {
+        telemetryService.track('inventory_filter_applied', {
+          local_id: newId,
+          category_filter: 'all',
+          search_term_length: 0,
+          results_count: products.length,
+        });
+      } catch {
+        // Non-blocking
+      }
+    }, 500);
   };
 
   const renderStockBadge = (current: number, min: number) => {
