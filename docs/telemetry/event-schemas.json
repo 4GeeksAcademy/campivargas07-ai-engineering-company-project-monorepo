@@ -382,8 +382,8 @@
             },
             "rejection_reason": {
               "type": "string",
-              "minLength": 1,
-              "description": "Código o justificación de arquitectura (e.g. STOCK_MUTATION_MUST_BE_KARDEX_MOVEMENT)."
+              "enum": ["STOCK_MUTATION_MUST_BE_KARDEX_MOVEMENT", "UNAUTHORIZED_DIRECT_EDIT", "INVALID_MOVEMENT_SOURCE"],
+              "description": "Código de rechazo de allowlist; nunca texto libre."
             },
             "local_id": {
               "type": "string",
@@ -1124,10 +1124,10 @@
               "minimum": 0,
               "description": "Número de comensales atendidos."
             },
-            "average_ticket": {
+            "average_spend_per_cover": {
               "type": "number",
               "minimum": 0,
-              "description": "Ticket promedio calculado (total_sales_amount / total_covers)."
+              "description": "Gasto promedio por comensal (total_sales_amount / total_covers); cero si total_covers es cero. No es ticket promedio por transacción."
             },
             "lines_count": {
               "type": "integer",
@@ -1141,7 +1141,7 @@
             "total_sales_amount",
             "currency",
             "total_covers",
-            "average_ticket",
+            "average_spend_per_cover",
             "lines_count"
           ],
           "additionalProperties": false
@@ -1809,13 +1809,13 @@
             },
             "field_name": {
               "type": "string",
-              "minLength": 1,
-              "description": "Nombre del campo con error (e.g. quantity, ingredient_id)."
+              "enum": ["local_id", "ingredient_id", "quantity", "unit_of_measure", "sku", "name", "category", "price", "currency", "supplier_id", "delivery_terms"],
+              "description": "Nombre de campo conocido; no contiene el valor ingresado."
             },
             "error_rule": {
               "type": "string",
-              "minLength": 1,
-              "description": "Regla de validación infringida (e.g. STRICTLY_POSITIVE, REQUIRED_FIELD)."
+              "enum": ["REQUIRED_FIELD", "STRICTLY_POSITIVE", "NON_NEGATIVE", "VALID_UUID", "VALID_CURRENCY", "VALID_LOCAL_ID", "VALID_INGREDIENT_ID", "STOCK_NOT_EXCEEDED", "VALID_UNIT_OF_MEASURE", "VALID_SKU", "VALID_CATEGORY", "VALID_EMAIL_FORMAT", "MAX_LENGTH"],
+              "description": "Código de regla de allowlist; nunca mensaje de validación libre."
             }
           },
           "required": [
@@ -1857,13 +1857,13 @@
           "properties": {
             "exception_class": {
               "type": "string",
-              "minLength": 1,
-              "description": "Clase o nombre del tipo de error de Python/JS (e.g. DatabaseConnectionError)."
+              "enum": ["HTTPException", "ValidationError", "IntegrityError", "OperationalError", "TimeoutError", "RuntimeError", "ValueError", "TypeError", "UnknownException"],
+              "description": "Nombre normalizado de clase de una allowlist; nunca incluye mensaje o nombre arbitrario."
             },
             "error_code": {
               "type": "string",
-              "minLength": 1,
-              "description": "Código estandarizado del error para búsqueda en catálogo de incidencias."
+              "enum": ["INSUFFICIENT_STOCK", "CATALOG_UNAVAILABLE", "VALIDATION_FAILED", "DATABASE_UNAVAILABLE", "INTERNAL_ERROR", "UPSTREAM_TIMEOUT", "UPSTREAM_UNAVAILABLE"],
+              "description": "Código normalizado de catálogo; nunca incluye texto de excepción."
             },
             "origin_service": {
               "type": "string",
@@ -1915,8 +1915,8 @@
             },
             "error_code": {
               "type": "string",
-              "minLength": 1,
-              "description": "Código de error o status code de la pasarela."
+              "enum": ["UPSTREAM_AUTH_FAILED", "UPSTREAM_RATE_LIMITED", "UPSTREAM_TIMEOUT", "UPSTREAM_UNAVAILABLE", "UPSTREAM_REJECTED", "UNKNOWN_INTEGRATION_ERROR"],
+              "description": "Código normalizado; nunca mensaje o cuerpo devuelto por el proveedor."
             },
             "retry_attempt": {
               "type": "integer",

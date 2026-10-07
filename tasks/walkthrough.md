@@ -795,3 +795,19 @@ se documentan en sus respectivas secciones anteriores.
 - La prueba de regresión cubre un cruce de 25 a 19 con mínimo 20 y comprueba el payload emitido.
 - Validación enfocada: 8 pruebas del formulario pasaron y ESLint de los dos archivos modificados pasó. El typecheck general aún reporta 9 errores en otros archivos de la rama, ninguno en este cambio.
 - No se simulan eventos de compras, conciliación de precios, ventas ni POS: esos flujos y productores aún no existen en el monorepo. Su cobertura sigue pendiente de los módulos correspondientes.
+# Walkthrough: Correcciones de revisión del profesor — PR #17 (plan de telemetría)
+
+## Hallazgos atendidos
+- Se restringieron `rejection_reason`, `field_name`, `error_rule`, `exception_class` y `error_code` a allowlists; las mismas enumeraciones están documentadas en el catálogo Markdown y aplicadas en JSON Schema. La política indica descartar eventos con valores no normalizables, sin copiar mensajes de usuario, excepción o proveedor.
+- Se renombró la métrica a `METRIC_AVERAGE_SPEND_PER_COVER` y el campo a `average_spend_per_cover`, haciendo explícito `total_sales_amount / total_covers`; se aclara que no es un ticket promedio por transacción.
+- Se verificó el conteo solicitado: 32 eventos, 10 `mandatory`, 22 `opportunity`; `user_logged_in` está en `opportunity`.
+- Se corrigió la referencia a `authenticate_user()` (inexistente) y la guía ubica ambos eventos de login en `login()`; sólo emite códigos normalizados para fallo, sin email, contraseña ni mensaje de excepción.
+
+## Validación
+- `jsonschema.Draft202012Validator.check_schema`: PASS.
+- 32 ramas `oneOf`; 32 IDs del catálogo coinciden con los 32 IDs del schema.
+- Cada evento tiene el mismo conjunto de propiedades y campos requeridos; conteo 10/22 verificado por script.
+- `git diff --check`: PASS.
+
+## Aislamiento y estado
+El trabajo se hizo en el worktree aislado `/tmp/campivargas-pr17` sobre la rama de PR #17. No se tocaron el checkout, merge ni cambios staged de PR #16.

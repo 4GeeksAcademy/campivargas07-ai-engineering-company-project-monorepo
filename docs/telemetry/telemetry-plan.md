@@ -125,7 +125,7 @@ Alineado con el principio de no inventar métricas arbitrarias, las métricas ob
 - **Necesidad de origen:** Felipe Guerrero y Mariana Restrepo (CEO): *"Real-time sales dashboard per location (in COP and USD)"* y *"Mariana cannot answer in real time: how much did we sell this week in Florida? or which location has the highest average ticket this month?"* (`CONTEXT.md` §Restaurant Operations y §Executive Direction).
 - **Métricas derivadas:**
   - `METRIC_DAILY_SALES_TOTAL`: Ventas brutas diarias consolidadas y segmentadas por local y divisa nativa (COP y USD), con normalización cambiaria ejecutiva a USD.
-  - `METRIC_AVERAGE_TICKET_VALUE`: Ticket promedio por comensal ($\frac{\text{total\_ventas}}{\text{total\_covers}}$) por sede y categoría de consumo.
+  - `METRIC_AVERAGE_SPEND_PER_COVER`: Gasto promedio por comensal ($\frac{\text{total\_ventas}}{\text{total\_covers}}$) por sede y categoría de consumo.
 - **Entidades necesarias:** `Local`, `VentaDiaria`, `LineaVenta`, `Receta`.
 - **Eventos que la alimentan:** `daily_sales_recorded`, `pos_order_completed`.
 - **Decisión que permite tomar:** Monitoreo ejecutivo diario de ingresos para la CEO, calibración de precios dinámicos según país y evaluación de rentabilidad comparativa entre Colombia y Florida.
@@ -156,7 +156,7 @@ Alineado con el principio de no inventar métricas arbitrarias, las métricas ob
 | :--- | :--- | :--- | :--- | :--- |
 | Quiebres de stock en cocina a las 7:00 PM y sobrestock en otras sedes (`CONTEXT.md`). | `METRIC_STOCK_LEVEL_RATIO`<br>`METRIC_CRITICAL_STOCKOUTS_COUNT` | `Local`<br>`Ingrediente`<br>`InventarioLocal`<br>`MovimientoInventario` | `stock_threshold_triggered`<br>`inbound_order_created`<br>`outbound_order_created` | Disparar reabastecimiento urgente de ingredientes críticos; pausar platos agotados en menú; coordinar traslados entre sedes. |
 | Pedidos informales por WhatsApp sin trazabilidad ni optimización (`company-choice.md`). | `METRIC_PURCHASE_ORDERS_PIPELINE`<br>`METRIC_ORDER_APPROVAL_LEAD_TIME`<br>`METRIC_SUPPLIER_FULFILLMENT_CYCLE` | `OrdenCompra`<br>`LineaOrden`<br>`Proveedor`<br>`Local`<br>`Ingrediente` | `purchase_order_suggested`<br>`purchase_order_approved`<br>`purchase_order_dispatched`<br>`purchase_order_received`<br>`purchase_order_rejected` | Erradicar WhatsApp en compras; garantizar aprobación de supervisores en < 30 min; auditar lead time de proveedores. |
-| Falta de visibilidad de ventas en COP y USD en tiempo real para CEO (`CONTEXT.md`). | `METRIC_DAILY_SALES_TOTAL`<br>`METRIC_AVERAGE_TICKET_VALUE` | `Local`<br>`VentaDiaria`<br>`LineaVenta`<br>`Receta` | `daily_sales_recorded`<br>`pos_order_completed` | Seguimiento ejecutivo diario de metas de ventas; comparación de márgenes entre Colombia y USA; ajuste dinámico de menú. |
+| Falta de visibilidad de ventas en COP y USD en tiempo real para CEO (`CONTEXT.md`). | `METRIC_DAILY_SALES_TOTAL`<br>`METRIC_AVERAGE_SPEND_PER_COVER` | `Local`<br>`VentaDiaria`<br>`LineaVenta`<br>`Receta` | `daily_sales_recorded`<br>`pos_order_completed` | Seguimiento ejecutivo diario de metas de ventas; comparación de márgenes entre Colombia y USA; ajuste dinámico de menú. |
 | Locales abiertos sin registrar ventas en horario operativo (`CONTEXT.md`). | `METRIC_OPERATING_IDLE_MINUTES`<br>`METRIC_ZERO_SALES_INCIDENTS_COUNT` | `Local`<br>`VentaDiaria`<br>`TerminalPOS` | `location_zero_sales_alert_triggered`<br>`pos_heartbeat_recorded`<br>`pos_order_completed` | Contactar al local en < 15 min ante sospecha de corte de internet, caída de caja POS o emergencia operativa en cocina. |
 | Lucía se entera del aumento de precios cuando llega la factura (`CONTEXT.md`). | `METRIC_CONSOLIDATED_SPEND_BY_SUPPLIER`<br>`METRIC_SUPPLIER_PRICE_VARIANCE_RATIO` | `Proveedor`<br>`OrdenCompra`<br>`LineaOrden`<br>`Ingrediente` | `supplier_price_variance_detected`<br>`purchase_order_received`<br>`consolidated_procurement_report_generated` | Reclamar sobrecostos antes del pago; negociar precios mayoristas por volumen agregado de las 14 sedes con los 20 proveedores. |
 | Rechazos de consumo de stock por falta de saldo en sistema (`services/api`). | `METRIC_INSUFFICIENT_STOCK_ATTEMPTS_COUNT` | `Local`<br>`Ingrediente`<br>`MovimientoInventario` | `outbound_insufficient_stock_attempted` | Auditar desviaciones entre stock físico y teórico; detectar mermas no declaradas o recetas mal calibradas. |
@@ -383,6 +383,7 @@ A continuación se presentan los **32 eventos telemétricos aceptados**, clasifi
 - **Productor:** Servicio de cierre de jornada en backend (`services/api`).
 - **Consumidor:** Data warehouse corporativo, tablero ejecutivo y motor de predicción.
 - **Estrategia de Entrega:** `batch` (Procesamiento nocturno diario).
+- **Definición de gasto promedio:** `average_spend_per_cover = total_sales_amount / total_covers`; cero cuando `total_covers` es cero. No representa un ticket promedio por transacción.
 
 #### 17. `pos_order_completed`
 - **Clasificación:** `mandatory`
@@ -416,7 +417,7 @@ A continuación se presentan los **32 eventos telemétricos aceptados**, clasifi
 ### 8.4 Categoría `auth` (5 eventos)
 
 #### 20. `user_logged_in`
-- **Clasificación:** `mandatory`
+- **Clasificación:** `opportunity`
 - **Acción:** `logged_in`
 - **Justificación Formal:**
   > Capturamos `user_logged_in` porque necesitamos saber qué usuarios ingresan al sistema, con qué rol operativo y en qué sede, lo que permite auditar la autoría de las transacciones de inventario y compras.
@@ -668,7 +669,7 @@ Cada evento dispone de una **allowlist explícita** donde se prohíbe terminante
 | | `rejection_source` | `string` | Sí | `client_form_guard`, `backend_transaction_lock` | No | Punto de intercepción. |
 | `direct_stock_edit_rejected` | `target_resource` | `string` | Sí | Min 1 char | No | Recurso intentado. |
 | | `attempted_operation` | `string` | Sí | `PUT`, `PATCH`, `DIRECT_UPDATE` | No | Método HTTP/Operación. |
-| | `rejection_reason` | `string` | Sí | Min 1 char | No | Justificación arquitectónica. |
+| | `rejection_reason` | `string` | Sí | `STOCK_MUTATION_MUST_BE_KARDEX_MOVEMENT`, `UNAUTHORIZED_DIRECT_EDIT`, `INVALID_MOVEMENT_SOURCE` | No | Código controlado; nunca texto libre. |
 | | `local_id` | `string` | Sí | Min 1 char | No | Sede contextualizada. |
 | `inventory_catalog_viewed` | `local_id` | `string` | Sí | Min 1 char | No | Sede visualizada. |
 | | `total_items_rendered` | `integer` | Sí | $\ge 0$ | No | Conteo de catálogo. |
@@ -728,7 +729,7 @@ Cada evento dispone de una **allowlist explícita** donde se prohíbe terminante
 | | `total_sales_amount` | `number` | Sí | $\ge 0$ | No | Venta bruta. |
 | | `currency` | `string` | Sí | `COP`, `USD` | No | Moneda local. |
 | | `total_covers` | `integer` | Sí | $\ge 0$ | No | Comensales. |
-| | `average_ticket` | `number` | Sí | $\ge 0$ | No | Ticket promedio. |
+| | `average_spend_per_cover` | `number` | Sí | $\ge 0$ | No | Gasto promedio por comensal: `total_sales_amount / total_covers`; cero si `total_covers` es cero. |
 | | `lines_count` | `integer` | Sí | $\ge 0$ | No | Conteo de platos. |
 | `pos_order_completed` | `local_id` | `string` | Sí | Min 1 char | No | Sede. |
 | | `order_id` | `string` | Sí | Min 1 char | No | ID ticket POS. |
@@ -770,13 +771,13 @@ Cada evento dispone de una **allowlist explícita** donde se prohíbe terminante
 | | `execution_time_ms` | `number` | Sí | $\ge 0$ | No | Tiempo en ms. |
 | | `threshold_ms` | `number` | Sí | $\ge 0$ | No | Umbral superado. |
 | `form_validation_failed` | `form_id` | `string` | Sí | `inbound_order_form`, `outbound_order_form`, `ingredient_create_form`, `supplier_form` | No | Formulario. |
-| | `field_name` | `string` | Sí | Min 1 char | No | Nombre del input. |
-| | `error_rule` | `string` | Sí | Min 1 char | No | Regla quebrada. |
-| `system_exception_captured` | `exception_class` | `string` | Sí | Min 1 char | No | Clase de excepción. |
-| | `error_code` | `string` | Sí | Min 1 char | No | Código estandarizado. |
+| | `field_name` | `string` | Sí | `local_id`, `ingredient_id`, `quantity`, `unit_of_measure`, `sku`, `name`, `category`, `price`, `currency`, `supplier_id`, `delivery_terms` | No | Nombre de campo normalizado; nunca valor ingresado. |
+| | `error_rule` | `string` | Sí | `REQUIRED_FIELD`, `STRICTLY_POSITIVE`, `NON_NEGATIVE`, `VALID_UUID`, `VALID_CURRENCY`, `VALID_LOCAL_ID`, `VALID_INGREDIENT_ID`, `STOCK_NOT_EXCEEDED`, `VALID_UNIT_OF_MEASURE`, `VALID_SKU`, `VALID_CATEGORY`, `VALID_EMAIL_FORMAT`, `MAX_LENGTH` | No | Código de regla de allowlist; nunca mensaje libre. |
+| `system_exception_captured` | `exception_class` | `string` | Sí | `HTTPException`, `ValidationError`, `IntegrityError`, `OperationalError`, `TimeoutError`, `RuntimeError`, `ValueError`, `TypeError`, `UnknownException` | No | Nombre normalizado; nunca mensaje o nombre arbitrario. |
+| | `error_code` | `string` | Sí | `INSUFFICIENT_STOCK`, `CATALOG_UNAVAILABLE`, `VALIDATION_FAILED`, `DATABASE_UNAVAILABLE`, `INTERNAL_ERROR`, `UPSTREAM_TIMEOUT`, `UPSTREAM_UNAVAILABLE` | No | Código normalizado; sin texto de excepción. |
 | | `origin_service` | `string` | Sí | Min 1 char | No | Servicio emisor. |
 | `external_integration_failed` | `integration_target` | `string` | Sí | `resend_email`, `pos_gateway`, `whatsapp_api` | No | Destino externo. |
-| | `error_code` | `string` | Sí | Min 1 char | No | Código de error. |
+| | `error_code` | `string` | Sí | `UPSTREAM_AUTH_FAILED`, `UPSTREAM_RATE_LIMITED`, `UPSTREAM_TIMEOUT`, `UPSTREAM_UNAVAILABLE`, `UPSTREAM_REJECTED`, `UNKNOWN_INTEGRATION_ERROR` | No | Código controlado; sin mensaje/cuerpo del proveedor. |
 | | `retry_attempt` | `integer` | Sí | $\ge 0$ | No | Conteo de reintento. |
 | `backoffice_page_viewed` | `previous_route` | `string` | Sí | Ruta o `DIRECT_ENTRY` | No | Origen navegación. |
 | | `current_route` | `string` | Sí | Min 1 char | No | Destino navegación. |
@@ -809,7 +810,7 @@ Queda estrictamente prohibido capturar, almacenar o transmitir en cualquier payl
 1. **`userId`:** Se representa exclusivamente mediante un UUID v4 sintético seudonimizado (`user_uuid` generado en backend). Queda prohibido el uso de direcciones de correo electrónico (`email`) o nombres de usuario (`username`). Un evento emitido sin sesión de usuario (e.g. crons automáticos) debe establecer `userId: null`.
 2. **`sessionId`:** UUID efímero generado por el frontend durante el inicio de sesión. No debe contener ninguna porción del token JWT ni relacionarse matemáticamente con el secreto del servidor.
 3. **Direcciones IP:** Se excluyen de la carga telemétrica estándar. En caso de requerirse métricas de conectividad en el borde de la red (edge proxies), la dirección IP debe truncarse a nivel de red (máscara `/24` para IPv4 o `/48` para IPv6) o descartarse inmediatamente tras resolver el país y la ciudad.
-4. **Mensajes de error y excepciones:** Se normalizan en códigos de error estandarizados (`error_code`, e.g. `INSUFFICIENT_STOCK_EXCEPTION`, `CATALOG_UNAVAILABLE`) y nombres de clase. Nunca se incluyen cadenas de error generadas por la base de datos que revelen tablas o datos de registros.
+4. **Mensajes de error y excepciones:** `error_code`, `exception_class`, `field_name` y `error_rule` solo aceptan los enums/allowlists del catálogo y del JSON Schema. El productor normaliza los valores conocidos; ante un valor no permitido descarta el evento (sin fallback al mensaje original). Nunca se transmiten mensajes de validación, excepción, stack traces ni cuerpos de terceros.
 5. **IDs de entidades (Órdenes, Ingredientes, Proveedores y Locales):** Se utilizan exclusivamente claves sintéticas estructuradas (`MED-001`, `ING-001`) o UUIDs v4 de base de datos.
 6. **Términos de búsqueda y campos de texto:** En búsquedas de catálogo y filtros, **nunca** se captura la cadena de texto ingresada por el usuario (ante el riesgo de que escriba un nombre o teléfono). Se registra exclusivamente la longitud del término (`search_term_length`) y la categoría seleccionada.
 
@@ -859,7 +860,7 @@ Para reconstruir la causalidad completa de un suceso a lo largo de los diferente
    - Cuando un evento de dominio se persiste en la base de datos (e.g. tabla `telemetry_outbox`), el `requestId` viaja como atributo de correlación hacia el bus de eventos y pipelines posteriores.
 
 ```
-[Usuario en Backoffice] 
+[Usuario en Backoffice]
        │ Clic en "Registrar Salida" (Genera requestId: e2a74c10...)
        ▼
 [Cliente HTTP / Next.js] ── Headers: X-Request-ID: e2a74c10... ──► [FastAPI Middleware]
@@ -972,7 +973,7 @@ Para asegurar que cualquier ingeniero de software pueda instrumentar el sistema 
 
 #### Punto 4: Autenticación y Manejo de Errores Globales
 - **Ubicación:**
-  - `services/api/app/domains/auth/router.py`: Tras generar el token JWT en `login()`, emitir `user_logged_in`. En `authenticate_user()`, si las credenciales fallan, emitir `user_login_failed`.
+  - `services/api/app/domains/auth/router.py`: Tras generar el token JWT en `login()`, emitir `user_logged_in`. En el mismo flujo `login()`, emitir `user_login_failed` con códigos normalizados (`invalid_credentials` o `inactive_user`); nunca adjuntar email, contraseña ni el mensaje de excepción.
   - `services/api/app/domains/auth/dependencies.py`: En `get_current_user()`, si el rol es insuficiente, emitir `permission_denied`.
   - `services/api/app/main.py`: En el exception handler global para `Exception`, emitir `system_exception_captured`.
 
