@@ -695,6 +695,24 @@ sin reemplazar los dominios ya fusionados desde otras ramas.
 
 ## 5. Contexto histórico
 
+Las PR #15 y #16 permanecieron abiertas e intactas durante toda la integración.
 Este walkthrough describe la integración histórica de recuperación de
 contraseña; la auditoría posterior de serialización y el feedback de PR #15
 se documentan arriba.
+
+# Walkthrough: Correcciones de revisión del profesor — PR #17 (plan de telemetría)
+
+## Hallazgos atendidos
+- Se restringieron `rejection_reason`, `field_name`, `error_rule`, `exception_class` y `error_code` a allowlists; las mismas enumeraciones están documentadas en el catálogo Markdown y aplicadas en JSON Schema. La política indica descartar eventos con valores no normalizables, sin copiar mensajes de usuario, excepción o proveedor.
+- Se renombró la métrica a `METRIC_AVERAGE_SPEND_PER_COVER` y el campo a `average_spend_per_cover`, haciendo explícito `total_sales_amount / total_covers`; se aclara que no es un ticket promedio por transacción.
+- Se verificó el conteo solicitado: 32 eventos, 10 `mandatory`, 22 `opportunity`; `user_logged_in` está en `opportunity`.
+- Se corrigió la referencia a `authenticate_user()` (inexistente) y la guía ubica ambos eventos de login en `login()`; sólo emite códigos normalizados para fallo, sin email, contraseña ni mensaje de excepción.
+
+## Validación
+- `jsonschema.Draft202012Validator.check_schema`: PASS.
+- 32 ramas `oneOf`; 32 IDs del catálogo coinciden con los 32 IDs del schema.
+- Cada evento tiene el mismo conjunto de propiedades y campos requeridos; conteo 10/22 verificado por script.
+- `git diff --check`: PASS.
+
+## Aislamiento y estado
+El trabajo se hizo en el worktree aislado `/tmp/campivargas-pr17` sobre la rama de PR #17. No se tocaron el checkout, merge ni cambios staged de PR #16.
