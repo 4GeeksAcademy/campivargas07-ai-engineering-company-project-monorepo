@@ -69,4 +69,12 @@ describe("BackofficeHeader Component", () => {
     expect(telemetryLink).toHaveClass("nav-link-active");
     expect(telemetryLink).toHaveAttribute("href", "/backoffice/telemetry");
   });
+
+  it("links to the inventory health reporting page", () => {
+    render(<BackofficeHeader activeView="reporting" badge="Salud" />);
+
+    const reportingLink = screen.getByRole("link", { name: "Salud Inventario" });
+    expect(reportingLink).toHaveClass("nav-link-active");
+    expect(reportingLink).toHaveAttribute("href", "/backoffice/reporting/inventory-health");
+  });
 });
