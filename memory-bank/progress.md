@@ -279,3 +279,8 @@
   - Frontend: 87 pruebas totales en Vitest (83 en backoffice incluyendo 4 de `telemetry-report-dashboard.test.tsx` y 1 de `backoffice-header.test.tsx`, 4 en website).
   - ESLint limpio en componentes creados y modificados.
   - Verificación manual comparativa: paridad matemática del 100% entre las respuestas del endpoint y consultas de control directas en PostgreSQL.
+
+## Feedback docente PR #20: denominador del porcentaje de errores
+
+- La descripción OpenAPI de `error_rate` aclara que cada tipo se divide por el total de eventos de error incluidos en el período: `form_validation_failed`, `system_exception_captured` y `external_integration_failed`. Otros eventos se excluyen del denominador.
+- La fórmula no cambia; se añade una prueba del contrato JSON Schema para preservar esta aclaración. Validación enfocada: `test_telemetry_analysis.py -k error_rate`, 3 pruebas pasaron.

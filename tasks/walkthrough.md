@@ -1036,3 +1036,10 @@ Ubicación principal: `services/api/app/domains/telemetry/analysis.py`.
 - **Aislamiento de Ramas Precursoras**: Cero force-push, rebase o modificación sobre `origin/docs/telemetry-design-plan` (PR #17), `origin/feat/telemetry-event-capture` (PR #18) ni `origin/feat/telemetry-event-storage` (PR #19).
 - **Error TypeScript Preexistente en `uis/backoffice`**:
   Conforme a la instrucción *"Si la base heredada falla, documenta el fallo y determina si pertenece realmente a esta nueva fase antes de continuar"* y la restricción negativa *"No modificar TelemetryService, el envelope ni la captura existente"*, se identificó que la rama base `origin/feat/telemetry-event-storage` heredó de la PR #18 dos inconsistencias de tipado en `src/services/telemetry.ts:175` y `src/test/telemetry-service.test.ts:17`. Para no violar la restricción que prohíbe alterar `TelemetryService`, dichos archivos se conservaron intactos. El código de esta nueva fase (`telemetry/page.tsx`, `TelemetryReportDashboard` y sus tests) está 100% libre de errores.
+
+## Feedback docente PR #20: interpretación de `error_rate`
+
+- El campo de respuesta ahora documenta en OpenAPI que `error_rate` es `error_count / total_errors * 100` dentro de la ventana seleccionada.
+- `total_errors` incluye solo `form_validation_failed`, `system_exception_captured` y `external_integration_failed`; eventos como `user_login_failed` no forman parte del denominador.
+- Se mantiene la fórmula existente; una prueba verifica que el esquema JSON publicado preserve la aclaración.
+- Validación: `test_telemetry_analysis.py -k error_rate` pasó (3 pruebas; 7 deseleccionadas).

@@ -445,7 +445,13 @@ class EventsPerDayItem(BaseModel):
 class ErrorRateByTypeItem(BaseModel):
     event_type: str
     error_count: int
-    error_rate: float
+    error_rate: float = Field(
+        description=(
+            "Percentage of this error type among all technical-error events in the selected date range. "
+            "The denominator includes only form_validation_failed, system_exception_captured, "
+            "and external_integration_failed events; all other events are excluded."
+        )
+    )
 
 
 class LoginFailureRateItem(BaseModel):

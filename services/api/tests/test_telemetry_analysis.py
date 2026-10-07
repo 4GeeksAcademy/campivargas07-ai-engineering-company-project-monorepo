@@ -30,6 +30,7 @@ from app.domains.telemetry.analysis import (
     get_login_failure_rate_per_day,
 )
 from app.domains.telemetry.models import TelemetryEventRecord
+from app.domains.telemetry.schemas import ErrorRateByTypeItem
 
 
 def create_record(
@@ -118,6 +119,13 @@ def test_error_rate_by_type_empty_and_no_errors(db_session: Session):
 
     res = get_error_rate_by_type(db_session, start, end)
     assert res == []
+
+
+def test_error_rate_response_schema_documents_error_denominator():
+    error_rate_schema = ErrorRateByTypeItem.model_json_schema()["properties"]["error_rate"]
+
+    assert "denominator includes only" in error_rate_schema["description"]
+    assert "all other events are excluded" in error_rate_schema["description"]
 
 
 def test_error_rate_by_type_exact_percentages(db_session: Session):
