@@ -296,3 +296,11 @@
 - **Validación Automatizada Integral**:
   - 162 pruebas pasando al 100% en Pytest (21 pruebas nuevas: unitarias, integración PostgreSQL, idempotencia, concurrencia, rollback y seguridad/endpoints).
   - Verificación CLI en vivo contra `brasaland_db` completada con éxito.
+
+## DEV-55 — Corrección previa de la base PR #24 (2026-10-09)
+
+- Base: `feat/business-performance-pipeline-final`, merge #24 `f3e14370944a681bd91d6046077938f7c3cdb2b1`; GitHub confirma que `main` no lo contiene. Rama de entrega limpia inicial: `feature/dev-55-celery-async-tasks`.
+- Antes de instalar dependencias, `services/api/.venv/bin/python -m pytest -p no:cacheprovider tests/pipelines -q` falló con exit 2: import inexistente `transform_inventory_health_data_flow` en `tests/pipelines/test_pipeline.py:23`. Se detuvo DEV-55 y el usuario autorizó corregir la base.
+- Restaurado `data/pipelines/inventory_health/flow.py` exactamente desde `51279d6` (PR #23): recupera los tres subflujos y su coordinación original, sin cambiar reglas, tareas ni contratos. Las fechas de dos escenarios unitarios usan el día UTC actual porque el reconciliador añade siempre una partición para hoy.
+- Verificación sin dependencias nuevas: `tests/pipelines tests/scripts`: **18 passed**, exit 0. Prefect requiere sockets locales para su servidor efímero; la prueba se ejecutó fuera del sandbox. Se observó un aviso de logging de Prefect al cerrar pytest, sin afectar resultados.
+- El proceso nocturno, su CLI y `job_runs` permanecen intactos. Corrección separada de la implementación de Celery.
