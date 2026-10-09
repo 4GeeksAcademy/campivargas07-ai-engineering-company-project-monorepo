@@ -1,0 +1,394 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>brasaland.inventory_health ccb22763 · Flower</title>
+<link rel="icon" href="/static/favicon.ico?v=ff1ba46e61b7e034e9ce38326f398a2b86c222a137e2eb96a3ea16c77300d423d6ebf0cc8d4ac73d95087e6114ef8e13fa52fa5b6f9fadc0b5d1a9e3680015b8">
+<script src="/static/js/theme.js?v=2d0e2f9fc501e62cd84c9dcba339a0a57a7df5295b282e08f408970f542576bcb50048c2ce27ed3dfd8906cc26e8f4887384b3c2b54f846f19446f035da614b4"></script>
+<link rel="stylesheet" href="/static/css/bootstrap.min.css?v=c50615ba6efd8e0cee1d6d9a589539b01df12253a8d11cd0d0bf3291fe0f7c61629701fa122e07bab9fc0af365b4f3bbf56bbb2ce10485f766c9b83e05a714bb">
+<link rel="stylesheet" href="/static/css/datatables-1.13.4.min.css?v=74c4a6b553604403588edd63769db7dfbaf4c22cb68aba292a93e02ac283a6136e686b2fd7502a7816f160fae558412a7c877b81fd557298f07b32e026739559">
+<link href="/static/css/flower.css?v=7cfe10f32f39ba820a1d88f8e9377a9462e1825bea00bfcc77f8442753c539bf3103516e39ff7d888aff5f429fb3265ea30947e11c4486fe476fd5955c195623" rel="stylesheet">
+</head>
+<body class="app-body">
+<a class="skip-link" href="#main-content">Skip to main content</a>
+
+<nav class="app-navbar navbar navbar-expand-lg sticky-top" aria-label="Primary navigation">
+<div class="container-fluid">
+<a class="app-brand navbar-brand" href="/">
+<img src="/static/favicon.ico?v=ff1ba46e61b7e034e9ce38326f398a2b86c222a137e2eb96a3ea16c77300d423d6ebf0cc8d4ac73d95087e6114ef8e13fa52fa5b6f9fadc0b5d1a9e3680015b8" width="32" height="32" class="app-brand-mark" alt="">
+<span>Flower</span>
+</a>
+<button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#primary-navigation"
+aria-controls="primary-navigation" aria-expanded="false" aria-label="Toggle navigation">
+<span class="navbar-toggler-icon"></span>
+</button>
+<div class="collapse navbar-collapse" id="primary-navigation">
+<ul class="app-nav navbar-nav">
+<li class="nav-item">
+<a class="nav-link"
+href="/workers"
+>Workers</a>
+</li>
+<li class="nav-item">
+<a class="nav-link active"
+href="/tasks"
+aria-current="page">Tasks</a>
+</li>
+<li class="nav-item">
+<a class="nav-link"
+href="/broker"
+>Broker</a>
+</li>
+</ul>
+<ul class="app-nav app-nav-secondary navbar-nav ms-lg-auto">
+<li class="nav-item dropdown" data-flower-tooltip data-bs-trigger="hover" data-bs-placement="bottom" title="Theme">
+<svg class="d-none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+<symbol id="theme-icon-system" viewBox="0 0 16 16">
+<path d="M8 15A7 7 0 1 0 8 1v14Zm0 1A8 8 0 1 1 8 0a8 8 0 0 1 0 16Z"/>
+</symbol>
+<symbol id="theme-icon-light" viewBox="0 0 16 16">
+<path d="M8 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0-11.5a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-1 0V1a.5.5 0 0 1 .5-.5Zm0 13a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-1 0v-1a.5.5 0 0 1 .5-.5ZM15.5 8a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1 0-1h1a.5.5 0 0 1 .5.5ZM2.5 8a.5.5 0 0 1-.5.5H1a.5.5 0 0 1 0-1h1a.5.5 0 0 1 .5.5Zm10.803-5.303a.5.5 0 0 1 0 .707l-.707.707a.5.5 0 0 1-.707-.707l.707-.707a.5.5 0 0 1 .707 0Zm-9.192 9.192a.5.5 0 0 1 0 .707l-.707.707a.5.5 0 0 1-.707-.707l.707-.707a.5.5 0 0 1 .707 0Zm9.192 1.414a.5.5 0 0 1-.707 0l-.707-.707a.5.5 0 0 1 .707-.707l.707.707a.5.5 0 0 1 0 .707ZM4.111 4.111a.5.5 0 0 1-.707 0l-.707-.707a.5.5 0 0 1 .707-.707l.707.707a.5.5 0 0 1 0 .707Z"/>
+</symbol>
+<symbol id="theme-icon-dark" viewBox="0 0 16 16">
+<path d="M6 .278a.768.768 0 0 1 .08.858 7.208 7.208 0 0 0-.878 3.46c0 4.021 3.278 7.277 7.318 7.277.527 0 1.04-.055 1.533-.16a.787.787 0 0 1 .81.316.733.733 0 0 1-.031.893A8.35 8.35 0 0 1 8.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.752.752 0 0 1 6 .278Z"/>
+</symbol>
+<symbol id="theme-icon-check" viewBox="0 0 16 16">
+<path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0Z"/>
+</symbol>
+</svg>
+<button class="nav-link theme-toggle dropdown-toggle" id="theme-toggle" type="button"
+data-bs-toggle="dropdown" aria-expanded="false" aria-label="Select theme">
+<svg class="theme-icon" aria-hidden="true">
+<use id="theme-toggle-icon" href="#theme-icon-system"></use>
+</svg>
+<span class="visually-hidden" id="theme-toggle-label">Select theme: System</span>
+</button>
+<ul class="dropdown-menu dropdown-menu-end theme-menu" aria-labelledby="theme-toggle">
+<li>
+<button class="dropdown-item theme-option active" type="button" data-bs-theme-value="system"
+aria-pressed="true">
+<svg class="theme-icon" aria-hidden="true"><use href="#theme-icon-system"></use></svg>
+<span>System</span>
+<svg class="theme-check" aria-hidden="true"><use href="#theme-icon-check"></use></svg>
+</button>
+</li>
+<li>
+<button class="dropdown-item theme-option" type="button" data-bs-theme-value="light"
+aria-pressed="false">
+<svg class="theme-icon" aria-hidden="true"><use href="#theme-icon-light"></use></svg>
+<span>Light</span>
+<svg class="theme-check" aria-hidden="true"><use href="#theme-icon-check"></use></svg>
+</button>
+</li>
+<li>
+<button class="dropdown-item theme-option" type="button" data-bs-theme-value="dark"
+aria-pressed="false">
+<svg class="theme-icon" aria-hidden="true"><use href="#theme-icon-dark"></use></svg>
+<span>Dark</span>
+<svg class="theme-check" aria-hidden="true"><use href="#theme-icon-check"></use></svg>
+</button>
+</li>
+</ul>
+</li>
+<li class="nav-item">
+<a class="app-icon-link nav-link" href="https://flower.readthedocs.io/" target="_blank" rel="noopener"
+data-flower-tooltip data-bs-trigger="hover" data-bs-placement="bottom" aria-label="Flower documentation" title="Documentation">
+<svg viewBox="0 0 16 16" aria-hidden="true">
+<path fill="currentColor"
+d="M1 2.75A1.75 1.75 0 0 1 2.75 1H6a2.5 2.5 0 0 1 2 .999A2.5 2.5 0 0 1 10 1h3.25A1.75 1.75 0 0 1 15 2.75v10.5A1.75 1.75 0 0 1 13.25 15H10a1.5 1.5 0 0 0-1.2.6.999.999 0 0 1-1.6 0A1.5 1.5 0 0 0 6 15H2.75A1.75 1.75 0 0 1 1 13.25V2.75Zm7.5 10.792A3 3 0 0 1 10 13.14h3.25a.25.25 0 0 0 .25-.25V2.75a.25.25 0 0 0-.25-.25H10A1.5 1.5 0 0 0 8.5 4v9.542Zm-1 0V4A1.5 1.5 0 0 0 6 2.5H2.75a.25.25 0 0 0-.25.25v10.14c0 .138.112.25.25.25H6a3 3 0 0 1 1.5.402Z"/>
+</svg>
+<span class="visually-hidden">Documentation</span>
+</a>
+</li>
+<li class="nav-item">
+<a class="app-icon-link nav-link" href="https://github.com/mher/flower" target="_blank" rel="noopener"
+data-flower-tooltip data-bs-trigger="hover" data-bs-placement="bottom" aria-label="Flower source code" title="Source code">
+<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 512 499.36"
+aria-hidden="true">
+<path fill="currentColor" fill-rule="evenodd"
+d="M256 0C114.64 0 0 114.61 0 256c0 113.09 73.34 209 175.08 242.9 12.8 2.35 17.47-5.56 17.47-12.34 0-6.08-.22-22.18-.35-43.54-71.2 15.49-86.2-34.34-86.2-34.34-11.64-29.57-28.42-37.45-28.42-37.45-23.27-15.84 1.73-15.55 1.73-15.55 25.69 1.81 39.21 26.38 39.21 26.38 22.84 39.12 59.92 27.82 74.5 21.27 2.33-16.54 8.94-27.82 16.25-34.22-56.84-6.43-116.6-28.43-116.6-126.49 0-27.95 10-50.8 26.35-68.69-2.63-6.48-11.42-32.5 2.51-67.75 0 0 21.49-6.88 70.4 26.24a242.65 242.65 0 0 1 128.18 0c48.87-33.13 70.33-26.24 70.33-26.24 14 35.25 5.18 61.27 2.55 67.75 16.41 17.9 26.31 40.75 26.31 68.69 0 98.35-59.85 120-116.88 126.32 9.19 7.9 17.38 23.53 17.38 47.41 0 34.22-.31 61.83-.31 70.23 0 6.85 4.61 14.81 17.6 12.31C438.72 464.97 512 369.08 512 256.02 512 114.62 397.37 0 256 0z" />
+</svg>
+<span class="visually-hidden">Source code</span>
+</a>
+</li>
+
+</ul>
+</div>
+</div>
+</nav>
+
+
+<div id="toast-container" class="toast-container position-fixed bottom-0 end-0 p-3"
+aria-live="polite" aria-atomic="true"></div>
+<input type="hidden" value="" id="url_prefix">
+<main class="app-content" id="main-content">
+
+<div id="task-page" class="detail-page page-section">
+<p id="taskid" class="d-none">ccb22763-ff7f-49bf-a054-c14dc2f34e8e</p>
+<header class="detail-page-header">
+<p class="page-eyebrow">Task details</p>
+<div class="detail-actions">
+
+
+
+</div>
+</header>
+<section class="detail-card task-details-card" aria-label="Task details">
+<dl class="detail-list">
+<div class="detail-row task-data-row">
+<dt>Name</dt>
+<dd class="task-name-value">
+
+<a href="/tasks?name=brasaland.inventory_health">brasaland.inventory_health</a>
+
+</dd>
+</div>
+<div class="detail-row task-data-row">
+<dt>UUID</dt>
+<dd class="task-uuid-value">
+<code class="text-body-secondary">ccb22763-ff7f-49bf-a054-c14dc2f34e8e</code>
+<button type="button" class="task-uuid-copy" data-task-uuid="ccb22763-ff7f-49bf-a054-c14dc2f34e8e"
+title="Copy task UUID" aria-label="Copy task UUID">
+<svg viewBox="0 0 16 16" aria-hidden="true">
+<path d="M4 2.5A1.5 1.5 0 0 1 5.5 1h7A1.5 1.5 0 0 1 14 2.5v7a1.5 1.5 0 0 1-1.5 1.5H11V5.5A2.5 2.5 0 0 0 8.5 3H4V2.5Z"/>
+<path d="M2.5 4h6A1.5 1.5 0 0 1 10 5.5v8A1.5 1.5 0 0 1 8.5 15h-6A1.5 1.5 0 0 1 1 13.5v-8A1.5 1.5 0 0 1 2.5 4Zm0 1a.5.5 0 0 0-.5.5v8a.5.5 0 0 0 .5.5h6a.5.5 0 0 0 .5-.5v-8a.5.5 0 0 0-.5-.5h-6Z"/>
+</svg>
+<span class="visually-hidden">Copy task UUID</span>
+</button>
+</dd>
+</div>
+<div class="detail-row task-data-row">
+<dt>Status</dt>
+<dd>
+
+<span class="badge text-bg-success">SUCCESS</span>
+
+</dd>
+</div>
+<div class="detail-row detail-row-code task-data-row">
+<dt>Arguments</dt>
+<dd><pre class="detail-code"><code>[&#x27;ccb22763-ff7f-49bf-a054-c14dc2f34e8e&#x27;]</code></pre></dd>
+</div>
+<div class="detail-row detail-row-code task-data-row">
+<dt>Keyword arguments</dt>
+<dd><pre class="detail-code"><code>{}</code></pre></dd>
+</div>
+<div class="detail-row detail-row-code task-data-row">
+<dt>Result</dt>
+<dd><pre class="detail-code"><code>{&#x27;flow_run_id&#x27;: &#x27;ccb22763-ff7f-49bf-a054-c14dc2f34e8e&#x27;, &#x27;status&#x27;: &#x27;COMPLETED&#x27;, &#x27;snapshots_loaded&#x27;: 1, &#x27;records_quarantined&#x27;: 0, &#x27;events_read&#x27;: 0, &#x27;metrics&#x27;: {&#x27;METRIC_STOCK_LEVEL_RATIO&#x27;: 0.75, &#x27;METRIC_CRITICAL_STOCKOUTS_COUNT&#x27;: 0, &#x27;METRIC_BELOW_MINIMUM_COUNT&#x27;: 1, &#x27;METRIC_INSUFFICIENT_STOCK_ATTEMPTS_COUNT&#x27;: 0}}</code></pre></dd>
+</div>
+
+
+
+
+
+
+
+
+<div class="detail-row">
+<dt>Received</dt>
+<dd>
+
+2026-10-09 19:02:43.996842 UTC
+
+</dd>
+</div>
+
+
+
+<div class="detail-row">
+<dt>Sent</dt>
+<dd>
+
+2026-10-09 19:02:30.331532 UTC
+
+</dd>
+</div>
+
+
+
+<div class="detail-row">
+<dt>Started</dt>
+<dd>
+
+2026-10-09 19:02:43.999299 UTC
+
+</dd>
+</div>
+
+
+
+
+
+<div class="detail-row">
+<dt>Succeeded</dt>
+<dd>
+
+2026-10-09 19:03:23.696647 UTC
+
+</dd>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div class="detail-row">
+<dt>Retries</dt>
+<dd>
+
+0
+
+</dd>
+</div>
+
+
+
+<div class="detail-row">
+<dt>Worker</dt>
+<dd>
+
+<a href="/worker/celery%402743e2fe5cf6">celery@2743e2fe5cf6</a>
+
+</dd>
+</div>
+
+
+
+
+
+
+
+<div class="detail-row">
+<dt>Timestamp</dt>
+<dd>
+
+2026-10-09 19:03:23.696647 UTC
+
+</dd>
+</div>
+
+
+
+<div class="detail-row">
+<dt>Runtime</dt>
+<dd>
+
+39.69 s
+
+</dd>
+</div>
+
+
+
+
+
+<div class="detail-row">
+<dt>Exchange</dt>
+<dd>
+
+
+
+</dd>
+</div>
+
+
+
+<div class="detail-row">
+<dt>Routing key</dt>
+<dd>
+
+inventory-health
+
+</dd>
+</div>
+
+
+
+<div class="detail-row">
+<dt>Clock</dt>
+<dd>
+
+50
+
+</dd>
+</div>
+
+
+
+<div class="detail-row">
+<dt>Client</dt>
+<dd>
+
+gen1@d72e0369490b
+
+</dd>
+</div>
+
+
+
+<div class="detail-row">
+<dt>Root</dt>
+<dd>
+
+&lt;Task: brasaland.inventory_health(ccb22763-ff7f-49bf-a054-c14dc2f34e8e) SUCCESS clock:50&gt;
+
+</dd>
+</div>
+
+
+
+<div class="detail-row">
+<dt>Root id</dt>
+<dd>
+
+<a href="/task/ccb22763-ff7f-49bf-a054-c14dc2f34e8e" title="ccb22763-ff7f-49bf-a054-c14dc2f34e8e"><span class="task-uuid-full">ccb22763-ff7f-49bf-a054-c14dc2f34e8e</span><span class="task-uuid-short">ccb22763</span></a>
+
+</dd>
+</div>
+
+
+
+
+
+
+
+<div class="detail-row">
+<dt>Children</dt>
+<dd>
+
+
+
+</dd>
+</div>
+
+
+</dl>
+</section>
+</div>
+
+</main>
+<script src="/static/js/bootstrap.bundle.min.js?v=c05b418ca05ce98ecd379263e1c0cbc8b053488b3740f5a5a94ac0512f3117f076a405ab0825ce421ef9acd803a8c4b2d7bb234eb2770d46e7512dfa80ca15b9"></script>
+<script src="/static/js/jquery-3.6.4.min.js?v=a6e981b23351186aa43f32879dd64c6801be6e2af7ef8b0e472cccdeeba52d5d7894de4bcb292a364f1e11e525524077534338140a72687ada4fae62849843a5"></script>
+<script src="/static/js/datatables-1.13.4.min.js?v=545b043132ca7e6d31fa9428dda427f4116732de8b19face781a8aa2372265d1f22fa1ed5e54428899170459577732a98c15bafb6663c40fcf11bb770d896b59"></script>
+<script src="/static/js/moment-2.29.4.min.js?v=0abc8a6cc7bbb234820cf975f23b492390d1e63b64516c4f5d668b0acb7a4231fcc310dec5f44989cd964664579acb6bd98f12c430d6b813ba0900ba204e0a4c"></script>
+<script src="/static/js/moment-timezone-with-data-2.29.4.min.js?v=28223e7d1ddb51b39c534642dd471a3f008bb8ee4b124ba469605875d9a12cf5e0a403d627c8faa492e64c8eadf42318733138602ad6650ff0ad9cff26cc82f8"></script>
+<script src="/static/js/flower.js?v=44afcb4344a4b617aa37865974b9171004f0c222dc0ed60c3d00b16e52614140aad18815f8daf071b589ed763d67f70487cd638acb755386ef72753e0d1322ea"></script>
+
+
+</body>
+</html>

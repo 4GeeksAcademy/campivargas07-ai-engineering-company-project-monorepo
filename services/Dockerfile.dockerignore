@@ -1,0 +1,21 @@
+# Build context is the monorepo root; include only runtime Python sources.
+**
+!services
+!services/api
+!services/api/**
+!services/data
+!services/data/**
+!data
+!data/__init__.py
+!data/pipelines
+!data/pipelines/**
+**/.venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.coverage
+**/*.egg-info
+**/.env
+**/.env.*
+**/tests
+**/suppliers.json

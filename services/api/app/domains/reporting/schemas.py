@@ -17,6 +17,7 @@ class PipelineRunTriggerResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     flow_run_id: str = Field(..., description="Unique UUID for this pipeline execution")
+    task_id: str = Field(..., description="Celery task UUID, identical to flow_run_id")
     status: str = Field(..., description="Initial execution state (e.g. SCHEDULED)")
     enqueued_at: str = Field(..., description="UTC ISO 8601 timestamp when run was enqueued")
     triggered_by: Optional[str] = Field(default=None, description="UUID of user who triggered the run")
