@@ -1,8 +1,8 @@
 services:
   backend:
     build:
-      context: ./services
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/Dockerfile
     container_name: brasaland-backend
     restart: unless-stopped
     ports:
@@ -12,14 +12,76 @@ services:
       - SECRET_KEY=${SECRET_KEY:?SECRET_KEY is required. Set a secure secret key in .env}
       - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-60}
       - SUPPLIERS_DB_PATH=${SUPPLIERS_DB_PATH:-/app/api/data/suppliers.json}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
     volumes:
       - ./services:/app
+      - ./data/pipelines:/monorepo/data/pipelines:ro
+      - ./data/__init__.py:/monorepo/data/__init__.py:ro
+    depends_on:
+      redis:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
       interval: 5s
       timeout: 3s
       retries: 5
       start_period: 10s
+    networks:
+      - brasaland-dev
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec", "--maxmemory-policy", "noeviction"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - brasaland-dev
+
+  worker:
+    build:
+      context: .
+      dockerfile: services/Dockerfile
+    restart: unless-stopped
+    command: ["celery", "-A", "app.worker.celery_app:celery_app", "worker", "--loglevel=INFO", "--concurrency=1", "--events"]
+    environment:
+      - DATABASE_URL=${DATABASE_URL:?DATABASE_URL is required}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - PREFECT_SERVER_ANALYTICS_ENABLED=false
+      - PREFECT_SERVER_EPHEMERAL_STARTUP_TIMEOUT_SECONDS=120
+    volumes:
+      - ./data/pipelines:/monorepo/data/pipelines:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+    stop_grace_period: 16m
+    networks:
+      - brasaland-dev
+
+  flower:
+    build:
+      context: .
+      dockerfile: services/Dockerfile
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    command: ["python", "-m", "app.worker.flower_start"]
+    environment:
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - FLOWER_BASIC_AUTH=${FLOWER_BASIC_AUTH:-}
+    ports:
+      - "127.0.0.1:5555:5555"
+    volumes:
+      - flower-data:/var/lib/flower
+    depends_on:
+      redis:
+        condition: service_healthy
     networks:
       - brasaland-dev
 
@@ -52,3 +114,7 @@ networks:
   brasaland-dev:
     name: brasaland-dev
     driver: bridge
+
+volumes:
+  redis-data:
+  flower-data:

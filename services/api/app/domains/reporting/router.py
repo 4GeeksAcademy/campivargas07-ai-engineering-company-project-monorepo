@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import Any, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 
 from app.domains.auth.dependencies import get_current_user
 from app.domains.reporting.schemas import (
@@ -20,14 +20,7 @@ from app.domains.reporting.schemas import (
     PipelineRunStatusResponse,
     PipelineRunTriggerResponse,
 )
-from app.domains.reporting.service import ReportingService, _run_pipeline_background
-
-# Explicit canonical imports designed in PIPELINE_DESIGN.md section 17.2
-from data.pipelines.inventory_health.flow import (
-    get_pipeline_run_status,
-    trigger_inventory_health_flow,
-)
-from data.pipelines.inventory_health.queries import fetch_inventory_health_snapshot
+from app.domains.reporting.service import ReportingService
 
 router = APIRouter(prefix="/reporting", tags=["reporting"])
 
@@ -44,27 +37,13 @@ def get_reporting_service() -> ReportingService:
     description="Enqueues an asynchronous inventory health pipeline run. Requires admin or manager role.",
 )
 def trigger_pipeline_run(
-    background_tasks: BackgroundTasks,
     current_user: dict[str, Any] = Depends(get_current_user),
     service: ReportingService = Depends(get_reporting_service),
 ) -> PipelineRunTriggerResponse:
     """
     Despacha la ejecución en Prefect asignando un flow_run_id y encolando la tarea sin bloquear la petición.
     """
-    caller_role = current_user.get("role", "user")
-    if caller_role not in {"admin", "manager"}:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Forbidden: User lacks operational permissions to trigger pipeline runs.",
-        )
-
-    user_uuid = current_user.get("uuid") or str(current_user.get("id"))
-    enqueue_info = trigger_inventory_health_flow(triggered_by=user_uuid)
-    flow_run_id = enqueue_info["flow_run_id"]
-
-    # Asynchronous non-blocking execution via BackgroundTasks
-    background_tasks.add_task(_run_pipeline_background, flow_run_id)
-
+    enqueue_info = service.trigger_run(current_user)
     return PipelineRunTriggerResponse(**enqueue_info)
 
 

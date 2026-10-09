@@ -1,0 +1,70 @@
+{
+  "success": {
+    "task_id": "ccb22763-ff7f-49bf-a054-c14dc2f34e8e",
+    "status": "success",
+    "result": {
+      "flow_run_id": "ccb22763-ff7f-49bf-a054-c14dc2f34e8e",
+      "status": "COMPLETED",
+      "snapshots_loaded": 1,
+      "records_quarantined": 0,
+      "events_read": 0,
+      "metrics": {
+        "METRIC_STOCK_LEVEL_RATIO": 0.75,
+        "METRIC_CRITICAL_STOCKOUTS_COUNT": 0,
+        "METRIC_BELOW_MINIMUM_COUNT": 1,
+        "METRIC_INSUFFICIENT_STOCK_ATTEMPTS_COUNT": 0
+      }
+    },
+    "response_seconds": 0.146,
+    "api_stopped_during_execution": true,
+    "redis_arguments": [
+      [
+        "ccb22763-ff7f-49bf-a054-c14dc2f34e8e"
+      ],
+      {}
+    ]
+  },
+  "failure": {
+    "task_id": "247474fd-bca5-4753-9cc3-18d34f7459db",
+    "status": "failure",
+    "result": {
+      "error": "OperationalError: inventory health task failed"
+    }
+  },
+  "dlq": {
+    "task_id": "247474fd-bca5-4753-9cc3-18d34f7459db",
+    "attempt": 4,
+    "error": "OperationalError: inventory health task failed",
+    "failed_at": "2026-10-09 19:04:27.386088+00:00"
+  },
+  "flower": {
+    "ccb22763-ff7f-49bf-a054-c14dc2f34e8e": {
+      "uuid": "ccb22763-ff7f-49bf-a054-c14dc2f34e8e",
+      "name": "brasaland.inventory_health",
+      "state": "SUCCESS",
+      "retries": 0,
+      "runtime": 39.69010134899963,
+      "result": "{'flow_run_id': 'ccb22763-ff7f-49bf-a054-c14dc2f34e8e', 'status': 'COMPLETED', 'snapshots_loaded': 1, 'records_quarantined': 0, 'events_read': 0, 'metrics': {'METRIC_STOCK_LEVEL_RATIO': 0.75, 'METRIC_CRITICAL_STOCKOUTS_COUNT': 0, 'METRIC_BELOW_MINIMUM_COUNT': 1, 'METRIC_INSUFFICIENT_STOCK_ATTEMPTS_COUNT': 0}}",
+      "exception": null
+    },
+    "247474fd-bca5-4753-9cc3-18d34f7459db": {
+      "uuid": "247474fd-bca5-4753-9cc3-18d34f7459db",
+      "name": "brasaland.inventory_health",
+      "state": "FAILURE",
+      "retries": 3,
+      "runtime": null,
+      "result": null,
+      "exception": "TaskExecutionError('OperationalError: inventory health task failed')"
+    }
+  },
+  "broker_unavailable": {
+    "http_status": 503,
+    "response": {
+      "detail": "Inventory health task could not be queued"
+    },
+    "durable_states": {
+      "status": "FAILURE",
+      "pipeline_run_status": "FAILED"
+    }
+  }
+}
