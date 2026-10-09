@@ -1276,3 +1276,184 @@ Dos ejecuciones consecutivas del pipeline por CLI:
 - **Preservación Estricta**: No se realizaron rebases, force-pushes ni modificaciones sobre las ramas precursoras (PR #17 a #22).
 - **Zonas Protegidas**: Intactas sin modificaciones (`CONTEXT.md`, `company-choice.md`, `memory-bank/projectbrief.md`, `memory-bank/techContext.md`).
 
+---
+
+# Walkthrough: Procesos en Segundo Plano — ticket #DEV-53: script nocturno de telemetría
+
+Se ha implementado la orquestación en segundo plano y el script nocturno de telemetría para **Brasaland** (Ticket #DEV-53), continuando sobre la **PR #23** (`feat/business-performance-pipeline-final`). Este desarrollo introduce la tabla `job_runs` para orquestación independiente, reclamo atómico de ejecuciones con recuperación de estados obsoletos, exportación streaming de respaldo en CSV atómico y ejecución segura del pipeline como subproceso con distinción estricta entre estados `COMPLETED` y `SKIPPED`.
+
+---
+
+## 1. Resumen de Cambios Implementados
+
+### 1.1 Persistencia e Idempotencia DDL (`services/api/migrations/003_create_job_runs.sql`)
+- Creación de la tabla `job_runs` en el esquema público (separada formalmente de las tablas `reporting.pipeline_execution_logs` y `reporting.inventory_health_lineage`):
+  - `id`: Identificador único UUID (`gen_random_uuid()`).
+  - `job_name`: Nombre formal del trabajo (`VARCHAR(100)`).
+  - `target_date`: Fecha analítica objetivo (`DATE`).
+  - `status`: Estado de ciclo de vida (`pending`, `processing`, `completed`, `failed`) con `CHECK` constraint.
+  - `started_at` / `finished_at`: Marcas de tiempo de ejecución en UTC con zona horaria (`TIMESTAMPTZ`).
+  - `error_message`: Detalle estructurado de error en caso de fallo (`TEXT`).
+  - `created_at`: Marca temporal de creación (`clock_timestamp()`).
+- Índices de optimización y atomicidad:
+  - `idx_job_runs_job_target`: Búsquedas rápidas por `(job_name, target_date)`.
+  - `uq_job_runs_processing`: **Índice único parcial** `WHERE status = 'processing'`. Garantiza a nivel de motor de base de datos que jamás existan dos procesos concurrentes ejecutando la misma fecha objetivo para el mismo trabajo.
+
+### 1.2 Dominio de Jobs y Reclamo Atómico (`services/api/app/domains/jobs/`)
+- **`models.py`**: Modelo SQLModel `JobRunRecord`.
+- **`service.py`**:
+  - `claim_job_run(session, job_name, target_date, stale_timeout_minutes=60)`:
+    1. Si existe registro previo en `completed` $\rightarrow$ omite con `ALREADY_COMPLETED`.
+    2. Si existe registro en `processing`:
+       - Si `now - started_at < stale_timeout_minutes`: proceso legítimo en marcha $\rightarrow$ rechaza con `CONCURRENT_PROCESSING`.
+       - Si `now - started_at >= stale_timeout_minutes`: proceso obsoleto (zombie / caída abrupta del contenedor) $\rightarrow$ marca la ejecución vieja como `failed` con mensaje explicativo y procede a conceder un nuevo reclamo.
+    3. Si existe registro `pending`, lo transiciona a `processing`; si no, inserta una nueva fila en `processing`.
+    4. Ante condiciones de carrera milimétricas entre dos workers, el índice parcial `uq_job_runs_processing` arroja `IntegrityError`, el cual es capturado limpiamente para retornar `CONCURRENT_PROCESSING` sin dejar inconsistencias.
+  - `complete_job_run(session, run_id)`: Marca `status = 'completed'` con `finished_at = now()`.
+  - `fail_job_run(session, run_id, error_message)`: Marca `status = 'failed'` con `finished_at = now()` y detalle forense.
+- **`services/api/app/database.py`**: Registro automático de `JobRunRecord` y del índice parcial en `init_db()`.
+
+### 1.3 Adaptación Mínima Compatible de Pipeline CLI (`data/pipelines/pipeline.py`)
+- Se ajustó el valor de retorno para ejecuciones omitidas por bloqueo concurrente (`status == "SKIPPED"`): ahora devuelve código de salida `2` (manteniendo `0` exclusivamente para `COMPLETED` y `1` para errores generales).
+- Esta distinción permite que scripts y orquestadores externos reconozcan inmediatamente cuando el pipeline no llegó a ejecutarse debido a un bloqueo concurrente activo, evitando falsos positivos de éxito.
+
+### 1.4 Script Independiente de Respaldo y Ejecución (`scripts/nightly_export.py`)
+- Script CLI ejecutable fuera de FastAPI:
+  ```bash
+  uv run --project services/api python scripts/nightly_export.py [--target-date YYYY-MM-DD] [--db-url URL] [--full-reconciliation]
+  ```
+- **Resolución de Fecha**: Parámetro `--target-date`, variable `TARGET_DATE`, o fallback automático a **ayer en UTC** (`(now_utc - 1 day)`).
+- **Respaldo CSV Seguro**:
+  - Destino: `data/raw/telemetry_YYYY-MM-DD.csv`.
+  - Si el archivo ya existe: preservación inmutable (idempotencia de archivo sin sobreescritura).
+  - Si no existe: consulta SQL streaming acotada estrictamente a `[target_date 00:00:00 UTC, target_date + 1 day 00:00:00 UTC)`.
+  - Escritura a archivo temporal (`.tmp.<pid>`) y reemplazo atómico mediante `os.replace`.
+  - Cero exposición de credenciales o secretos en logs.
+- **Subproceso del Pipeline Real**:
+  - Invoca `data/pipelines/pipeline.py` preservando variables de entorno y conexión a base de datos.
+  - Verifica que el subproceso termine con `returncode == 0` y la salida contenga `"Status:              COMPLETED"`.
+  - Si el subproceso devuelve código `2` o indica `SKIPPED`, registra la ejecución en `job_runs` como `failed` con mensaje de bloqueo concurrente.
+  - Si termina exitosamente, registra `job_runs` como `completed`.
+
+### 1.5 Configuración de Programación y Límites de Backfill
+- **Expresión Cron**: `0 3 * * *`
+- **Zona Horaria**: UTC (corresponde a las 22:00 COT/EST en Bogotá y Miami, asegurando cierre operativo total de los 14 restaurantes).
+- **Comando de Ejecución**:
+  ```bash
+  uv run --project services/api python scripts/nightly_export.py
+  ```
+- **Variables de Entorno**: `DATABASE_URL` provista desde el entorno seguro del sistema o del contenedor de workers.
+- **Motivo de la Elección**: Desacoplamiento total del ciclo de vida de la API web FastAPI. Evita retener workers ASGI con tareas batch pesadas de I/O y previene saturación de memoria en la interfaz HTTP.
+- **Transparencia sobre Backfill**:
+  - La variable `TARGET_DATE=YYYY-MM-DD` permite respaldar de forma exacta eventos de cualquier fecha histórica y registrar su auditoría en `job_runs`.
+  - Sin embargo, se documenta la limitación técnica real: el pipeline subyacente de salud de inventario de las PR #22/#23 opera reconciliando el libro mayor consolidado o actual, por lo que no recalcula instantáneas históricas del pasado para fechas arbitrarias.
+
+---
+
+## 2. Evidencias de Validación Automatizada
+
+### 2.1 Suite de Pruebas de Exportación Nocturna (`tests/scripts/test_nightly_export.py`)
+```
+$ uv run --project services/api python -m pytest tests/scripts/test_nightly_export.py
+============================= test session starts ==============================
+platform linux -- Python 3.12.1, pytest-8.4.2, pluggy-1.6.0
+collected 14 items
+
+tests/scripts/test_nightly_export.py ..............                      [100%]
+
+============================== 14 passed in 1.36s ==============================
+```
+- Cobertura de los 8 escenarios exigidos:
+  1. Resolución de fecha explícita, por variable de entorno, fallback UTC y validación de formato.
+  2. Filtrado estricto por rango temporal UTC de la fecha en el CSV sin fuga a días contiguos.
+  3. Preservación de archivo CSV existente sin sobreescritura.
+  4. Omisión idempotente cuando la fecha ya se completó.
+  5. Reintento exitoso tras corridas previas fallidas.
+  6. Detección y recuperación de ejecuciones `processing` zombies/obsoletas tras timeout.
+  7. Prevención de concurrencia paralela entre dos procesos compitiendo por la misma fecha.
+  8. Ciclo completo CLI con subproceso simulado exitoso (`COMPLETED`).
+  9. Manejo de subproceso `SKIPPED` marcando `job_runs` como `failed`.
+  10. Manejo de fallo del pipeline marcando `failed` con mensaje de error forense.
+  11. Omisión CLI cuando la fecha ya fue completada.
+
+### 2.2 Suite de Pipeline y Suite Completa de Backend
+- **Pruebas Unitarias de Pipeline**:
+  ```
+  $ uv run --project services/api python -m pytest tests/pipelines/test_pipeline.py
+  4 passed in 15.12s
+  ```
+- **Suite Completa Backend contra PostgreSQL**:
+  ```
+  $ TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/brasaland_api_test" uv run --project services/api pytest services/api/tests
+  ================= 162 passed, 88 warnings in 80.82s (0:01:20) ==================
+  ```
+
+### 2.3 Ejecución en Vivo contra `brasaland_db`
+1. **Primera Corrida (Éxito Completo)**:
+   ```
+   $ uv run --project services/api python scripts/nightly_export.py --target-date 2026-09-21 --db-url "postgresql://postgres:postgres@localhost:5432/brasaland_db"
+   2026-09-28 22:36:11,404 [INFO] jobs_service: Claimed new job run 914359ca-0dd0-4d88-a919-92810a976976 for 'telemetry_nightly_export' (2026-09-21) in 'processing' state.
+   2026-09-28 22:36:11,427 [INFO] nightly_export: Successfully exported 5 telemetry events to backup CSV: data/raw/telemetry_2026-09-21.csv
+   2026-09-28 22:36:11,428 [INFO] nightly_export: Spawning business pipeline subprocess: data/pipelines/pipeline.py
+   2026-09-28 22:36:34,863 [INFO] nightly_export: Business pipeline subprocess completed successfully in 23.46s.
+   2026-09-28 22:36:34,876 [INFO] jobs_service: Job run 914359ca-0dd0-4d88-a919-92810a976976 marked as 'completed'.
+
+   ============================================================
+   NIGHTLY ORCHESTRATION COMPLETED SUCCESSFULLY
+   ============================================================
+   Job Run ID:        914359ca-0dd0-4d88-a919-92810a976976
+   Job Name:          telemetry_nightly_export
+   Target Date:       2026-09-21
+   Status:            COMPLETED
+   Backup CSV:        data/raw/telemetry_2026-09-21.csv (new)
+   Events Exported:   5
+   Duration:          23.46s
+   ============================================================
+   ```
+
+2. **Segunda Corrida Inmediata (Omisión Idempotente)**:
+   ```
+   $ uv run --project services/api python scripts/nightly_export.py --target-date 2026-09-21 --db-url "postgresql://postgres:postgres@localhost:5432/brasaland_db"
+   2026-09-28 22:36:42,285 [INFO] jobs_service: Job 'telemetry_nightly_export' for target date 2026-09-21 is already completed (run_id=914359ca-0dd0-4d88-a919-92810a976976). Skipping.
+   2026-09-28 22:36:42,286 [INFO] nightly_export: Target date 2026-09-21 already has a COMPLETED execution (job_run_id=914359ca-0dd0-4d88-a919-92810a976976). Omitting run.
+   (Código de salida: 0)
+   ```
+
+3. **Evidencia de Separación de Tablas (`job_runs` vs `pipeline_execution_logs`)**:
+   - Registro en `job_runs`:
+     ```
+     ID: 914359ca-0dd0-4d88-a919-92810a976976
+     Job Name: telemetry_nightly_export
+     Target Date: 2026-09-21
+     Status: completed
+     Started: 2026-09-28 22:36:11 UTC
+     Finished: 2026-09-28 22:36:34 UTC
+     Error: None
+     ```
+   - Registro independiente en `reporting.pipeline_execution_logs`:
+     ```
+     Pipeline Run ID: 2672fa5d-1556-4822-8d5f-45c67348a259
+     Status: COMPLETED
+     Started: 2026-09-28 22:36:29 UTC
+     Completed: 2026-09-28 22:36:32 UTC
+     ```
+
+4. **Muestra del Respaldo CSV Generado (`data/raw/telemetry_2026-09-21.csv`)**:
+   ```csv
+   event_id,event_type,timestamp,service,session_id,user_id,request_id,tags
+   7e75b414-7f2d-4c8b-afb7-33a75ea0ac22,user_login_failed,2026-09-21T15:16:36.486729+00:00,backoffice,15872d71-0e96-46d7-ad6b-c783d00fd9d3,7df8ce89-ad96-4907-86e1-c8eaa441ee3d,req-cadeceff,"{""failure_reason"": ""account_locked"", ""attempt_counter"": 3}"
+   08b246bb-b900-44b4-8b1e-6e8149a01753,user_logged_in,2026-09-21T16:16:36.486729+00:00,backoffice,f27912e9-65aa-4f94-91be-7f9727cdc2ed,7a93c378-53f0-4b9e-b09a-f0e9f5e742c9,req-5aac64bc,"{""user_role"": ""user"", ""auth_provider"": ""local_password"", ""assigned_local_id"": ""MED-001""}"
+   68900878-1daf-49a2-8703-4f8bd7f739fb,api_latency_recorded,2026-09-21T17:16:36.486729+00:00,backoffice,7b103d16-efec-47e8-a54c-390f315355c7,d738c791-d083-40dd-b98d-606dec403bd2,req-1d2dda1a,"{""route_path"": ""/inventory/orders"", ""duration_ms"": 85.0, ""http_method"": ""GET"", ""status_code"": 200, ""db_query_count"": 1}"
+   ```
+
+---
+
+## 3. Estado de Ramas y Aislamiento
+
+- **Base de Trabajo**: Rama `feat/business-performance-pipeline-final` (PR #23), SHA base: `51279d64427ecacf67539e5bad9bec0df8c851ca`.
+- **Nueva Rama**: `feat/nightly-telemetry-script`.
+- **Pull Request**: Creada con destino a `feat/business-performance-pipeline-final` con la anotación explícita `Depends on #23`.
+- **Preservación Estricta**: No se realizaron force-pushes, rebases ni modificaciones sobre las ramas precursoras (PR #17 a #23).
+- **Zonas Protegidas**: Intactas sin modificaciones (`CONTEXT.md`, `company-choice.md`, `memory-bank/projectbrief.md`, `memory-bank/techContext.md`).
+
+
