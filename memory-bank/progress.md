@@ -318,3 +318,15 @@
 - README en ambos idiomas documenta configuración, migraciones, arranque/parada, contratos, reintentos y demo, incluyendo screenshots opcionales con Playwright externo al repo.
 - Etiqueta `async-tasks`: no existe (consulta de etiquetas remotas); no se creó una etiqueta nueva.
 - Límites: AOF everysec admite pérdida aproximada de un segundo ante caída abrupta del host; no se afirma exactly-once ni outbox transaccional. Worker conserva idempotencia/lock del pipeline. Proceso nocturno, cron, `job_runs`, infra/, mcps/ y demás zonas protegidas sin cambios.
+
+
+## Predicción de ventas con regresión — 2026-10-12
+
+- Rama nueva `feature/brasaland-sales-regression`, base PR #25 abierta `feature/dev-55-celery-async-tasks` (`96e75cd`). No se modifica ni fusiona #25 ni main; checkout aislado preserva cambios locales existentes.
+- CSV y contexto oficiales de 4Geeks incorporados desde revisiones fijadas, con SHA-256 en `docs/sales-forecasting/source.json`. 120 meses consolidados en USD de 2016–2025; dataset educativo provisto, nunca regenerado. Contexto de incidentes preservado.
+- Entorno uv independiente en `experiments/sales_forecasting/`, Python 3.12, lockfile propio. Entrypoint `scripts/train_sales_model.py`. Ningún paquete de modelado añadido a API/workers.
+- Entrenar 96 meses (2016–2023), predecir 24 meses futuros (2024–2025) desde cierre de 2023 solo con calendario. Tendencia lineal + Random Forest sobre residuos, parámetros fijos y semilla 42, sin escalado. Comensales/ticket futuros excluidos. Baseline repite 2023 para ambos años.
+- Banda nominal 90% estimada con 48 residuos de dos folds temporales de 24 meses anteriores a 2024: ±52.593,97 USD, sin garantía de cobertura. Test: 22/24 dentro de banda, sin reajuste.
+- Test: MSE 998.274.423,79 USD²; RMSE 31.595,48 USD vs baseline 59.369,77; MAE 23.862,13 USD; R² 0,8166; MAPE 2,92%. Mejora RMSE 46,78%. PSI 9,9003 alto y Gini normalizado 0,8683 con fórmulas operativas explícitas, no errores de regresión. K2 pendiente de definición académica (`null`); Kendall tau-b 0,5580 solo diagnóstico separado.
+- Entrega: modelo joblib, predicciones CSV, métricas JSON y gráfica en `data/eval/sales_forecasting/`; informe y guion para profesor en `docs/sales-forecasting/README.md`. Limitaciones: datos educativos, sin detalle por sede, conversión original no auditable, incertidumbre temporal y K2 no definido.
+- Validación: 14 pruebas nuevas (incluyen cambiar objetivos/covariables del test sin afectar predicciones/banda); 211 regresiones previas con PostgreSQL temporal, ninguna omitida. Typecheck raíz, Ruff, Mypy y build wheel/sdist OK. Dos ejecuciones con cuatro artefactos idénticos byte por byte. Gráfica inspeccionada. Warnings SQLite/Prefect preexistentes; detalles en `docs/sales-forecasting/VALIDATION.md`.

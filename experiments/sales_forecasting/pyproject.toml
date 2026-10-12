@@ -1,0 +1,32 @@
+[project]
+name = "brasaland-sales-forecasting"
+version = "0.1.0"
+description = "Offline, fixed-origin monthly sales forecasting experiment"
+requires-python = ">=3.12,<3.15"
+dependencies = [
+  "numpy>=2,<3",
+  "pandas>=2.2,<4",
+  "scikit-learn>=1.6,<2",
+  "matplotlib>=3.9,<4",
+  "scipy>=1.14,<2",
+  "joblib>=1.4,<2",
+]
+
+[dependency-groups]
+dev = ["pytest>=8,<10", "ruff>=0.14,<1", "mypy>=1.15,<2"]
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.mypy]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["../../tests/pipelines/test_sales_forecasting.py"]

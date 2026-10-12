@@ -26,5 +26,6 @@ coverage/
 *.sqlite3
 *.db
 data/raw/*.csv
+!data/raw/brasaland_sales.csv
 .agents/hooks.json
 .cursor/hooks.json

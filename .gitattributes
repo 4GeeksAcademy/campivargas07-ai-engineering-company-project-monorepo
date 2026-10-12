@@ -1,0 +1,2 @@
+# Preserve official dataset bytes (including CRLF) for source-hash verification.
+data/raw/brasaland_sales.csv -text whitespace=cr-at-eol
