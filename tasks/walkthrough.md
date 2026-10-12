@@ -1531,3 +1531,12 @@ uv run --project experiments/sales_forecasting --frozen pytest tests/pipelines/t
 ```
 
 No se promete dashboard ni uso financiero productivo. El CSV es material educativo preexistente, ya consolidado en USD, sin detalle de sedes ni conversión monetaria original auditable. La interpretación académica de K2, PSI y Gini queda explícitamente pendiente en la documentación de entrega.
+
+
+### Cierre de K2 en la entrega de ventas — 2026-10-12
+
+La investigación solicitada en la organización encontró [la definición oficial](https://github.com/4GeeksAcademy/ai-engineering-syllabus/blob/2869fa3d9a89b820aab4b8f6adaaadd63d37e530/content/projects/ai-eng-sales-forecasting-regression/.learn/solution/README.md) en la solución de referencia original (commit `2869fa3`). K2 corresponde a D’Agostino–Pearson aplicado a residuos del test. La ruta original fue renombrada a `ai-eng-sales-forecasting-timeseries`; se verificó el historial para evitar asumir equivalencia con la actividad nueva.
+
+Se incorporó `scipy.stats.normaltest(actual - prediction)`, con K²=6,1004, p=0,04735 y n=24. Se documenta rechazo de normalidad al 5% bajo sus supuestos y cautela por dependencia temporal; no se afirma que evalúe sesgo o independencia. R² y Kendall tau siguen separados. No se cambió ningún parámetro ni banda después de ver este diagnóstico.
+
+Validación: 18 pruebas pasando, incluida fórmula Z_asimetría² + Z_curtosis² y casos degenerados; Ruff/Mypy/typecheck raíz/build OK. Dos ejecuciones reproducibles; hashes de modelo, CSV de predicciones y gráfica idénticos a la entrega previa. Informe, manifest de fuentes, métricas y descripción de PR #26 actualizados. PR #25 no se modifica.

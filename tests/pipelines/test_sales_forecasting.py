@@ -18,6 +18,7 @@ try:
         normalized_gini,
         population_stability,
         regression_metrics,
+        residual_normality,
         run,
         seasonal_baseline,
         split_data,
@@ -159,11 +160,15 @@ def test_metrics_formulas_and_drift_bins():
     assert population_stability(np.ones(5), np.ones(5))["value"] == 0
 
 
-def test_artifacts_roundtrip_and_k2_not_substituted(tmp_path, frame):
+def test_artifacts_roundtrip_and_k2_is_test_residual_normality(tmp_path, frame):
     report = run(DATA, tmp_path)
-    assert report["k2_score"] is None
+    assert report["k2_normality"]["n_residuals"] == 24
     assert report["train"]["rows"] == 96 and report["test"]["rows"] == 24
     predictions = pd.read_csv(tmp_path / "test_predictions.csv")
+    expected_k2 = residual_normality(
+        predictions.actual_usd.to_numpy(), predictions.prediction_usd.to_numpy()
+    )
+    assert report["k2_score"] == pytest.approx(expected_k2["statistic"], rel=1e-8)
     assert len(predictions) == 24
     model = joblib.load(tmp_path / "model.joblib")
     np.testing.assert_allclose(
@@ -190,3 +195,38 @@ def test_artifacts_roundtrip_and_k2_not_substituted(tmp_path, frame):
         np.testing.assert_array_equal(predictions[column], changed_predictions[column])
     assert changed_report["band"]["half_width_usd"] == report["band"]["half_width_usd"]
     assert changed_report["model"]["mse_usd2"] != report["model"]["mse_usd2"]
+
+
+def test_k2_formula_and_invariance_to_constant_bias(frame):
+    from scipy.stats import kurtosistest, normaltest, skewtest
+
+    residuals = (
+        frame.tail(24).revenue_usd.to_numpy()
+        - frame.iloc[84:108].revenue_usd.to_numpy()
+    )
+    actual = frame.tail(24).revenue_usd.to_numpy()
+    prediction = actual - residuals
+    result = residual_normality(actual, prediction)
+    expected = (
+        skewtest(residuals).statistic ** 2 + kurtosistest(residuals).statistic ** 2
+    )
+    assert result["statistic"] == pytest.approx(expected)
+    assert result["p_value"] == pytest.approx(normaltest(residuals).pvalue)
+    shifted = residual_normality(actual + 10000, prediction)
+    assert shifted["statistic"] == pytest.approx(result["statistic"])
+    assert result["reject_normality"] == (result["p_value"] < 0.05)
+
+
+@pytest.mark.parametrize("kind", ["short", "constant", "nan"])
+def test_k2_rejects_undefined_cases(frame, kind):
+    actual = frame.tail(24).revenue_usd.to_numpy()
+    prediction = frame.iloc[84:108].revenue_usd.to_numpy()
+    if kind == "short":
+        actual, prediction = actual[:7], prediction[:7]
+    elif kind == "constant":
+        prediction = actual.copy()
+    else:
+        actual = actual.copy()
+        actual[0] = np.nan
+    with pytest.raises(ValueError):
+        residual_normality(actual, prediction)

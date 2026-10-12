@@ -13,7 +13,7 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
-from scipy.stats import kendalltau
+from scipy.stats import kendalltau, normaltest
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
@@ -178,6 +178,31 @@ def normalized_gini(actual: np.ndarray, prediction: np.ndarray) -> float | None:
     return concentration(prediction) / denominator if denominator else None
 
 
+def residual_normality(actual: np.ndarray, prediction: np.ndarray) -> dict:
+    """Course K2: D'Agostino-Pearson on held-out residuals, never an error score.
+
+    A large p-value does not prove normality, zero bias or independence. With
+    only 24 serial observations, the standard p-value is exploratory.
+    """
+    actual = np.asarray(actual, dtype=float)
+    prediction = np.asarray(prediction, dtype=float)
+    if actual.ndim != 1 or actual.shape != prediction.shape or len(actual) < 8:
+        raise ValueError("K2 requires matching one-dimensional arrays and at least eight residuals")
+    residuals = actual - prediction
+    if not np.isfinite(residuals).all() or np.ptp(residuals) == 0:
+        raise ValueError("K2 requires finite, nonconstant residuals")
+    result = normaltest(residuals, nan_policy="raise")
+    return {
+        "statistic": float(result.statistic),
+        "p_value": float(result.pvalue),
+        "n_residuals": len(residuals),
+        "alpha": 0.05,
+        "reject_normality": bool(result.pvalue < 0.05),
+        "definition": "D'Agostino-Pearson K² = Z_skewness² + Z_kurtosis² on test actual - prediction",
+        "caveat": "Exploratory under temporal dependence; does not test zero bias or independence",
+    }
+
+
 def run(dataset: Path, output: Path) -> dict:
     frame = load_data(dataset)
     train, test = split_data(frame)
@@ -190,6 +215,7 @@ def run(dataset: Path, output: Path) -> dict:
     lower, upper = np.maximum(0, prediction - width), prediction + width
     model_metrics = regression_metrics(actual, prediction)
     baseline_metrics = regression_metrics(actual, baseline)
+    k2 = residual_normality(actual, prediction)
     report = {
         "software": {
             "python": platform.python_version(),
@@ -211,8 +237,9 @@ def run(dataset: Path, output: Path) -> dict:
         "beats_baseline_rmse": model_metrics["rmse_usd"] < baseline_metrics["rmse_usd"],
         "psi_diagnostic": population_stability(train["revenue_usd"].to_numpy(), actual),
         "normalized_gini_diagnostic": normalized_gini(actual, prediction),
-        "k2_score": None,
-        "k2_status": "Pending academic definition; neither R² nor Kendall tau substituted",
+        "k2_score": k2["statistic"],
+        "k2_normality": k2,
+        "k2_status": "Confirmed in the official reference solution of the original regression activity",
         "kendall_tau_b_diagnostic": float(kendalltau(actual, prediction).statistic),
         "band": {
             "label": "Estimated variability, nominal 90%; coverage not guaranteed",

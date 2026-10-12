@@ -330,3 +330,11 @@
 - Test: MSE 998.274.423,79 USD²; RMSE 31.595,48 USD vs baseline 59.369,77; MAE 23.862,13 USD; R² 0,8166; MAPE 2,92%. Mejora RMSE 46,78%. PSI 9,9003 alto y Gini normalizado 0,8683 con fórmulas operativas explícitas, no errores de regresión. K2 pendiente de definición académica (`null`); Kendall tau-b 0,5580 solo diagnóstico separado.
 - Entrega: modelo joblib, predicciones CSV, métricas JSON y gráfica en `data/eval/sales_forecasting/`; informe y guion para profesor en `docs/sales-forecasting/README.md`. Limitaciones: datos educativos, sin detalle por sede, conversión original no auditable, incertidumbre temporal y K2 no definido.
 - Validación: 14 pruebas nuevas (incluyen cambiar objetivos/covariables del test sin afectar predicciones/banda); 211 regresiones previas con PostgreSQL temporal, ninguna omitida. Typecheck raíz, Ruff, Mypy y build wheel/sdist OK. Dos ejecuciones con cuatro artefactos idénticos byte por byte. Gráfica inspeccionada. Warnings SQLite/Prefect preexistentes; detalles en `docs/sales-forecasting/VALIDATION.md`.
+
+
+## Cierre de K2 — investigación oficial de 4Geeks (PR #26)
+
+- Encontrada la definición en la solución oficial de la actividad original, commit `2869fa3`: https://github.com/4GeeksAcademy/ai-engineering-syllabus/blob/2869fa3d9a89b820aab4b8f6adaaadd63d37e530/content/projects/ai-eng-sales-forecasting-regression/.learn/solution/README.md. La ruta fue renombrada a `ai-eng-sales-forecasting-timeseries` en `92181c3`, lo que explicaba el 404 inicial. Se usó el historial de regresión original; no se amplió el alcance al nuevo proyecto de series temporales.
+- K2 es D’Agostino–Pearson sobre residuos del test, no R² ni Kendall tau. Cálculo agregado sin alterar modelo, predicciones ni banda: K² 6,1004; p=0,04735; n=24; α=0,05. Rechazo de normalidad bajo supuestos de la prueba, p-valor exploratorio por muestra pequeña y dependencia temporal. No prueba ausencia de sesgo ni independencia.
+- Actualizados informe docente, fuentes, métricas y evidencia; el estado pendiente anterior queda resuelto. 18 pruebas del experimento pasando; Ruff, Mypy, typecheck raíz y build wheel/sdist OK. Cuatro artefactos reproducidos byte por byte; modelo, gráfica y predicciones no cambiaron.
+- Cambios solo en rama `feature/brasaland-sales-regression` / PR #26. PR #25 preservada.

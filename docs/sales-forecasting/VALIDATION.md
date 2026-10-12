@@ -5,7 +5,7 @@ Trabajo en checkout aislado de `feature/brasaland-sales-regression`.
 
 | Comprobación | Resultado |
 | --- | --- |
-| Nuevas pruebas `tests/pipelines/test_sales_forecasting.py`, entorno uv del experimento | **14 passed** |
+| Nuevas pruebas `tests/pipelines/test_sales_forecasting.py`, entorno uv del experimento | **18 passed** |
 | Backend + pipeline previo + script nocturno, PostgreSQL 16 desechable | **211 passed, 0 skipped** |
 | `npm run typecheck`, raíz | PASS |
 | Ruff en nuevo módulo, entrypoint y pruebas | PASS |
@@ -39,7 +39,24 @@ SHA-256 de artefactos reproducidos:
 
 | Artefacto | SHA-256 |
 | --- | --- |
-| `metrics.json` | `d0221c8ed0d057512ffd6fd5080d8746979c5d2d1d5a761f6597967340f16c5d` |
+| `metrics.json` | `d854ec483abbacc2147accc0fcb1f330e7ff080c603ff23c526ae382ea2b8e99` |
 | `test_predictions.csv` | `3469b72734ad00c879d61216a69c5337da2ec72c14a87d4792b974efadc81759` |
 | `forecast.png` | `4f794b3fd73780a3eb6c207a4350ca7a38d5b126f9d6b6d99ceb9b529eb48a6c` |
 | `model.joblib` | `f8ce28f941d1f225a24da04741542f729292077b5991671780c09e4b203ecdfa` |
+
+## Cierre de K2 con fuente oficial
+
+Búsqueda en los textos de `ai-engineering-syllabus` y
+`ai-engineering-milestone-contexts`, más código y documentación de la organización.
+El historial de la actividad original confirma K2 = D’Agostino–Pearson en la
+solución de referencia del commit `2869fa3`. No se adopta la interpretación de
+otros alumnos. Se añadieron cuatro casos de prueba para fórmula K², p-valor,
+invariancia a sesgo constante y rechazo de entradas insuficientes/degeneradas.
+
+Resultado exclusivo del test: K²=6,100411016125004, p=0,04734919275034671, n=24.
+18 pruebas del experimento, Ruff, Mypy, typecheck raíz y wheel/sdist pasan.
+Se repitieron dos ejecuciones: los cuatro artefactos son idénticos entre sí;
+modelo, predicciones y gráfica además mantienen los hashes de la entrega previa.
+Solo se agregó el diagnóstico K2 a las métricas, sin selección o reajuste del modelo.
+Las 211 regresiones previas permanecen como evidencia de la entrega inicial;
+no hay cambios en API, pipeline de inventario ni sus dependencias.

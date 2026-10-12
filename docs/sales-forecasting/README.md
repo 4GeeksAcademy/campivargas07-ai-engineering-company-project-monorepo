@@ -99,15 +99,16 @@ El modelo reduce RMSE en **46,78%** frente al baseline en este test. MAPE es
 una media de errores porcentuales por mes, **no una conversión del MSE** ni una
 "precisión del 97%". Este único holdout pequeño no garantiza rendimiento futuro.
 
-### Definiciones y métricas ambiguas
+### Definiciones de las métricas de la consigna
 
 MSE = media de `(y − predicción)²`; RMSE = raíz del MSE; MAE = media del error
 absoluto; R² = `1 − SSE/SST`; MAPE = `100 × media(|y−predicción|/y)`.
 Todas se calculan sobre los 24 objetivos del test, siempre positivos.
 
-La academia menciona PSI y Gini y explica su finalidad, pero no especifica
-fórmulas. Se entregan como **diagnósticos con definiciones operativas explícitas**,
-pendientes de confirmar con el profesor; no son medidas de error de regresión:
+La [solución de referencia oficial de la actividad original](https://github.com/4GeeksAcademy/ai-engineering-syllabus/blob/2869fa3d9a89b820aab4b8f6adaaadd63d37e530/content/projects/ai-eng-sales-forecasting-regression/.learn/solution/README.md) confirma
+PSI como drift train/test, Gini como ranking y K2 como normalidad de residuos.
+Las fórmulas operativas precisan su cálculo; PSI, Gini y K2 son **diagnósticos**,
+no medidas de error monetario de regresión:
 
 - **PSI = 9,9003**: comparar ingresos reales de entrenamiento y de test usando
   deciles determinados solo con entrenamiento, extremos abiertos ±infinito,
@@ -122,13 +123,22 @@ pendientes de confirmar con el profesor; no son medidas de error de regresión:
   dividir por `G` del orden perfecto. Los empates comparten el ingreso medio
   de su grupo. Un predictor constante da cero; ventas constantes no permiten
   normalizar. Mide ranking, no exactitud monetaria ni Gini de clasificación `2AUC−1`.
-- **«K2 Score»: no calculado (`null`)**. El contexto no lo define. R² se reporta
-  por separado. La interpretación Kendall tau encontrada en el repositorio de
-  otro alumno no es una definición académica confirmada. Se incluye **Kendall
-  tau-b = 0,5580** como diagnóstico adicional de concordancia de ranking
-  (`scipy.stats.kendalltau`), sin llamarlo K2. Su fórmula es
-  `(pares concordantes − discordantes)/sqrt((C+D+empates_y)(C+D+empates_pred))`.
-  Este punto del rubric queda pendiente de aclaración docente; no se oculta.
+- **K2 Score = 6,1004**, p-valor **0,04735**, n=24, α=0,05: prueba de normalidad
+  **D’Agostino–Pearson** aplicada únicamente a `ventas reales − predicción` del
+  test, mediante `scipy.stats.normaltest`. Combina asimetría y curtosis:
+  `K² = Z_asimetría² + Z_curtosis²`, con referencia chi-cuadrado de 2 grados de
+  libertad. Bajo los supuestos de la prueba se rechaza normalidad al 5%.
+  Con solo 24 meses y posible dependencia temporal, el p-valor es **exploratorio**;
+  conviene revisar especialmente los errores de los picos de diciembre. No se
+  reentrena ni cambia la banda con este resultado. No exige normalidad para que
+  Random Forest pueda predecir y no demuestra por sí solo que el modelo sea inútil.
+  La prueba **no verifica media cero, ausencia de sesgo ni independencia**:
+  incluso residuos normales pueden tener sesgo constante. Un p-valor grande
+  tampoco prueba normalidad. Esta precisión evita interpretar literalmente la
+  simplificación de la solución académica sobre errores sin sesgo.
+- R² (0,8166) y Kendall tau-b (0,5580) son métricas distintas y siguen separadas.
+  Tau-b mide concordancia de ranking mediante
+  `(C−D)/sqrt((C+D+empates_y)(C+D+empates_pred))`.
 
 ## Artefactos y reproducción
 
@@ -150,7 +160,7 @@ uv run --project experiments/sales_forecasting --frozen pytest tests/pipelines/t
 El [README del entorno](../../experiments/sales_forecasting/README.md) incluye
 lint, typecheck y build. Los tests comprueban fuente fijada, orden, split,
 rechazo de datos inválidos, transformación trigonométrica, ajuste de tendencia,
-cuantil temporal, baseline, fórmulas y carga del modelo. Cambiar las respuestas,
+cuantil temporal, baseline, fórmulas (incluida K²) y carga del modelo. Cambiar las respuestas,
 comensales y ticket medio del test mantiene exactamente las predicciones y banda
 en una segunda ejecución completa: evidencia explícita de ausencia de fuga.
 
@@ -161,9 +171,10 @@ Reservé 2024–2025 sin usarlos para seleccionar el modelo. Predigo los 24 mese
 desde diciembre de 2023 solo con calendario. La tendencia aprende crecimiento y
 el Random Forest aprende residuos estacionales. Supera la repetición de 2023 en
 RMSE, pero el PSI advierte desplazamiento de la distribución. La banda usa errores
-de dos validaciones anteriores a 2024. Reporto límites educativos y dejo K2
-pendiente porque no encontré una definición oficial; no lo sustituyo por R²."
+de dos validaciones anteriores a 2024. Reporto límites educativos y calculo K2
+sobre los 24 residuos de prueba según la solución oficial: el p-valor exploratorio
+0,04735 advierte desviación de normalidad; no lo confundo con R² ni con sesgo cero."
 
 No se promete un dashboard ni despliegue productivo. Faltan observaciones reales,
 metadatos de conversión monetaria, evaluación por sede, más historia de validación
-y confirmación docente de las métricas ambiguas antes de uso financiero real.
+y validación financiera adicional antes de uso real.

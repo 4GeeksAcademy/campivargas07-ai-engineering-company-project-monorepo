@@ -60,8 +60,17 @@
     "high_drift_heuristic": true
   },
   "normalized_gini_diagnostic": 0.868292691227726,
-  "k2_score": null,
-  "k2_status": "Pending academic definition; neither R\u00b2 nor Kendall tau substituted",
+  "k2_score": 6.100411016125004,
+  "k2_normality": {
+    "statistic": 6.100411016125004,
+    "p_value": 0.04734919275034671,
+    "n_residuals": 24,
+    "alpha": 0.05,
+    "reject_normality": true,
+    "definition": "D'Agostino-Pearson K\u00b2 = Z_skewness\u00b2 + Z_kurtosis\u00b2 on test actual - prediction",
+    "caveat": "Exploratory under temporal dependence; does not test zero bias or independence"
+  },
+  "k2_status": "Confirmed in the official reference solution of the original regression activity",
   "kendall_tau_b_diagnostic": 0.5579710144927535,
   "band": {
     "label": "Estimated variability, nominal 90%; coverage not guaranteed",
