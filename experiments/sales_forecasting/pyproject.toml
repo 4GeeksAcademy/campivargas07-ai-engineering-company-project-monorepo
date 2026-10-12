@@ -29,4 +29,7 @@ line-length = 100
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
-testpaths = ["../../tests/pipelines/test_sales_forecasting.py"]
+testpaths = [
+  "../../tests/pipelines/test_sales_forecasting.py",
+  "../../tests/pipelines/test_sales_model_evaluation.py",
+]

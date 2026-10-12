@@ -338,3 +338,15 @@
 - K2 es D’Agostino–Pearson sobre residuos del test, no R² ni Kendall tau. Cálculo agregado sin alterar modelo, predicciones ni banda: K² 6,1004; p=0,04735; n=24; α=0,05. Rechazo de normalidad bajo supuestos de la prueba, p-valor exploratorio por muestra pequeña y dependencia temporal. No prueba ausencia de sesgo ni independencia.
 - Actualizados informe docente, fuentes, métricas y evidencia; el estado pendiente anterior queda resuelto. 18 pruebas del experimento pasando; Ruff, Mypy, typecheck raíz y build wheel/sdist OK. Cuatro artefactos reproducidos byte por byte; modelo, gráfica y predicciones no cambiaron.
 - Cambios solo en rama `feature/brasaland-sales-regression` / PR #26. PR #25 preservada.
+
+
+## Evaluación de un Modelo de Regresión — 2026-10-12
+
+- Nueva rama `feature/regression-model-eval` desde PR #26 abierta (`feature/brasaland-sales-regression`, `0b0b705`); PR separada apilada sobre esa base. PRs #26 y #25 preservadas, sin merge ni cambios en sus ramas.
+- Módulos `brasaland_sales/evaluation.py` y `evaluation_report.py`, entrypoint `scripts/evaluate_sales_model.py`, mismo entorno uv y parámetros de TrendForest. No se añaden lags, medias móviles, escalado ni dependencias; evalúa el modelo de calendario existente.
+- CV solo en 96 meses de 2016–2023: cinco orígenes tras 48/54/60/66/72 meses, entrenamiento expansivo y validación de 24 meses. Reajuste nuevo en cada fold. Media ± DE muestral (ddof=1) descriptiva porque las validaciones se solapan.
+- Curvas MAE/RMSE con últimas 24/30/36/42/48 observaciones antes de los mismos orígenes, mismas ventanas de validación; 48 es máximo común. Valores y dos figuras bajo `data/eval/sales_forecasting/evaluation/`, sin sobrescribir #26.
+- CV: RMSE 27.857,76 ± 3.524,87 USD y MAE 24.124,08 ± 3.285,93; baseline RMSE 56.949,34 ± 4.923,29 y MAE 48.022,11 ± 4.080,88. Error firmado pred−real medio +1.673,49 USD con variabilidad por fold. Diciembre: train −21.553,30 USD, validación −48.083,14 USD; las curvas de ambos errores mejoran con más historia (RMSE val −43,20% de 24 a 48 meses).
+- Diagnóstico provisional: underfitting estructural de estacionalidad creciente; no se atribuye overfitting solo a la brecha train/validación. Acción propuesta: evaluar normalización estacional multiplicativa por tendencia con los mismos folds y futura validación independiente, sin reutilizar test 2024–2025. No se implementa corrección ni se inventan costes asimétricos.
+- Informe regenerable `data/eval/evaluation_report.md`; docs y evidencia en `docs/regression-model-evaluation/`. Limitaciones: pocos datos educativos, ventanas dependientes, recencia/cobertura estacional y falta de costes monetarios oficiales.
+- Validación: 30 tests (18 previos + 12 nuevos), sin omisiones; Ruff, Mypy, wheel/sdist y typecheck raíz OK. Invariancia ante objetivos posteriores al origen y ante cambios del test final; 30 modelos nuevos y parámetros originales verificados. Dos ejecuciones con siete artefactos idénticos; informe igual salvo enlaces de destino. Cuatro artefactos de #26 idénticos byte por byte contra su commit base.

@@ -1540,3 +1540,22 @@ La investigación solicitada en la organización encontró [la definición ofici
 Se incorporó `scipy.stats.normaltest(actual - prediction)`, con K²=6,1004, p=0,04735 y n=24. Se documenta rechazo de normalidad al 5% bajo sus supuestos y cautela por dependencia temporal; no se afirma que evalúe sesgo o independencia. R² y Kendall tau siguen separados. No se cambió ningún parámetro ni banda después de ver este diagnóstico.
 
 Validación: 18 pruebas pasando, incluida fórmula Z_asimetría² + Z_curtosis² y casos degenerados; Ruff/Mypy/typecheck raíz/build OK. Dos ejecuciones reproducibles; hashes de modelo, CSV de predicciones y gráfica idénticos a la entrega previa. Informe, manifest de fuentes, métricas y descripción de PR #26 actualizados. PR #25 no se modifica.
+
+
+## Evaluación de un Modelo de Regresión — 2026-10-12
+
+Base PR #26 abierta (`0b0b705`), rama nueva `feature/regression-model-eval`, PR separada apilada sobre `feature/brasaland-sales-regression`. Se reutiliza TrendForest sin refactorizar ni cambiar su ajuste, parámetros o semilla. La consigna genérica menciona lags/rolling, pero el modelo previo solo usa calendario; esta diferencia queda explícita.
+
+Evaluación limitada a 2016–2023, cinco folds con orígenes de 48/54/60/66/72 meses y horizonte de 24 meses. Curvas con últimas 24/30/36/42/48 observaciones antes de cada origen, manteniendo constantes sus validaciones. DE muestral ddof=1 descriptiva por ventanas solapadas; no se presenta como intervalo de confianza.
+
+RMSE CV 27.857,76 ± 3.524,87 USD frente a baseline 56.949,34 ± 4.923,29; MAE 24.124,08 ± 3.285,93 frente a 48.022,11 ± 4.080,88. Las curvas mejoran con más historia y todos los errores de diciembre en validación son negativos. Diagnóstico provisional de underfitting estructural estacional, considerando crecimiento y dependencia temporal; no se presupone overfitting ni se ajustan parámetros buscando una conclusión. Acción concreta: evaluar una variante multiplicativa normalizada por tendencia, aprendida por fold y contrastada en las mismas ventanas, sin usar nuevamente el test final.
+
+El [informe regenerable](../data/eval/evaluation_report.md) incluye tabla por fold, resúmenes, figuras, diagnóstico, acción y limitaciones de negocio. Artefactos nuevos bajo `data/eval/sales_forecasting/evaluation/`; los anteriores de #26 se preservan exactamente. [Evidencia](../docs/regression-model-evaluation/VALIDATION.md): 30 tests sin omisiones, Ruff/Mypy/typecheck raíz/build OK, controles de fuga, mismos orígenes/tamaños, modelo nuevo por ajuste y siete artefactos repetibles byte por byte.
+
+```bash
+uv sync --project experiments/sales_forecasting --frozen
+uv run --project experiments/sales_forecasting --frozen python scripts/evaluate_sales_model.py
+uv run --project experiments/sales_forecasting --frozen pytest tests/pipelines/test_sales_forecasting.py tests/pipelines/test_sales_model_evaluation.py -q
+```
+
+No se tocan API, workers, UI, dependencias, datos ni zonas protegidas. Sin merge de #26 ni #25.
