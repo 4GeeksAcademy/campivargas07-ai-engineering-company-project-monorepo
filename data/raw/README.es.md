@@ -6,4 +6,7 @@ Esta carpeta está pensada para almacenar **datos en bruto** (raw) relacionados 
 - **Recomendación**: documenta el origen de cada dataset, formato, tamaño esperado, consideraciones de privacidad/PII y cómo se versiona (idealmente evitando subir datos sensibles al repositorio).
  
 
- Pru
+
+
+
+ 
