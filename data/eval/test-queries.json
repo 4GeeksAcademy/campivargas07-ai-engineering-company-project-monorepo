@@ -1,0 +1,20 @@
+[
+  {"id":"loyalty-01","question":"¿Cuánto debe gastar un cliente en Colombia o Florida para acumular un punto?","expected_source_document":"loyalty-program","expected_section":"Programa de Lealtad \"Brasa Points\""},
+  {"id":"loyalty-02","question":"¿Cuándo vencen los puntos de Brasa Points?","expected_source_document":"loyalty-program","expected_section":"Programa de Lealtad \"Brasa Points\""},
+  {"id":"loyalty-03","question":"¿Cuántos puntos requiere el nivel Oro?","expected_source_document":"loyalty-program","expected_section":"Programa de Lealtad \"Brasa Points\""},
+  {"id":"loyalty-04","question":"¿Desde cuántos puntos se puede redimir y cuánto equivalen cinco puntos?","expected_source_document":"loyalty-program","expected_section":"Programa de Lealtad \"Brasa Points\""},
+  {"id":"waste-01","question":"¿Qué se hace si se desperdician más de 2 kg de proteína cárnica en un turno?","expected_source_document":"waste-protocol","expected_section":"Procedimiento diario"},
+  {"id":"waste-02","question":"¿Qué causas de desperdicio se aceptan sin nota adicional?","expected_source_document":"waste-protocol","expected_section":"Causas comunes de desperdicio aceptadas sin nota adicional"},
+  {"id":"waste-03","question":"¿Cuándo una merma no explicada activa una alerta automática?","expected_source_document":"waste-protocol","expected_section":"Procedimiento diario"},
+  {"id":"waste-04","question":"¿Cuándo se escala el desperdicio a Felipe Guerrero y qué metas mensuales aplican?","expected_source_document":"waste-protocol","expected_section":"Causas que requieren escalamiento a Felipe Guerrero directamente"},
+  {"id":"allergens-01","question":"¿Qué alérgenos contienen las Costillas BBQ y pueden tener trazas de maní?","expected_source_document":"menu-allergens","expected_section":"Platos principales y sus alérgenos declarados"},
+  {"id":"allergens-02","question":"¿Qué declara la guía sobre el pollo clásico, la ensalada y la arepa?","expected_source_document":"menu-allergens","expected_section":"Platos principales y sus alérgenos declarados"},
+  {"id":"allergens-03","question":"¿Qué protocolo debe seguir cocina ante una alergia reportada?","expected_source_document":"menu-allergens","expected_section":"Protocolo ante alergias reportadas por el cliente"},
+  {"id":"allergens-04","question":"¿Hay una versión certificada sin gluten de la Costilla BBQ y se puede asegurar cero riesgo?","expected_source_document":"menu-allergens","expected_section":"Protocolo ante alergias reportadas por el cliente"},
+  {"id":"suppliers-01","question":"¿Qué día y antes de qué hora local se hacen los pedidos semanales?","expected_source_document":"supplier-ordering","expected_section":"Procedimiento de Pedido a Proveedores"},
+  {"id":"suppliers-02","question":"¿Cuál es la frecuencia y entrega de proteínas y vegetales?","expected_source_document":"supplier-ordering","expected_section":"Categorías de proveedores y frecuencia de pedido"},
+  {"id":"suppliers-03","question":"¿Cuál es el inventario mínimo de proteínas y cuándo se hace un pedido de emergencia?","expected_source_document":"supplier-ordering","expected_section":"Regla de stock mínimo"},
+  {"id":"suppliers-04","question":"¿Qué recargo tiene un pedido de emergencia y cuándo requiere aprobación de Lucía Fernández?","expected_source_document":"supplier-ordering","expected_section":"Regla de stock mínimo"},
+  {"id":"out-of-scope-01","question":"¿Cuál es el horario exacto del restaurante de Miami?","expected_source_document":null,"expected_section":null},
+  {"id":"out-of-scope-02","question":"¿Cuántas unidades de lomo quedan actualmente en inventario?","expected_source_document":null,"expected_section":null}
+]
