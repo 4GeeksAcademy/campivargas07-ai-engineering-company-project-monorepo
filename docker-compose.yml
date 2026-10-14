@@ -13,12 +13,28 @@ services:
       - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-60}
       - SUPPLIERS_DB_PATH=${SUPPLIERS_DB_PATH:-/app/api/data/suppliers.json}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+      - PYTHONPATH=/app/api:/monorepo
+      - QDRANT_URL=http://qdrant:6333
+      - QDRANT_API_KEY=${QDRANT_API_KEY:-}
+      - EMBEDDING_API_BASE_URL=${EMBEDDING_API_BASE_URL:-}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-}
+      - EMBEDDING_API_KEY=${EMBEDDING_API_KEY:-}
+      - EMBEDDING_TIMEOUT_SECONDS=${EMBEDDING_TIMEOUT_SECONDS:-30}
+      - GENERATION_API_BASE_URL=${GENERATION_API_BASE_URL:-}
+      - GENERATION_MODEL=${GENERATION_MODEL:-}
+      - GENERATION_API_KEY=${GENERATION_API_KEY:-}
+      - GENERATION_TIMEOUT_SECONDS=${GENERATION_TIMEOUT_SECONDS:-45}
+      - GENERATION_TEMPERATURE=${GENERATION_TEMPERATURE:-0}
+      - GENERATION_MAX_TOKENS=${GENERATION_MAX_TOKENS:-500}
+      - KNOWLEDGE_MIN_SCORE=${KNOWLEDGE_MIN_SCORE:-}
     volumes:
       - ./services:/app
-      - ./data/pipelines:/monorepo/data/pipelines:ro
-      - ./data/__init__.py:/monorepo/data/__init__.py:ro
+      - ./data:/monorepo/data:ro
+      - ./docs/company-knowledge-base:/monorepo/docs/company-knowledge-base:ro
     depends_on:
       redis:
+        condition: service_healthy
+      qdrant:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
@@ -110,6 +126,21 @@ services:
     networks:
       - brasaland-dev
 
+  qdrant:
+    image: qdrant/qdrant:v1.19.2
+    container_name: brasaland-qdrant
+    restart: unless-stopped
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/6333'"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    networks:
+      - brasaland-dev
+
 networks:
   brasaland-dev:
     name: brasaland-dev
@@ -118,3 +149,4 @@ networks:
 volumes:
   redis-data:
   flower-data:
+  qdrant_storage:

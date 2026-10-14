@@ -24,8 +24,8 @@ RUN uv venv /opt/venv && \
 # Copy API application source code and data directory
 COPY services/api /app/api
 COPY services/data /app/data
-COPY data/pipelines /monorepo/data/pipelines
-COPY data/__init__.py /monorepo/data/__init__.py
+COPY data /monorepo/data
+COPY docs/company-knowledge-base /monorepo/docs/company-knowledge-base
 RUN mkdir -p /var/lib/flower
 
 # Setup non-root user appuser (UID 1000 matching host)

@@ -4,11 +4,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.common.timing import RequestTimingMiddleware
 from app.database import backfill_users_uuid, init_db
 from app.domains.analytics.incidents.router import router as analytics_incidents_router
 from app.domains.auth.router import router as auth_router
 from app.domains.incidents.errors import register_incident_error_handlers
 from app.domains.incidents.router import router as incidents_router
+from app.domains.knowledge.router import router as knowledge_router
 from app.domains.operations.inventory.router import router as inventory_router
 from app.domains.procurement.suppliers.router import router as suppliers_router
 from app.domains.profiles.router import router as profiles_router
@@ -31,11 +33,13 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Brasaland API",
-    description="Internal API for Brasaland operations: inventory, suppliers, auth, incidents.",
+    description="Internal API for Brasaland operations, knowledge, and reporting.",
     version="0.5.0",
     lifespan=lifespan,
 )
 
+# Logs route, status, and duration without request bodies or sensitive headers.
+app.add_middleware(RequestTimingMiddleware)
 register_incident_error_handlers(app)
 
 app.add_middleware(
@@ -62,6 +66,7 @@ app.include_router(inventory_router)
 app.include_router(telemetry_router)
 app.include_router(reporting_router)
 app.include_router(tasks_router)
+app.include_router(knowledge_router)
 
 
 @app.get("/health", tags=["health"])
