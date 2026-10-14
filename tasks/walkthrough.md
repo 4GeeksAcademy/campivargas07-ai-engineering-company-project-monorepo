@@ -1,3 +1,30 @@
+# Walkthrough: Hito 7 — RAG y Base de Conocimiento Brasaland
+
+## Estado
+- Implementación parcial en `feature/rag-knowledge-base`, creada desde `origin/main` (`810a873767a6700e308022c14d762dd929fced5c`). PR #73 no incluido.
+- Proveedor/modelos de embedding y generación no fueron suministrados; endpoint/protocolo OpenAI-compatible está sin verificar. La funcionalidad real requiere configurar esos endpoints y calibrar el threshold.
+
+## Cambios
+- Corpus de cuatro manuales oficiales y contexto específico del hito con procedencia fijada.
+- Loader allowlisted, chunking semántico inicial, adaptadores HTTP, Qdrant y pipelines de búsqueda/generación.
+- Endpoint autenticado `POST /knowledge/query` y vista protegida `/backoffice/knowledge` con estados de carga/error/respuesta.
+- Compose con Qdrant privado y volumen nombrado; dataset 16 in-domain + 2 out-of-domain y runner de Recall@3.
+- Diseño e informe de evaluación explicitan límites y ausencia de KPI real.
+
+## Validación
+- `python -m unittest discover -s data/tests -v`: 3/3 pasan; documentos generan 4–5 chunks.
+- Compose config con `DATABASE_URL`/`SECRET_KEY` placeholders: pasa.
+- `python -m compileall -q data services/api/app/domains/knowledge services/api/app/main.py`: pasa.
+- Tests Vitest dirigidos a knowledge API/UI: 5/5 pasan.
+- `npm run typecheck`: bloqueado por tres errores no relacionados detectados en `src/lib/auth/context.tsx`, `src/services/telemetry.ts`, `src/test/telemetry-service.test.ts`.
+- Pendientes: uv.lock, pytest FastAPI, build/lint completos, Qdrant/proveedores reales y evaluación Recall@3.
+
+## Siguientes pasos
+1. Confirmar proveedor, API, modelos y dimensiones aprobados y provisionar secretos localmente.
+2. Generar `services/api/uv.lock`, probar despliegue/Qdrant, ejecutar pruebas API y flujo autenticado.
+3. Correr evaluación real y completar informe con umbral calibrado, Recall@3 y auditoría manual de fidelidad.
+4. Verificar hash upstream del corpus y cerrar revisión de código antes de PR.
+
 # Walkthrough: Dominio de Inventario con SQLModel y Doble Base de Datos en `services/api`
 
 Se ha implementado la extensión de `services/api` con el dominio de inventario para Brasaland, integrando PostgreSQL mediante SQLModel junto con TinyDB, preservando la autenticación existente y documentando las interfaces y validaciones.

@@ -77,4 +77,12 @@ describe("BackofficeHeader Component", () => {
     expect(reportingLink).toHaveClass("nav-link-active");
     expect(reportingLink).toHaveAttribute("href", "/backoffice/reporting/inventory-health");
   });
+
+  it("marks the knowledge base link as active", () => {
+    render(<BackofficeHeader activeView="knowledge" badge="Manuales oficiales" />);
+
+    const knowledgeLink = screen.getByRole("link", { name: "Base de conocimiento" });
+    expect(knowledgeLink).toHaveClass("nav-link-active");
+    expect(knowledgeLink).toHaveAttribute("href", "/backoffice/knowledge");
+  });
 });

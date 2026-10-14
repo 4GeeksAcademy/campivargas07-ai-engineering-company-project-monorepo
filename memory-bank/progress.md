@@ -1,3 +1,11 @@
+# Milestone 7: RAG y Base de Conocimiento (en progreso)
+- Rama `feature/rag-knowledge-base` basada en `origin/main`; no se incorporó PR #73.
+- Corpus allowlisted de cuatro manuales oficiales, contexto del hito y módulos de carga/chunking, adaptadores HTTP, Qdrant, retrieval/generation y endpoint FastAPI autenticado.
+- Backoffice `/backoffice/knowledge` añadido con cliente Bearer y estados de interacción; dataset (16 in-scope + 2 fuera) y runner Recall@3 preparados.
+- Verificado: pruebas Python locales de corpus/chunking y guard (3/3), Compose config con placeholders, compileall y Vitest dirigido (5/5).
+- Bloqueos: endpoint/modelos/dimensiones aprobados no proporcionados; adaptadores OpenAI-compatible son provisionales; falta `uv.lock`, pruebas FastAPI, validación Qdrant y evaluación real. No publicar KPI inventado.
+- `npm run typecheck` global falla en tres errores existentes ajenos a esta rama de trabajo: `src/lib/auth/context.tsx`, `src/services/telemetry.ts`, `src/test/telemetry-service.test.ts`.
+
 # Brasaland Progress
 
 ## Hito: Backend de Inventario con ORM y Doble BD (rama `feature/db-inventario`)
