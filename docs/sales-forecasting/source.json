@@ -1,0 +1,23 @@
+{
+  "repository": "4GeeksAcademy/ai-engineering-syllabus",
+  "files": {
+    "data/raw/brasaland_sales.csv": {
+      "url": "https://raw.githubusercontent.com/4GeeksAcademy/ai-engineering-syllabus/2869fa3d9a89b820aab4b8f6adaaadd63d37e530/content/contexts/sales-forecasting/brasaland/brasaland_sales.csv",
+      "commit": "2869fa3d9a89b820aab4b8f6adaaadd63d37e530",
+      "sha256": "a3e082d2a7161ef03b97c681e80083d952c6fc2629b54bfe994f144660fa130d",
+      "bytes": 5667
+    },
+    "docs/sales-forecasting/CONTEXT-brasaland.en.md": {
+      "url": "https://raw.githubusercontent.com/4GeeksAcademy/ai-engineering-syllabus/92181c310205094e7161704bbd8e87103adc96cb/content/contexts/sales-forecasting/brasaland/CONTEXT-brasaland.en.md",
+      "commit": "92181c310205094e7161704bbd8e87103adc96cb",
+      "sha256": "2d6b2503fa82979c284ac35e6280b94ca0e937db0b542a89f2ec96972f8ebb9a",
+      "bytes": 4483
+    }
+  },
+  "metric_definitions": {
+    "repository": "4GeeksAcademy/ai-engineering-syllabus",
+    "commit": "2869fa3d9a89b820aab4b8f6adaaadd63d37e530",
+    "url": "https://github.com/4GeeksAcademy/ai-engineering-syllabus/blob/2869fa3d9a89b820aab4b8f6adaaadd63d37e530/content/projects/ai-eng-sales-forecasting-regression/.learn/solution/README.md",
+    "k2": "D’Agostino–Pearson K² normality test on test residuals"
+  }
+}

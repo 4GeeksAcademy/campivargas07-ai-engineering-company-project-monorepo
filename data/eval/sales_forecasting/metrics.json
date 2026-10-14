@@ -1,0 +1,104 @@
+{
+  "software": {
+    "python": "3.12.3",
+    "numpy": "2.5.4",
+    "pandas": "3.0.6",
+    "scikit-learn": "1.9.1",
+    "scipy": "1.18.1",
+    "matplotlib": "3.11.2",
+    "joblib": "1.6.0"
+  },
+  "random_state": 42,
+  "dataset_sha256": "a3e082d2a7161ef03b97c681e80083d952c6fc2629b54bfe994f144660fa130d",
+  "target": "consolidated monthly revenue_usd",
+  "currency": "USD",
+  "forecast_origin": "2023-12-31",
+  "horizon_months": 24,
+  "train": {
+    "start": "2016-01-01",
+    "end": "2023-12-01",
+    "rows": 96
+  },
+  "test": {
+    "start": "2024-01-01",
+    "end": "2025-12-01",
+    "rows": 24
+  },
+  "model": {
+    "mse_usd2": 998274423.7899455,
+    "rmse_usd": 31595.481065968048,
+    "mae_usd": 23862.12524242376,
+    "r2": 0.8165849463657642,
+    "mape_percent": 2.922268959301433
+  },
+  "baseline": {
+    "mse_usd2": 3524770092.817375,
+    "rmse_usd": 59369.77423586328,
+    "mae_usd": 48253.61000000001,
+    "r2": 0.3523865980979157,
+    "mape_percent": 6.061713005465327
+  },
+  "beats_baseline_rmse": true,
+  "psi_diagnostic": {
+    "value": 9.900316152239887,
+    "reference": "train actual revenue",
+    "current": "test actual revenue",
+    "train_bin_edges": [
+      "-inf",
+      502815.78,
+      532501.79,
+      552027.255,
+      575760.28,
+      601645.16,
+      621024.75,
+      647810.715,
+      672886.21,
+      712753.905,
+      "+inf"
+    ],
+    "smoothing": 1e-06,
+    "high_drift_heuristic": true
+  },
+  "normalized_gini_diagnostic": 0.868292691227726,
+  "k2_score": 6.100411016125004,
+  "k2_normality": {
+    "statistic": 6.100411016125004,
+    "p_value": 0.04734919275034671,
+    "n_residuals": 24,
+    "alpha": 0.05,
+    "reject_normality": true,
+    "definition": "D'Agostino-Pearson K\u00b2 = Z_skewness\u00b2 + Z_kurtosis\u00b2 on test actual - prediction",
+    "caveat": "Exploratory under temporal dependence; does not test zero bias or independence"
+  },
+  "k2_status": "Confirmed in the official reference solution of the original regression activity",
+  "kendall_tau_b_diagnostic": 0.5579710144927535,
+  "band": {
+    "label": "Estimated variability, nominal 90%; coverage not guaranteed",
+    "half_width_usd": 52593.9672428841,
+    "calibration_folds": [
+      {
+        "train_start": "2016-01-01",
+        "train_end": "2019-12-01",
+        "validation_start": "2020-01-01",
+        "validation_end": "2021-12-01",
+        "horizon_months": 24,
+        "rmse_usd": 33640.16698956495
+      },
+      {
+        "train_start": "2016-01-01",
+        "train_end": "2021-12-01",
+        "validation_start": "2022-01-01",
+        "validation_end": "2023-12-01",
+        "horizon_months": 24,
+        "rmse_usd": 26464.800654834413
+      }
+    ],
+    "test_pointwise_coverage": 0.9166666666666666
+  },
+  "trend_slope_usd_per_month": 2612.198015328269,
+  "forest_feature_importances": {
+    "month_number": 0.6477077486211774,
+    "month_sin": 0.018149605509120564,
+    "month_cos": 0.334142645869702
+  }
+}

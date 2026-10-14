@@ -1512,3 +1512,31 @@ Antes de implementar Celery se probó la base sin dependencias nuevas: fallo de 
 por subflow ausente, parada explícita y decisión del usuario; después, 18 pruebas
 pipeline/nocturno verdes. El commit de reparación recupera exactamente el flow
 de PR #23 y corrige las fechas de sus escenarios unitarios, sin reescribir negocio.
+
+
+## Predicción de Ventas con un Modelo de Regresión — 2026-10-12
+
+Rama `feature/brasaland-sales-regression`, apilada sobre PR #25 (`96e75cd`), sin modificar ni fusionar esa PR. La búsqueda inicial no encontró CSV en el monorepo; el usuario aportó una copia externa y se verificó igualdad de filas con el original de la academia. Se incorporó el original desde commit fijado junto con su contexto de forecasting y hashes, preservando documentos protegidos.
+
+Experimento aislado uv, con partición temporal 96/24, tendencia ajustada con entrenamiento y RandomForestRegressor estacional. Solo variables de calendario conocidas desde cierre de 2023. La banda se estima exclusivamente con dos validaciones temporales internas de 24 meses. El baseline repite el último año observado para ambos años futuros.
+
+En test el RMSE del modelo es 31.595,48 USD frente a 59.369,77 USD del baseline (−46,78%), MAPE 2,92%, R² 0,8166. Banda ±52.593,97 USD con cobertura observada 22/24, sin garantía. PSI 9,9003 y Gini normalizado 0,8683 son diagnósticos con cálculo documentado. K2 sigue pendiente porque no existe definición oficial confirmada; ni R² ni Kendall tau lo sustituyen.
+
+Se entregan modelo, tabla de predicciones, métricas y gráfica en `data/eval/sales_forecasting/`. El [informe para el profesor](../docs/sales-forecasting/README.md) explica fuente, esquema, algoritmo, fórmulas y limitaciones. La [evidencia de validación](../docs/sales-forecasting/VALIDATION.md) registra 14 pruebas nuevas, 211 regresiones existentes con PostgreSQL aislado, typecheck raíz, Ruff, Mypy, build y repetibilidad byte por byte de cuatro artefactos.
+
+```bash
+uv sync --project experiments/sales_forecasting --frozen
+uv run --project experiments/sales_forecasting --frozen python scripts/train_sales_model.py
+uv run --project experiments/sales_forecasting --frozen pytest tests/pipelines/test_sales_forecasting.py -q
+```
+
+No se promete dashboard ni uso financiero productivo. El CSV es material educativo preexistente, ya consolidado en USD, sin detalle de sedes ni conversión monetaria original auditable. La interpretación académica de K2, PSI y Gini queda explícitamente pendiente en la documentación de entrega.
+
+
+### Cierre de K2 en la entrega de ventas — 2026-10-12
+
+La investigación solicitada en la organización encontró [la definición oficial](https://github.com/4GeeksAcademy/ai-engineering-syllabus/blob/2869fa3d9a89b820aab4b8f6adaaadd63d37e530/content/projects/ai-eng-sales-forecasting-regression/.learn/solution/README.md) en la solución de referencia original (commit `2869fa3`). K2 corresponde a D’Agostino–Pearson aplicado a residuos del test. La ruta original fue renombrada a `ai-eng-sales-forecasting-timeseries`; se verificó el historial para evitar asumir equivalencia con la actividad nueva.
+
+Se incorporó `scipy.stats.normaltest(actual - prediction)`, con K²=6,1004, p=0,04735 y n=24. Se documenta rechazo de normalidad al 5% bajo sus supuestos y cautela por dependencia temporal; no se afirma que evalúe sesgo o independencia. R² y Kendall tau siguen separados. No se cambió ningún parámetro ni banda después de ver este diagnóstico.
+
+Validación: 18 pruebas pasando, incluida fórmula Z_asimetría² + Z_curtosis² y casos degenerados; Ruff/Mypy/typecheck raíz/build OK. Dos ejecuciones reproducibles; hashes de modelo, CSV de predicciones y gráfica idénticos a la entrega previa. Informe, manifest de fuentes, métricas y descripción de PR #26 actualizados. PR #25 no se modifica.
