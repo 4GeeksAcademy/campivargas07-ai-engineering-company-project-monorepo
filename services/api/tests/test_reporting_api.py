@@ -100,7 +100,7 @@ def test_trigger_run_role_authorization(api_client, auth_headers_by_role):
     """
     from unittest.mock import patch
 
-    with patch("app.domains.reporting.service._run_pipeline_background"):
+    with patch("app.domains.reporting.service.run_inventory_health.apply_async"):
         user_headers = auth_headers_by_role("user")
         res_user = api_client.post("/reporting/inventory-health/runs", headers=user_headers)
         assert res_user.status_code == 403

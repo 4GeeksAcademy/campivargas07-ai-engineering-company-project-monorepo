@@ -14,6 +14,7 @@ import os
 import sys
 import uuid
 from typing import Any
+from datetime import datetime, timezone
 
 # Ensure monorepo root is on sys.path
 repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
@@ -200,7 +201,7 @@ def test_reconciliation_and_kpi_calculation_canonical_scenario() -> None:
     - is_below_minimum: True
     - Insufficient stock attempts: 2
     """
-    snapshot_date = "2026-09-28"
+    snapshot_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
     extracted_data = {
         "ingredients": SAMPLE_CATALOG,
@@ -291,7 +292,7 @@ def test_subflow_coordination_and_propagation() -> None:
     - Coordinates validation, deduplication, reconciliation, and KPI calculation.
     - Operates purely in-memory without database or external server dependencies.
     """
-    snapshot_date = "2026-09-28"
+    snapshot_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     valid_event_id = str(uuid.uuid4())
     dup_event_id = str(uuid.uuid4())
 

@@ -1,0 +1,11 @@
+worker-1  | [2026-10-09 19:02:44,376: INFO/ForkPoolWorker-1] task_id=ccb22763-ff7f-49bf-a054-c14dc2f34e8e attempt=1 status=started duration_seconds=0
+worker-1  | [2026-10-09 19:03:23,681: INFO/ForkPoolWorker-1] task_id=ccb22763-ff7f-49bf-a054-c14dc2f34e8e attempt=1 status=success duration_seconds=39.506
+worker-1  | [2026-10-09 19:03:52,287: INFO/ForkPoolWorker-1] task_id=247474fd-bca5-4753-9cc3-18d34f7459db attempt=1 status=started duration_seconds=0
+worker-1  | [2026-10-09 19:03:52,323: WARNING/ForkPoolWorker-1] task_id=247474fd-bca5-4753-9cc3-18d34f7459db attempt=1 status=retry duration_seconds=0.052 retry_in_seconds=5 error=OperationalError: inventory health task failed
+worker-1  | [2026-10-09 19:03:57,337: INFO/ForkPoolWorker-1] task_id=247474fd-bca5-4753-9cc3-18d34f7459db attempt=2 status=started duration_seconds=0
+worker-1  | [2026-10-09 19:03:57,342: WARNING/ForkPoolWorker-1] task_id=247474fd-bca5-4753-9cc3-18d34f7459db attempt=2 status=retry duration_seconds=0.01 retry_in_seconds=10 error=OperationalError: inventory health task failed
+worker-1  | [2026-10-09 19:04:07,362: INFO/ForkPoolWorker-1] task_id=247474fd-bca5-4753-9cc3-18d34f7459db attempt=3 status=started duration_seconds=0
+worker-1  | [2026-10-09 19:04:07,371: WARNING/ForkPoolWorker-1] task_id=247474fd-bca5-4753-9cc3-18d34f7459db attempt=3 status=retry duration_seconds=0.008 retry_in_seconds=20 error=OperationalError: inventory health task failed
+worker-1  | [2026-10-09 19:04:27,380: INFO/ForkPoolWorker-1] task_id=247474fd-bca5-4753-9cc3-18d34f7459db attempt=4 status=started duration_seconds=0
+worker-1  | [2026-10-09 19:04:27,389: ERROR/ForkPoolWorker-1] task_id=247474fd-bca5-4753-9cc3-18d34f7459db attempt=4 status=failure duration_seconds=0.005 error=OperationalError: inventory health task failed
+worker-1  | [2026-10-09 19:04:27,394: ERROR/ForkPoolWorker-1] task_id=247474fd-bca5-4753-9cc3-18d34f7459db attempt=4 status=failure duration_seconds=0.016

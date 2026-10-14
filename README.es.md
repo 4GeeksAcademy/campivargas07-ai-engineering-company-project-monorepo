@@ -119,3 +119,99 @@ Esta plantilla fue creada como parte del Programa de Carrera de Ingeniería de I
 Puedes encontrar otras plantillas y recursos similares en la [página de GitHub de 4Geeks Academy](https://github.com/4geeksacademy).
 
 _Esta plantilla la mantiene 4Geeks Academy para el track de Ingeniería de IA. Uso exclusivo del programa._
+# DEV-55: corridas asíncronas de salud de inventario
+
+`POST /reporting/inventory-health/runs` requiere un usuario `admin` o `manager`
+y publica en Redis una tarea Celery con **solo el UUID de la corrida**. Devuelve
+`202`, los campos anteriores y `task_id`, idéntico a `flow_run_id`. El worker
+independiente recupera los datos de PostgreSQL y llama al pipeline Prefect
+existente. El proceso nocturno, cron y `job_runs` mantienen sus contratos.
+
+Configura `.env` con `DATABASE_URL` accesible desde los contenedores,
+`SECRET_KEY`, `REDIS_URL=redis://redis:6379/0` y credenciales locales propias
+`FLOWER_BASIC_AUTH=usuario:contraseña`. Las migraciones de reporting anteriores
+deben estar aplicadas. La migración `services/api/migrations/004_create_async_tasks.sql`
+crea `async_tasks` y `task_dead_letters`; la API también registra estas tablas
+mediante `init_db()`. No configura ni modifica un cron.
+
+```bash
+# Redis y worker pueden vivir sin la API.
+docker compose up -d --build redis backend worker
+# Monitor opcional: exige FLOWER_BASIC_AUTH; solo escucha en localhost:5555.
+docker compose --profile monitoring up -d --build flower
+docker compose logs -f worker
+# Detener sin borrar datos persistentes; el worker tiene parada gradual.
+docker compose --profile monitoring stop backend worker flower redis
+# Retirar contenedores conservando los volúmenes AOF y Flower.
+docker compose --profile monitoring down
+```
+
+Redis usa imagen oficial, AOF (`appendfsync everysec`), volumen persistente y
+`noeviction`; el puerto de desarrollo 6379 escucha solo en localhost. Flower
+usa autenticación HTTP Basic, perfil `monitoring`, almacenamiento persistente y
+puerto 5555 solo en localhost. En Codespaces, mantén el puerto reenviado privado.
+El build de `services/Dockerfile` usa contexto raíz e incluye `data/pipelines/`;
+los bind mounts de desarrollo de la API conservan ese import mediante `PYTHONPATH`.
+
+Consulta `GET /tasks/{task_id}` con Bearer: devuelve
+`{task_id, status, result}`, con estados `pending` (PENDING/RECEIVED/RETRY),
+`started`, `success` o `failure` (también REVOKED). Un UUID desconocido retorna
+`404`; un resultado terminal de más de 24 horas retorna `410`. El registro
+PostgreSQL distingue IDs reales de la respuesta PENDING genérica de Celery y
+conserva resultados ante pérdida de la clave Redis. Un fallo del broker al
+publicar devuelve `503` y deja la corrida `FAILED`, nunca un `202` engañoso.
+La consulta anterior `GET /reporting/inventory-health/runs/{flow_run_id}` sigue
+disponible, incluyendo los resultados `COMPLETED`, `FAILED` y `SKIPPED`.
+
+La tarea usa seguimiento STARTED, ACK tardío, prefetch 1, límite suave de
+840 segundos y duro de 900; la visibilidad Redis es de 1800 segundos.
+`max_retries=3` significa **tres reintentos además del intento inicial** (cuatro
+intentos máximos): backoff 5, 10 y 20 segundos solo para fallos transitorios
+de conexión, pool, serialización, deadlock o timeout de PostgreSQL. Los reintentos
+internos de las tareas Prefect previas se conservan. Los fallos permanentes van
+a DLQ inmediatamente; al agotarse los reintentos también se guarda una entrada
+única en `task_dead_letters` con UUID, intento (1–4), error sanitizado y timestamp.
+Los rechazos de publicación (intento 0) no son tareas ejecutadas ni entradas DLQ.
+La reentrega de una tarea completada devuelve su resultado persistido; el contador
+duradero impide ejecutar un quinto intento incluso después de una caída del worker; la
+idempotencia de UPSERT y el advisory lock del pipeline se conservan.
+
+Los logs registran duración, intento y estado sin texto libre de excepciones ni
+credenciales. Ante indisponibilidad de PostgreSQL, el worker rechaza y reencola
+la entrega para evitar confirmar una DLQ que no pudo persistir. Redis AOF con
+`everysec` puede perder hasta aproximadamente un segundo de escrituras ante una
+caída abrupta del host: esta configuración es para desarrollo, no una garantía
+de entrega exactamente una vez ni un outbox transaccional.
+
+Ejecuta la demostración real aislada (Docker Compose ≥2.24.4):
+
+```bash
+python scripts/demo_async_tasks.py
+```
+
+La demo crea su propio PostgreSQL, usuarios, Redis, API, worker y Flower, sin usar
+la base operativa. Publica con el worker detenido, comprueba el mensaje UUID-only,
+detiene la API y termina el pipeline real desde el worker. Luego provoca un error
+**real** PostgreSQL `40001` mediante un wrapper exclusivo de demo
+(`scripts/demo_async_worker.py`) para verificar backoff, cuatro intentos, DLQ y
+Flower FAILURE. Comprueba Flower SUCCESS y el `503` con Redis apagado. Genera
+evidencias en `docs/pr-assets/dev55/` y retira únicamente su proyecto y volúmenes.
+Ese wrapper no se utiliza en el worker normal. Puertos temporales: 18055 (API),
+16355 (Redis), 15555 (Flower). No se añaden dependencias Python para la demo.
+
+Pruebas (usa exclusivamente una base PostgreSQL de pruebas):
+
+```bash
+PYTHONPATH=services/api:. SUPPLIERS_DB_PATH=/tmp/brasaland-tests-users.json \
+  TEST_DATABASE_URL="$TEST_DATABASE_URL" \
+  services/api/.venv/bin/python -m pytest services/api/tests tests/pipelines tests/scripts -q
+```
+
+Capturas opcionales de Flower en navegador real (Playwright fuera del repo):
+
+```bash
+npm install --prefix /tmp/dev55-browser playwright
+/tmp/dev55-browser/node_modules/.bin/playwright install chromium
+DEV55_PLAYWRIGHT_MODULE=/tmp/dev55-browser/node_modules/playwright \
+  python scripts/demo_async_tasks.py
+```

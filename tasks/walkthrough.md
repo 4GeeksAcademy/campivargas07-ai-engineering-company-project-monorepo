@@ -1457,3 +1457,58 @@ tests/scripts/test_nightly_export.py ..............                      [100%]
 - **Zonas Protegidas**: Intactas sin modificaciones (`CONTEXT.md`, `company-choice.md`, `memory-bank/projectbrief.md`, `memory-bank/techContext.md`).
 
 
+
+## DEV-55 — Corrección previa de la base PR #24 (2026-10-09)
+
+- Base: `feat/business-performance-pipeline-final`, merge #24 `f3e14370944a681bd91d6046077938f7c3cdb2b1`; GitHub confirma que `main` no lo contiene. Rama de entrega limpia inicial: `feature/dev-55-celery-async-tasks`.
+- Antes de instalar dependencias, `services/api/.venv/bin/python -m pytest -p no:cacheprovider tests/pipelines -q` falló con exit 2: import inexistente `transform_inventory_health_data_flow` en `tests/pipelines/test_pipeline.py:23`. Se detuvo DEV-55 y el usuario autorizó corregir la base.
+- Restaurado `data/pipelines/inventory_health/flow.py` exactamente desde `51279d6` (PR #23): recupera los tres subflujos y su coordinación original, sin cambiar reglas, tareas ni contratos. Las fechas de dos escenarios unitarios usan el día UTC actual porque el reconciliador añade siempre una partición para hoy.
+- Verificación sin dependencias nuevas: `tests/pipelines tests/scripts`: **18 passed**, exit 0. Prefect requiere sockets locales para su servidor efímero; la prueba se ejecutó fuera del sandbox. Se observó un aviso de logging de Prefect al cerrar pytest, sin afectar resultados.
+- El proceso nocturno, su CLI y `job_runs` permanecen intactos. Corrección separada de la implementación de Celery.
+
+## DEV-55 — Redis, Celery y Flower (2026-10-09)
+
+- Base confirmada en GitHub y `git ls-remote`: `feat/business-performance-pipeline-final` contiene íntegramente #24 (`f3e1437`); `main` sigue en `bb559ab` y no la contiene. Entrega en `feature/dev-55-celery-async-tasks`, PR dirigida a esa base. La regresión previa se corrigió por separado en `791ab4f`, con autorización del usuario.
+- Operación elegida: `POST /reporting/inventory-health/runs`. Sustituido exclusivamente BackgroundTasks por publicación Celery; roles admin/manager y campos previos preservados, con `task_id == flow_run_id`. Redis recibe únicamente el UUID; el worker llama al pipeline existente.
+- Dominio `services/api/app/domains/tasks/`: registro persistente `async_tasks` y DLQ independiente `task_dead_letters`, sin mapeo adicional ni uso de `job_runs`. Consulta autenticada `/tasks/{task_id}`: pending/started/success/failure; desconocidos 404, resultados terminales de más de 24 h 410. Rechazo de publicación: 503 y corrida FAILED.
+- Worker independiente: STARTED, ACK tardío, límites 840/900 s, prefetch 1 y visibilidad Redis 1800 s. Máximo tres reintentos adicionales al intento inicial (5/10/20 s) solo para fallos transitorios; contador persistente impide un quinto intento por reentrega. Callback de Request persiste DLQ antes del ACK en timeout duro; si falla publicar un reintento, la entrega se reencola.
+- Compose raíz: Redis oficial 7.4-alpine, AOF everysec, noeviction y localhost:6379; Flower opcional con Basic Auth, persistencia y localhost:5555. Imagen Python con contexto raíz y pipeline en `/monorepo/data/pipelines`, fuera del bind mount de services. Arranque efímero de Prefect admite 120 s para inicializar su servidor local.
+- Validaciones definitivas: **211 pruebas pasando, 0 omitidas**, en backend + pipeline + nocturno, contra PostgreSQL exclusivo `brasaland_dev55_test`; incluyen 31 casos asíncronos. `npm run typecheck`, build Python (sdist/wheel), sintaxis y build Docker de API/worker/Flower: OK. Se conserva un aviso de logging de Prefect al finalizar pytest y 88 DeprecationWarnings SQLite; exit 0.
+- Demo real con imagen definitiva: POST 202 en **0.146 s**, UUID-only verificado leyendo Redis; worker completó pipeline con API detenida, generó 1 instantánea y Flower SUCCESS en 39.69 s. Error real PostgreSQL SQLSTATE 40001 inyectado por wrapper exclusivo de demo: tres reintentos, Flower FAILURE y DLQ duradera en intento 4. Broker apagado: HTTP 503, async_tasks FAILURE y pipeline FAILED.
+- Evidencias versionadas: `docs/pr-assets/dev55/results.json`, `worker.log`, HTML y capturas PNG de Flower SUCCESS/FAILURE. `scripts/demo_async_tasks.py` usa PostgreSQL, usuarios y volúmenes propios y los retira al terminar. Los contenedores y datos preexistentes permanecen intactos.
+- README en ambos idiomas documenta configuración, migraciones, arranque/parada, contratos, reintentos y demo, incluyendo screenshots opcionales con Playwright externo al repo.
+- Etiqueta `async-tasks`: no existe (consulta de etiquetas remotas); no se creó una etiqueta nueva.
+- Límites: AOF everysec admite pérdida aproximada de un segundo ante caída abrupta del host; no se afirma exactly-once ni outbox transaccional. Worker conserva idempotencia/lock del pipeline. Proceso nocturno, cron, `job_runs`, infra/, mcps/ y demás zonas protegidas sin cambios.
+
+### Recorrido reproducible y evidencia
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=services/api:. \
+  SUPPLIERS_DB_PATH=/tmp/brasaland-dev55-tests-users.json \
+  TEST_DATABASE_URL="$TEST_DATABASE_URL" \
+  services/api/.venv/bin/python -m pytest -p no:cacheprovider \
+  services/api/tests tests/pipelines tests/scripts -q
+
+DEV55_PLAYWRIGHT_MODULE=/tmp/dev55-browser/node_modules/playwright \
+  python scripts/demo_async_tasks.py
+```
+
+La segunda variable es opcional y apunta a una instalación externa de Playwright
+y Chromium. Sin ella, la demo comprueba Flower vía HTTP y conserva sus páginas HTML.
+El wrapper de fallos `scripts/demo_async_worker.py` no se importa por el worker normal.
+
+IDs de la ejecución verificada:
+
+- SUCCESS: `ccb22763-ff7f-49bf-a054-c14dc2f34e8e`; corrida COMPLETED y snapshot con stock ratio 0.75.
+- FAILURE/DLQ: `247474fd-bca5-4753-9cc3-18d34f7459db`; número de intento 4, error `OperationalError: inventory health task failed`, timestamp `2026-10-09 19:04:27.386088+00:00`.
+
+Fragmento real de reintento sanitizado:
+
+```text
+[2026-10-09 19:03:52,323: WARNING/ForkPoolWorker-1] task_id=247474fd-bca5-4753-9cc3-18d34f7459db attempt=1 status=retry duration_seconds=0.052 retry_in_seconds=5 error=OperationalError: inventory health task failed
+```
+
+Antes de implementar Celery se probó la base sin dependencias nuevas: fallo de colección
+por subflow ausente, parada explícita y decisión del usuario; después, 18 pruebas
+pipeline/nocturno verdes. El commit de reparación recupera exactamente el flow
+de PR #23 y corrige las fechas de sus escenarios unitarios, sin reescribir negocio.

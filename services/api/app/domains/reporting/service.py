@@ -10,25 +10,14 @@ import logging
 from typing import Any, Optional
 from uuid import UUID
 
-from fastapi import BackgroundTasks, HTTPException, status
+from fastapi import HTTPException, status
 
 from app.domains.reporting.repository import ReportingRepository
-from data.pipelines.inventory_health.flow import (
-    inventory_health_business_flow,
-    trigger_inventory_health_flow,
-)
+from data.pipelines.inventory_health.flow import trigger_inventory_health_flow
+from app.domains.tasks.repository import TaskRepository
+from app.worker.inventory_health import run_inventory_health
 
 logger = logging.getLogger("reporting_service")
-
-
-def _run_pipeline_background(flow_run_id: str) -> None:
-    """Target worker function executed in the background by FastAPI BackgroundTasks."""
-    try:
-        logger.info("Executing background inventory health pipeline run %s...", flow_run_id)
-        result = inventory_health_business_flow(run_id=flow_run_id)
-        logger.info("Background run %s completed with status: %s", flow_run_id, result.get("status"))
-    except Exception as exc:
-        logger.error("Background run %s failed with exception: %s", flow_run_id, exc)
 
 
 class ReportingService:
@@ -38,7 +27,6 @@ class ReportingService:
     def trigger_run(
         self,
         current_user: dict[str, Any],
-        background_tasks: BackgroundTasks,
     ) -> dict[str, Any]:
         """
         Enqueues an asynchronous inventory health pipeline run.
@@ -52,12 +40,22 @@ class ReportingService:
             )
 
         user_uuid = current_user.get("uuid") or str(current_user.get("id"))
-        enqueue_info = trigger_inventory_health_flow(triggered_by=user_uuid)
-        flow_run_id = enqueue_info["flow_run_id"]
-
-        # Enqueue background execution without blocking HTTP response
-        background_tasks.add_task(_run_pipeline_background, flow_run_id)
-
+        flow_run_id = None
+        task_repository = TaskRepository(self.repository.engine)
+        try:
+            enqueue_info = trigger_inventory_health_flow(triggered_by=user_uuid)
+            flow_run_id = enqueue_info["flow_run_id"]
+            task_repository.register(flow_run_id)
+            run_inventory_health.apply_async(args=[flow_run_id], task_id=flow_run_id, retry=False)
+        except Exception:
+            if flow_run_id:
+                try:
+                    task_repository.failed(flow_run_id, "Task publication failed", 0, dead_letter=False)
+                except Exception:
+                    logger.error("task_id=%s status=publication_cleanup_failure", flow_run_id)
+            logger.error("task_id=%s attempt=0 status=publication_failure", flow_run_id)
+            raise HTTPException(503, "Inventory health task could not be queued") from None
+        enqueue_info["task_id"] = flow_run_id
         return enqueue_info
 
     def get_run_status(self, flow_run_id: str) -> dict[str, Any]:

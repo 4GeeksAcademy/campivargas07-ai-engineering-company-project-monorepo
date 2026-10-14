@@ -119,3 +119,71 @@ This template was built as part of the 4Geeks Academy AI Engineering Career Prog
 You can find other templates and resources like this at the [4Geeks Academy GitHub page](https://github.com/4geeksacademy).
 
 _This template is maintained by 4Geeks Academy for the AI Engineering track. For exclusive use in the programme._
+# DEV-55: asynchronous inventory health runs
+
+`POST /reporting/inventory-health/runs` keeps its admin/manager authorization and
+existing response fields, adding `task_id` equal to `flow_run_id`. Only that UUID
+is sent through Redis. A separate Celery worker imports the existing Prefect
+pipeline and retrieves inputs from PostgreSQL. The nightly CLI, cron and
+`job_runs` are unchanged.
+
+Set `DATABASE_URL`, `SECRET_KEY`, `REDIS_URL=redis://redis:6379/0` and your own
+local `FLOWER_BASIC_AUTH=user:password` in `.env`. Apply the existing reporting
+migrations and `services/api/migrations/004_create_async_tasks.sql`; API
+`init_db()` also registers the new tracking/DLQ tables.
+
+```bash
+docker compose up -d --build redis backend worker
+docker compose --profile monitoring up -d --build flower
+docker compose logs -f worker
+docker compose --profile monitoring stop backend worker flower redis
+docker compose --profile monitoring down  # preserves persistent volumes
+```
+
+Redis uses AOF, `appendfsync everysec`, persistent storage and `noeviction`,
+binding port 6379 to localhost. Flower requires Basic authentication, uses the
+opt-in `monitoring` profile, persists its events and binds port 5555 to localhost.
+Keep Codespaces port forwarding private. The Python image builds from the repo
+root and includes `data/pipelines/`, so both API and worker can import it.
+
+Authenticated `GET /tasks/{task_id}` returns `{task_id, status, result}` with
+`pending`, `started`, `success` or `failure`. Unknown UUIDs return 404; terminal
+results older than 24 hours return 410. Persistent tracking distinguishes a
+genuine pending task from Celery's generic PENDING response and retains terminal
+results if the Redis key disappears. Broker publication errors return 503 and
+mark the scheduled flow FAILED. The existing reporting run-status GET remains.
+
+Tasks track STARTED, ACK late, prefetch one message, and use 840/900-second
+soft/hard limits with a 1800-second Redis visibility timeout. `max_retries=3`
+means **three retries plus the initial attempt**, using 5/10/20-second exponential
+backoff only for transient errors. Existing Prefect retries are preserved.
+Permanent or exhausted failures create one durable `task_dead_letters` row with
+UUID, attempt, sanitized error and timestamp. Publication failures (attempt 0)
+do not enter the execution DLQ. Completed redeliveries reuse their saved result; a durable attempt counter prevents
+a fifth business execution even after worker loss;
+the pipeline's advisory lock and UPSERT idempotency remain in force. Logs contain
+duration, attempt and state without credentials or raw exceptions. When durable
+storage is unavailable, the worker requeues rather than acknowledging a missing
+DLQ entry. AOF `everysec` can lose about one second of writes on abrupt host loss;
+this development setup does not claim exactly-once delivery or a transactional
+outbox.
+
+Run the real isolated demo (Docker Compose ≥2.24.4):
+
+```bash
+python scripts/demo_async_tasks.py
+```
+
+It provisions its own PostgreSQL, Redis, users and containers, verifies a fast
+202 and UUID-only message while the worker is stopped, then stops the API while
+the worker completes the real pipeline. A demo-only wrapper executes a real
+PostgreSQL SQLSTATE 40001 error to demonstrate retries, the fourth failed attempt,
+DLQ and Flower FAILURE alongside SUCCESS. It also checks 503 with Redis stopped.
+Evidence is saved under `docs/pr-assets/dev55/`; only demo resources are removed.
+Temporary ports: API 18055, Redis 16355, Flower 15555. The normal worker never
+loads the fault-injection wrapper. See [Spanish instructions](README.es.md) for
+the full retry policy and test command.
+
+For optional real-browser Flower screenshots, install Playwright outside the repo
+(e.g. `/tmp/dev55-browser`) and its Chromium browser, then run the demo with
+`DEV55_PLAYWRIGHT_MODULE=/tmp/dev55-browser/node_modules/playwright`.

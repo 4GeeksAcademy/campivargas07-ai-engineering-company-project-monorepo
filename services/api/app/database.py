@@ -86,6 +86,7 @@ def init_db(bind_engine=None) -> None:
     )
     from app.domains.telemetry.models import TelemetryEventRecord  # noqa: F401
     from app.domains.jobs.models import JobRunRecord  # noqa: F401
+    from app.domains.tasks.models import AsyncTaskRecord, TaskDeadLetter  # noqa: F401
 
     engine = bind_engine or get_db_engine()
     SQLModel.metadata.create_all(engine)
