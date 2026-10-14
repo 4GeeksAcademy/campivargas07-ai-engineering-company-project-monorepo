@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 type BackofficeHeaderProps = {
-  activeView: "overview" | "incidents" | "inventory" | "suppliers" | "profile";
+  activeView: "overview" | "incidents" | "inventory" | "suppliers" | "profile" | "knowledge";
   badge: string;
 };
 
@@ -26,6 +26,9 @@ export function BackofficeHeader({ activeView, badge }: BackofficeHeaderProps) {
           </Link>
           <Link className={activeView === "incidents" ? "nav-link nav-link-active" : "nav-link"} href="/backoffice/incidents">
             Incidencias
+          </Link>
+          <Link className={activeView === "knowledge" ? "nav-link nav-link-active" : "nav-link"} href="/backoffice/knowledge">
+            Base de conocimiento
           </Link>
           <Link className={activeView === "suppliers" ? "nav-link nav-link-active" : "nav-link"} href="/backoffice/suppliers">
             Proveedores

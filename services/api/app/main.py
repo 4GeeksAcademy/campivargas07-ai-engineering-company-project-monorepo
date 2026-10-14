@@ -11,6 +11,7 @@ from app.domains.analytics.incidents.router import router as analytics_incidents
 from app.domains.auth.router import router as auth_router
 from app.domains.incidents.errors import register_incident_error_handlers
 from app.domains.incidents.router import router as incidents_router
+from app.domains.knowledge.router import router as knowledge_router
 from app.domains.operations.inventory.router import router as inventory_router
 from app.domains.procurement.suppliers.router import router as suppliers_router
 from app.domains.profiles.router import router as profiles_router
@@ -36,7 +37,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Brasaland API",
-    description="Internal API for Brasaland operations: inventory, suppliers, auth, incidents.",
+    description="Internal API for Brasaland operations, knowledge, and reporting.",
     version="0.5.0",
     lifespan=lifespan,
 )
@@ -69,6 +70,7 @@ app.include_router(analytics_incidents_router)
 app.include_router(incidents_router)
 app.include_router(inventory_router)
 app.include_router(telemetry_router)
+app.include_router(knowledge_router)
 
 
 @app.get("/health", response_model=HealthResponse, tags=["health"])
