@@ -17,7 +17,6 @@ RUN uv venv /opt/venv && \
 COPY services/api /app/api
 COPY services/data /app/data
 COPY data /monorepo/data
-COPY docs/company-knowledge-base /monorepo/docs/company-knowledge-base
 
 RUN groupadd -g 1000 appuser && \
     useradd -u 1000 -g appuser -m appuser && \

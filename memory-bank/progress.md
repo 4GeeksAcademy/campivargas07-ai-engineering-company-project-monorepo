@@ -1,10 +1,17 @@
 # Milestone 7: RAG y Base de Conocimiento (en progreso)
-- Rama `feature/rag-knowledge-base` basada en `origin/main`; no se incorporó PR #73.
-- Corpus allowlisted de cuatro manuales oficiales, contexto del hito y módulos de carga/chunking, adaptadores HTTP, Qdrant, retrieval/generation y endpoint FastAPI autenticado.
-- Backoffice `/backoffice/knowledge` añadido con cliente Bearer y estados de interacción; dataset (16 in-scope + 2 fuera) y runner Recall@3 preparados.
-- Verificado: pruebas Python locales de corpus/chunking y guard (3/3), Compose config con placeholders, compileall y Vitest dirigido (5/5).
-- Bloqueos: endpoint/modelos/dimensiones aprobados no proporcionados; adaptadores OpenAI-compatible son provisionales; falta `uv.lock`, pruebas FastAPI, validación Qdrant y evaluación real. No publicar KPI inventado.
-- `npm run typecheck` global falla en tres errores existentes ajenos a esta rama de trabajo: `src/lib/auth/context.tsx`, `src/services/telemetry.ts`, `src/test/telemetry-service.test.ts`.
+
+Estado actualizado el 15 de octubre de 2026 (America/Mexico_City), continuación de sesión del 14.
+
+- Se conserva `feature/rag-knowledge-base`, dos commits RAG sobre el ref local `origin/main` (`810a873`), backup y dos stashes. Cambios de cierre locales sin commit; no hubo push/merge/PR ni integración de ventas/Redis/Celery.
+- Fuentes/contexto ya implementados se conservaron sin reconstrucción: cuatro manuales oficiales, 18 chunks locales (lealtad 5, desperdicio 5, alérgenos 4, proveedores 4), API autenticada y Knowledge.
+- Usuario confirmó **Perplexity directo**. Se verificó documentación vigente: `/v1/embeddings` signed base64 INT8 + COSINE; `/v1/agent` con modelo explícito, sin preset/tools y un paso. Adaptadores `httpx` distinguen ese contrato del modo float compatible de proxy, aún sin contrato 4Geeks confirmado. No se añadieron dependencias.
+- Embeddings validan dimensión, decodificación con signo, finitud y vector no nulo. Setup/consulta verifican identidad de modelo/proveedor/endpoint/dimensión/codificación/preprocesamiento en Qdrant; incompatibilidad o metadata ausente exige migración explícita sin borrado automático.
+- El contexto vacío pasa por el generador. Los rechazos de grounding/errores se reportan como error 503; no se reemplaza silenciosamente salida por texto fijo atribuido al modelo. Los guards son léxicos conservadores, no prueba de fidelidad semántica.
+- **Verificado esta sesión:** API **250 passed, 5 skipped** (PostgreSQL sin `TEST_DATABASE_URL`); 74 HTTP proveedores y 40 pipeline incluidos en ese total; corpus 3 + evaluación 11 pasan; Backoffice **112 pruebas** y lint dirigido PASS; lock/Compose/build Docker e imports/corpus en imagen verificados. El TestClient requirió ejecución autorizada fuera del sandbox; un fallo temporal de revisión de aprobación se resolvió al continuar.
+- Typecheck Backoffice: tres errores reproducidos en baseline `810a873` (auth/context, telemetry y su mock fetch), archivos idénticos a base. Build de rama/base falla **antes** al descargar Google Fonts; no atribuir ese fallo de build a tipos. Causas/arreglos mínimos documentados, sin modificar módulos ajenos ni reducir comprobaciones.
+- Evaluador conserva 16 preguntas dentro +2 fuera; exige evidencia textual completa en top-3, no sólo fuente/sección. Guarda manifiesto/hash/configuración no secreta, contexto/respuestas/fallos, revisión manual separada y probe adversarial adicional. Ejecución sin configuración comprobada: bloqueada con métricas `null`, sin HTTP.
+- **Pendiente:** claves locales/modelo de generación habilitado, smoke/indexación/consulta reales, doble setup/conteo real, calibración `KNOWLEDGE_MIN_SCORE`, Recall@3 real ≥13/16, fidelidad y E2E navegador/API/Qdrant/modelos. No declarar hito completado ni presentar mocks como KPI real.
+- Antecedentes previos preservados, no nueva evidencia: API 137/5 skipped, corpus 3, pipeline 5, UI dirigida 12 y Qdrant saludable. Procedimiento/configuración y cinco skipped detallados en `docs/rag/rag-evaluation-report.md`; diseño actualizado en `docs/rag/rag-design.md`, seguimiento en `tasks/rag-plan.md`/`rag-todo.md` y borrador de entrega en `tasks/walkthrough.md`.
 
 # Brasaland Progress
 

@@ -34,6 +34,7 @@ build-backend = "setuptools.build_meta"
 packages = { find = { where = ["."], include = ["app*"] } }
 
 [tool.pytest.ini_options]
+pythonpath = [".", "../.."]
 markers = [
   "postgres: PostgreSQL integration tests requiring TEST_DATABASE_URL",
 ]

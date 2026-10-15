@@ -20,11 +20,17 @@ export async function askKnowledge(question: string): Promise<KnowledgeQueryResp
     throw new Error("La sesión expiró. Inicia sesión nuevamente.");
   }
   if (!response.ok) {
-    const payload = await response.json().catch(() => null) as { detail?: string } | null;
-    throw new Error(payload?.detail || `No se pudo consultar la base (${response.status}).`);
+    const payload: unknown = await response.json().catch(() => null);
+    const detail = payload && typeof payload === "object" && "detail" in payload
+      ? payload.detail
+      : null;
+    throw new Error(typeof detail === "string" && detail.trim()
+      ? detail
+      : `No se pudo consultar la base (${response.status}).`);
   }
-  const payload = await response.json() as Partial<KnowledgeQueryResponse>;
-  if (typeof payload.answer !== "string" || !payload.answer.trim()) {
+  const payload: unknown = await response.json().catch(() => null);
+  if (!payload || typeof payload !== "object" || !("answer" in payload)
+    || typeof payload.answer !== "string" || !payload.answer.trim()) {
     throw new Error("La respuesta recibida no tiene el formato esperado.");
   }
   return { answer: payload.answer };
