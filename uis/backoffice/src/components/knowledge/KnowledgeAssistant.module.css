@@ -1,0 +1,19 @@
+.panel { max-width: 860px; padding: 1.5rem; border: 1px solid var(--border); border-radius: 1rem; background: var(--card); color: var(--fg); }
+.panel > p { color: var(--muted); }
+.panel form { display: grid; gap: .8rem; }
+.panel textarea { box-sizing: border-box; width: 100%; min-height: 130px; resize: vertical; padding: 1rem; font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--border); border-radius: .5rem; }
+.panel button { justify-self: start; padding: .7rem 1.2rem; border-radius: .5rem; border: 1px solid var(--border); font: inherit; color: var(--fg); background: var(--bg-2); cursor: pointer; }
+.panel button:disabled { opacity: .6; cursor: default; }
+.panel textarea:focus-visible, .panel button:focus-visible { outline: 2px solid var(--fg); outline-offset: 3px; }
+.answer { margin-top: 1.5rem; border-top: 1px solid var(--border); overflow-wrap: anywhere; }
+.answer p { white-space: pre-wrap; line-height: 1.65; }
+.error { color: var(--danger); }
+
+.page { min-height: 100vh; padding-bottom: 2rem; }
+.panel h2 { margin-bottom: .65rem; }
+.panel > p { margin-bottom: 1.25rem; }
+.answer h3 { margin: 1rem 0 .5rem; }
+@media (prefers-color-scheme: light) {
+  .page { --bg: #f6f8fb; --bg-2: #e7edf5; --fg: #142238; --muted: #465972; --card: #ffffff; --border: #bcc8d7; --danger: #b42318; background: var(--bg); color: var(--fg); }
+  .page :global(.bo-header) { background: var(--card); }
+}

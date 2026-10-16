@@ -1,3 +1,45 @@
+# Preparación de PR borrador RAG — 16 de octubre de 2026
+
+- El usuario solicitó publicar una PR con el trabajo, las complicaciones y los
+  pendientes. Se prepara commit y push en `feature/rag-knowledge-base-restart`
+  hacia `main`, en modo Draft y sin merge ni declaración de cierre del hito.
+- La descripción debe distinguir la evidencia offline comprobada de las
+  validaciones reales pendientes, y documentar la exclusión de `data/`, la
+  diferencia k=3/k=5 del evaluador y los errores previos reproducidos.
+- Se excluye del commit el cambio ajeno de whitespace en
+  `services/.dockerignore`. Las notas históricas de ausencia de commit/PR
+  corresponden a las ejecuciones anteriores, no a esta solicitud de publicación.
+
+# Continuación RAG autorizada — 16 de octubre de 2026
+
+- Se confirmó con Git que `HEAD` y `main` apuntan a
+  `f18688e583aba6d912e4a887b17ec3baf2dd0806`, en
+  `feature/rag-knowledge-base-restart`. Se preservó la implementación local sin
+  commit; no se recuperaron ramas, commits ni stashes retirados.
+- Se ampliaron pruebas de umbral inclusivo de `retrieve`, rechazo de tokens
+  inválidos/usuarios inactivos antes de generar, sesión ausente, contrato de
+  respuesta y propagación de cancelación del cliente HTTP.
+- Evidencia nueva: baseline extraído del commit autorizado, API 129 passed/5
+  skipped y Backoffice 89/Website 4. Checkout: pipeline 47 passed, API 142
+  passed/5 skipped (189 passed combinados); Backoffice 107/Website 4. PostgreSQL
+  real sigue sin probar por ausencia de `TEST_DATABASE_URL`.
+- Typecheck y lint reproducen exactamente los tres errores TypeScript y los dos
+  errores ESLint de auth/telemetría del baseline. El build actual compila y luego
+  falla en `AuthMeResponse.id`, también reproducido en el baseline con Webpack;
+  no se atribuye a esta sesión el antiguo fallo de Google Fonts. Lint dirigido
+  del slice RAG y `docker compose config --quiet` pasan.
+- Pendiente detectado: `data/eval/run.py` genera con contexto `k=3`; debe medir
+  Recall@3 por separado y generar/registrar el contexto `k=5` usado en producción.
+  La exclusión de Copilot bloqueó la edición de `data/`; la corrección no se
+  aplicó. El usuario no estaba disponible para habilitar acceso. No se declara
+  cerrado el hito ni se considera validada la fidelidad del recorrido real.
+- El acceso/contrato y modelos de 4Geeks siguen sin confirmar. No se solicitaron
+  credenciales ni se invocaron proveedores reales. No se instalaron dependencias,
+  iniciaron contenedores, cambiaron ramas ni hicieron commit, push o PR.
+- Se restauró sólo bytecode versionado generado por estas pruebas, limpio al
+  inicio. Se preservó un cambio concurrente ajeno en `services/.dockerignore`
+  que hace fallar el chequeo global de whitespace.
+
 # Reinicio del hito RAG — 15 de octubre de 2026
 
 - El usuario autorizó retirar la implementación RAG y publicar una PR de reversión para reiniciar el hito con un prompt nuevo.
@@ -340,3 +382,39 @@
 - **Clasificación:** catálogo confirmado en 32 eventos: 10 `mandatory` y 22 `opportunity`; `user_logged_in` es `opportunity`.
 - **Autenticación:** guía corregida para emitir eventos en `login()` de `services/api/app/domains/auth/router.py`; fallos usan códigos normalizados y omiten credenciales y mensajes de excepción.
 - **Validación:** metaschema Draft 2020-12 correcto, 32 IDs iguales entre Markdown y JSON, conjuntos de propiedades/requeridos coincidentes, y `git diff --check` limpio.
+
+## Hito RAG y Base de Conocimiento — reinicio limpio
+
+- **Base y aislamiento:** trabajo nuevo en `feature/rag-knowledge-base-restart`, creado desde
+  `f18688e583aba6d912e4a887b17ec3baf2dd0806`. No se recuperaron archivos, commits ni
+  stashes del RAG retirado y no se incorporaron otros hitos.
+- **Fuentes oficiales:** contexto y cuatro manuales descargados nuevamente desde
+  `4GeeksAcademy/ai-engineering-syllabus` en la revisión
+  `b0489cb8eeba892b15aaae88b5341a326d546b9a`; hashes y URLs inmutables registrados en
+  `docs/rag/sources.json`.
+- **Corpus y pipeline:** 14 chunks semánticos (5 lealtad, 3 desperdicio, 3 alérgenos,
+  3 proveedores), payload oficial, UUIDv5 deterministas, `setup`, `embed`, `retrieve`,
+  `generate_answer` y `query` separados. La colección `brasaland_knowledge` usa COSINE,
+  rechaza contratos incompatibles y elimina sólo chunks obsoletos del propietario RAG.
+- **Integraciones:** Qdrant 1.16.3 persistente en Compose; SDK 1.16.2; endpoint autenticado
+  `POST /knowledge/query`; pantalla protegida `/backoffice/knowledge` con sesión, proxy,
+  carga, error, reintento y estilos claro/oscuro.
+- **Proveedores:** el usuario aún no tiene confirmados el acceso, endpoints ni modelos de
+  estudiante de 4Geeks. Los conectores carecen de defaults de URL/modelo/credenciales y
+  sólo se activan tras una confirmación explícita del contrato. No se usaron servicios de pago.
+- **Evaluación preparada:** 16 preguntas dentro del corpus y 2 fuera de alcance. Un acierto
+  exige que un mismo chunk del top 3 pertenezca al manual correcto y contenga toda la evidencia.
+  Recall@3, umbral y fidelidad reales quedan pendientes; no se atribuyen métricas a mocks.
+- **Verificación sin modelos reales:** 185 pruebas Python aprobadas y 5 integraciones de
+  inventario PostgreSQL omitidas sin `TEST_DATABASE_URL`; 100 pruebas del backoffice aprobadas.
+  Qdrant saludable, setup repetido con vectores simulados conservó 14 puntos, imagen Docker
+  compilada y recorrido navegador con proveedor simulado verificó login, respuesta, error y
+  reintento en escritorio y móvil.
+- **Baseline preservado:** typecheck conserva exactamente tres errores preexistentes en
+  auth/telemetría; lint global conserva dos errores preexistentes en telemetría; build conserva
+  el fallo de descarga de Google Fonts. El lint dirigido de archivos RAG pasó.
+- **Estado (16-oct-2026):** a petición del usuario, se cierra localmente el alcance
+  simulado. Las validaciones offline y mock citadas arriba ya estaban registradas y
+  no se repitieron en esta sesión. Recall@3, fidelidad, calibración y recorrido con
+  modelos reales siguen diferidos; no se presentan mocks como métricas reales. Sin
+  commit, push ni PR.

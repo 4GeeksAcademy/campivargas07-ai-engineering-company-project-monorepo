@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
   "bcrypt>=4.0,<5.0",
+  "brasaland-knowledge",
   "fastapi>=0.116,<1.0",
   "httpx>=0.27,<1.0",
   "psycopg2-binary>=2.9.9,<3.0",
@@ -36,6 +37,9 @@ packages = { find = { where = ["."], include = ["app*"] } }
 markers = [
   "postgres: PostgreSQL integration tests requiring TEST_DATABASE_URL",
 ]
+
+[tool.uv.sources]
+brasaland-knowledge = { path = "../../data", editable = true }
 
 [dependency-groups]
 dev = [
