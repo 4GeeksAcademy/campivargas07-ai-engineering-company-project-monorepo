@@ -1,8 +1,8 @@
 services:
   backend:
     build:
-      context: ./services
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/Dockerfile
     container_name: brasaland-backend
     restart: unless-stopped
     ports:
@@ -11,15 +11,42 @@ services:
       - DATABASE_URL=${DATABASE_URL:?DATABASE_URL is required. Configure a valid accessible PostgreSQL connection URL in .env}
       - SECRET_KEY=${SECRET_KEY:?SECRET_KEY is required. Set a secure secret key in .env}
       - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-60}
+      - QDRANT_URL=http://qdrant:6333
+      - QDRANT_API_KEY=${QDRANT_API_KEY:-}
+      - RAG_HTTP_CONTRACT=${RAG_HTTP_CONTRACT:-}
+      - RAG_EMBEDDING_URL=${RAG_EMBEDDING_URL:-}
+      - RAG_EMBEDDING_MODEL=${RAG_EMBEDDING_MODEL:-}
+      - RAG_EMBEDDING_API_KEY=${RAG_EMBEDDING_API_KEY:-}
+      - RAG_EMBEDDING_DIMENSION=${RAG_EMBEDDING_DIMENSION:-}
+      - RAG_EMBEDDING_ENCODING=${RAG_EMBEDDING_ENCODING:-}
+      - RAG_GENERATION_URL=${RAG_GENERATION_URL:-}
+      - RAG_GENERATION_MODEL=${RAG_GENERATION_MODEL:-}
+      - RAG_GENERATION_API_KEY=${RAG_GENERATION_API_KEY:-}
+      - RAG_MIN_SCORE=${RAG_MIN_SCORE:-}
+      - RAG_TIMEOUT_SECONDS=${RAG_TIMEOUT_SECONDS:-30}
       - SUPPLIERS_DB_PATH=${SUPPLIERS_DB_PATH:-/app/api/data/suppliers.json}
     volumes:
       - ./services:/app
+      - ./data:/data:ro
+      - ./docs/company-knowledge-base:/docs/company-knowledge-base:ro
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
       interval: 5s
       timeout: 3s
       retries: 5
       start_period: 10s
+    networks:
+      - brasaland-dev
+
+  qdrant:
+    image: qdrant/qdrant:v1.16.3
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6333:6333"
+    environment:
+      - QDRANT__SERVICE__API_KEY=${QDRANT_API_KEY:-}
+    volumes:
+      - brasaland-knowledge-storage:/qdrant/storage
     networks:
       - brasaland-dev
 
@@ -52,3 +79,6 @@ networks:
   brasaland-dev:
     name: brasaland-dev
     driver: bridge
+
+volumes:
+  brasaland-knowledge-storage:

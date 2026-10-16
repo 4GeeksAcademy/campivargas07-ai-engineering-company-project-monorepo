@@ -115,7 +115,8 @@ a {
 }
 
 .bo-header .container {
-  height: 74px;
+  min-height: 74px;
+  height: auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -157,6 +158,7 @@ a {
 
 .bo-nav {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.55rem;
   align-items: center;
 }

@@ -1,0 +1,25 @@
+# Allowlist for the repository-root backend build context.
+**
+!services/
+!services/api/
+!services/api/**
+!services/data/
+!services/data/**
+!data/
+!data/**
+!docs/
+!docs/company-knowledge-base/
+!docs/company-knowledge-base/**
+**/.env
+**/.env.*
+**/*.env
+**/.venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.coverage
+**/*.egg-info
+**/tests
+**/build
+**/dist
+**/*.log

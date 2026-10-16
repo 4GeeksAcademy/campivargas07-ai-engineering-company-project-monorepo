@@ -1,0 +1,160 @@
+[
+  {
+    "id": "in-01",
+    "question": "¿Cómo acumulo puntos en Colombia y Florida?",
+    "source_document": "loyalty-program",
+    "evidence": [
+      "10.000 COP",
+      "10 USD",
+      "1 punto"
+    ]
+  },
+  {
+    "id": "in-02",
+    "question": "¿Cuándo vencen mis puntos?",
+    "source_document": "loyalty-program",
+    "evidence": [
+      "una compra cada 12 meses"
+    ]
+  },
+  {
+    "id": "in-03",
+    "question": "¿Cuántos puntos necesito para Oro y qué recibo?",
+    "source_document": "loyalty-program",
+    "evidence": [
+      "50+ puntos",
+      "15%"
+    ]
+  },
+  {
+    "id": "in-04",
+    "question": "¿Cuál es el mínimo para redimir y puedo combinar promociones?",
+    "source_document": "loyalty-program",
+    "evidence": [
+      "15 puntos",
+      "incrementos de 5",
+      "No se pueden combinar"
+    ]
+  },
+  {
+    "id": "in-05",
+    "question": "¿Cuándo exige nota el desperdicio de proteína?",
+    "source_document": "waste-protocol",
+    "evidence": [
+      "superior a 2 kg",
+      "un solo turno"
+    ]
+  },
+  {
+    "id": "in-06",
+    "question": "¿Qué merma activa alerta al supervisor?",
+    "source_document": "waste-protocol",
+    "evidence": [
+      "superior al 3%",
+      "inventario semanal"
+    ]
+  },
+  {
+    "id": "in-07",
+    "question": "¿Qué desperdicio debo escalar a Felipe?",
+    "source_document": "waste-protocol",
+    "evidence": [
+      "superior a 5 kg",
+      "Tres semanas consecutivas"
+    ]
+  },
+  {
+    "id": "in-08",
+    "question": "¿Cuál es la meta de desperdicio y cuándo hay plan de mejora?",
+    "source_document": "waste-protocol",
+    "evidence": [
+      "4%",
+      "6%",
+      "dos meses consecutivos"
+    ]
+  },
+  {
+    "id": "in-09",
+    "question": "¿La Costilla BBQ contiene maní y tiene versión certificada sin gluten?",
+    "source_document": "menu-allergens",
+    "evidence": [
+      "trazas de maní",
+      "No existe versión sin gluten certificada"
+    ]
+  },
+  {
+    "id": "in-10",
+    "question": "¿Puedo garantizar cero contaminación cruzada?",
+    "source_document": "menu-allergens",
+    "evidence": [
+      "Nunca se garantiza",
+      "alergia severa"
+    ]
+  },
+  {
+    "id": "in-11",
+    "question": "¿Qué alérgenos contiene la Ensalada Tropical?",
+    "source_document": "menu-allergens",
+    "evidence": [
+      "anacardo",
+      "queso feta"
+    ]
+  },
+  {
+    "id": "in-12",
+    "question": "¿Qué debe hacer el mesero cuando un cliente reporta alergias?",
+    "source_document": "menu-allergens",
+    "evidence": [
+      "informa a cocina",
+      "utensilios y superficie limpios"
+    ]
+  },
+  {
+    "id": "in-13",
+    "question": "¿Quién genera pedidos y cuál es el plazo semanal?",
+    "source_document": "supplier-ordering",
+    "evidence": [
+      "gerente de local",
+      "lunes antes de las 10:00"
+    ]
+  },
+  {
+    "id": "in-14",
+    "question": "¿Cuánto demoran las salsas importadas a Colombia?",
+    "source_document": "supplier-ordering",
+    "evidence": [
+      "10 a 15 días",
+      "solo a items importados a Colombia"
+    ]
+  },
+  {
+    "id": "in-15",
+    "question": "¿Cuándo hago un pedido de emergencia y qué recargo tiene?",
+    "source_document": "supplier-ordering",
+    "evidence": [
+      "3 días",
+      "antes de la próxima entrega",
+      "8%"
+    ]
+  },
+  {
+    "id": "in-16",
+    "question": "¿Cuándo debe Lucía aprobar un pedido de emergencia?",
+    "source_document": "supplier-ordering",
+    "evidence": [
+      "Lucía Fernández",
+      "supera 500 USD",
+      "equivalente en COP"
+    ]
+  },
+  {
+    "id": "out-01",
+    "question": "¿Cuál fue la venta de ayer en Miami?",
+    "out_of_scope": true
+  },
+  {
+    "id": "out-02",
+    "question": "¿Cuál es la contraseña de administración?",
+    "out_of_scope": true
+  }
+]

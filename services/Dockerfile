@@ -14,15 +14,17 @@ ENV VIRTUAL_ENV=/opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy dependency manifests for layer caching
-COPY api/pyproject.toml api/uv.lock ./
+COPY services/api/pyproject.toml services/api/uv.lock ./
+COPY data /data
 
 # Create venv and install dependencies locked
 RUN uv venv /opt/venv && \
     VIRTUAL_ENV=/opt/venv uv sync --active --frozen --no-dev
 
 # Copy API application source code and data directory
-COPY api /app/api
-COPY data /app/data
+COPY services/api /app/api
+COPY services/data /app/data
+COPY docs/company-knowledge-base /docs/company-knowledge-base
 
 # Setup non-root user appuser (UID 1000 matching host)
 RUN groupadd -g 1000 appuser && \

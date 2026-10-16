@@ -1,0 +1,25 @@
+{
+  "repository": "4GeeksAcademy/ai-engineering-syllabus",
+  "revision": "b0489cb8eeba892b15aaae88b5341a326d546b9a",
+  "retrieved_at": "2026-10-15 America/Mexico_City",
+  "context": "https://github.com/4GeeksAcademy/ai-engineering-syllabus/blob/b0489cb8eeba892b15aaae88b5341a326d546b9a/content/contexts/07-trainning-rag/CONTEXT-brasaland.es.md",
+  "assignment": "https://github.com/4GeeksAcademy/ai-engineering-syllabus/blob/b0489cb8eeba892b15aaae88b5341a326d546b9a/content/projects/ai-eng-milestone-rag-knowledge-base/README.es.md",
+  "files": {
+    "brasaland-menu-allergens.es.md": {
+      "sha256": "97640291e19eec3f672ba36f0b8145a967daa15177d773eeda1263bc509e1f1b",
+      "url": "https://github.com/4GeeksAcademy/ai-engineering-syllabus/blob/b0489cb8eeba892b15aaae88b5341a326d546b9a/content/contexts/00-general-contexts/brasaland/brasaland-menu-allergens.es.md"
+    },
+    "brasaland-waste-protocol.es.md": {
+      "sha256": "dae8b34307f35641103cd1cd4dc586c89ecdad78c897a9a13c135d8e877d3a9d",
+      "url": "https://github.com/4GeeksAcademy/ai-engineering-syllabus/blob/b0489cb8eeba892b15aaae88b5341a326d546b9a/content/contexts/00-general-contexts/brasaland/brasaland-waste-protocol.es.md"
+    },
+    "brasaland-supplier-ordering.es.md": {
+      "sha256": "7c9b8534e7404771df6ae6984194b505a6fbe05fb7db3130fe86daf7d1560cb8",
+      "url": "https://github.com/4GeeksAcademy/ai-engineering-syllabus/blob/b0489cb8eeba892b15aaae88b5341a326d546b9a/content/contexts/00-general-contexts/brasaland/brasaland-supplier-ordering.es.md"
+    },
+    "brasaland-loyalty-program.es.md": {
+      "sha256": "ab9f580402d04f29b091c83314f93fb6646966e2492ab0be0572e4bdd9daf841",
+      "url": "https://github.com/4GeeksAcademy/ai-engineering-syllabus/blob/b0489cb8eeba892b15aaae88b5341a326d546b9a/content/contexts/00-general-contexts/brasaland/brasaland-loyalty-program.es.md"
+    }
+  }
+}
