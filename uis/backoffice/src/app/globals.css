@@ -10,29 +10,6 @@
   --danger: #ff7d7d;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    --bg: #f4f7fb;
-    --bg-2: #ffffff;
-    --fg: #152238;
-    --muted: #4b5d73;
-    --card: rgba(255, 255, 255, 0.92);
-    --border: rgba(21, 34, 56, 0.18);
-    --ok: #087443;
-    --warn: #8a4b00;
-    --danger: #a32121;
-  }
-
-  body {
-    background: radial-gradient(circle at 10% 0%, #e7efff 0%, transparent 32%),
-      radial-gradient(circle at 80% 0%, #e2f5f2 0%, transparent 34%), var(--bg);
-  }
-
-  .bo-header {
-    background: rgba(255, 255, 255, 0.9);
-  }
-}
-
 .mode-toggle {
   display: flex;
   gap: 0.5rem;
