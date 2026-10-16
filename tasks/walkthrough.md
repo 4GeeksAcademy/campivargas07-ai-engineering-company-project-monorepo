@@ -1,51 +1,28 @@
-# Walkthrough: Hito 7 — RAG y Base de Conocimiento Brasaland
+# Walkthrough: Retirada de RAG para reinicio
 
-## Estado y alcance
+Fecha: 15 de octubre de 2026 (America/Mexico_City).
 
-Actualización del 15 de octubre de 2026 (America/Mexico_City), continuación del trabajo del 14. Rama `feature/rag-knowledge-base` conservada con dos commits RAG sobre `origin/main` local `810a873`, más cambios locales del hito. Backup/stashes intactos, sin nuevos cherry-picks, commits, push, merge ni PR. Manuales y contextos protegidos conservados. No se incorporaron ventas/Redis/Celery ni se modificaron planes de otros proyectos.
+## Solicitud y resultado
 
-El hito sigue abierto. El usuario confirmó Perplexity directo, pero no había credenciales/configuración disponibles para ejecutar modelos. No se reportan Recall/fidelidad ni una pregunta/respuesta real inexistentes.
+Por petición explícita del usuario, se prepara una PR de retirada del RAG anterior para reiniciar este hito con un prompt nuevo. Se revierten en orden `adc9115`, `4ccc89b` y `e685b60` mediante `git revert --no-commit` en `chore/revert-rag-for-restart`, desde `origin/main`. No se resetea ni reescribe el historial remoto.
 
-## Archivos y motivos de los cambios
+El resultado funcional coincide con `810a873`: se retiran fuentes y documentos del RAG anterior, módulos `data/process`/`pipelines`/evaluación específicos, dominio FastAPI Knowledge y pruebas, pantalla/cliente/navegación Knowledge, Qdrant y sus variables/dependencia. Se preservan las carpetas base `data/*` y sus README originales. Se normaliza únicamente una línea vacía al final del Dockerfile y se añade este registro de reinicio.
 
-| Grupo | Archivos / propósito |
-|---|---|
-| Adaptadores y smoke | `data/process/embeddings.py`, nuevo `provider_http.py`, nuevo `smoke.py`, `data/pipelines/generation.py`: contratos Perplexity signed INT8 y generación tipada en una llamada sin herramientas; errores/timeouts/JSON inválido; discovery y smoke opt-in. |
-| Compatibilidad vectorial | `data/process/setup.py`, `qdrant_store.py`, `data/pipelines/retrieval.py`: identidad del embedding en payload, comprobación sin recrear colección, paginación, filtros y CLI de setup. |
-| Composición | `data/pipelines/query.py`: `build_context` compartido con evaluador y CLI de consulta; se conserva respuesta textual del generador y contexto vacío por el modelo. |
-| Evaluación | `data/eval/test-queries.json`, `run_evaluation.py`, README español/inglés y nuevo `data/tests/test_evaluation.py`: 18 preguntas originales, evidencia textual en top-3, manifiesto/hashes/configuración no secreta y fidelidad/adversario separados. |
-| API/tests | `services/api/tests/test_knowledge_pipeline.py` existente local ampliado, nuevos `test_knowledge_providers.py` y `test_knowledge_http_flow.py`: payload/decodificación/errores, Qdrant e integración autenticada de cuatro escenarios. Router original conserva `{answer}`/503 genérico. |
-| Backoffice | `src/lib/knowledge-api.ts`, `knowledge-api.test.ts`, `knowledge-assistant.test.tsx`, nuevo `knowledge-route-protection.test.tsx` dentro de `uis/backoffice`: JSON malformado, loading/error/retry, AuthGuard y sesión→Bearer→respuesta con HTTP simulado. |
-| Entorno | `services/api/.env.example`, `docker-compose.yml`, `services/Dockerfile.dockerignore`: variables de protocolo/dimensión, propagación a backend y contexto process/eval. Se conservan los cambios locales anteriores de `services/Dockerfile`, `pyproject.toml`, `uv.lock` y `data/__init__.py`; no se añadieron dependencias en esta continuación. |
-| Contexto | Diseño, informe RAG, `tasks/rag-plan.md`, `rag-todo.md`, este walkthrough y `memory-bank/progress.md`: estado actual, evidencias, pendientes/configuración y propuesta mínima de fallos ajenos. |
+Los contextos generales protegidos, `memory-bank/projectbrief.md`, `memory-bank/techContext.md`, `infra/`, `mcps/`, la web pública y los módulos de autenticación/inventario/incidentes/telemetría coinciden con la base. Los registros históricos de otros hitos se conservan. La implementación retirada es recuperable en el commit `adc9115` y el historial; los dos stashes y la rama antigua quedan intactos. No se eliminan datos persistentes ni volúmenes Docker.
 
-## Validación en esta sesión
+## Validación
 
-- API completa: `uv run --directory services/api --no-sync pytest -q -rs` → **250 passed, 5 skipped**, 36,73 s. Los skipped son CHECK/FK/concurrencia de inventario PostgreSQL sin `TEST_DATABASE_URL`; ninguna prueba RAG omitida.
-- Proveedores HTTP: **74**; pipeline/Qdrant en memoria: **40**; ambos incluidos en el total API. Corpus **3** y evaluador **11** adicionales pasan (128 combinados en comando dirigido, sin duplicar conteos).
-- Backoffice completo: `npm --prefix uis/backoffice run test` → **112 pruebas /19 suites PASS**; lint de los cuatro archivos tocados PASS.
-- Lock `--check --offline`, Compose config con placeholders no secretos, build Docker final con `--frozen` e imports/corpus en imagen sin red: PASS. Corpus local y en contenedor: **18 chunks**, 5/5/4/4; no es conteo indexado con embeddings reales.
-- Evaluador sin configuración: exit 1 esperado, `blocked_configuration`, métricas `null`, sin peticiones. Se conserva dataset y toda evidencia difícil; no se cuentan mocks como KPI.
-- Typecheck: tres errores reproducidos en `810a873`, archivos de auth/telemetría idénticos a base. Build de base/rama: descarga de Inter/Plus Jakarta Sans bloqueada antes de TypeScript. Diagnóstico y arreglos mínimos propuestos en el informe, sin cambiar esos módulos ni ocultar fallos.
-- La nueva prueba de recorrido tuvo inicialmente cuatro fallos por usar Qdrant como context manager; se corrigió su cierre explícito y la suite final pasa. TestClient se bloqueaba dentro del sandbox; la ejecución fuera se autorizó sin cambiar comportamiento de pruebas. Un fallo temporal de revisión automática por límite de uso se resolvió al continuar.
+- API: desde `services/api` del worktree, `PYTHONDONTWRITEBYTECODE=1 <venv existente>/bin/python -m pytest tests -q -rs` → **129 passed, 5 skipped**, 36,33 s. Los skipped son las cinco pruebas nativas de restricciones/FK/concurrencia PostgreSQL sin `TEST_DATABASE_URL`; no se alteraron.
+- Compose: `DATABASE_URL=postgresql://placeholder:placeholder@localhost/placeholder SECRET_KEY=nonsecret-validation-only docker compose config --quiet` → PASS; las credenciales son sólo placeholders para validar configuración.
+- Typecheck Backoffice: reproduce los tres errores de base en auth/context.tsx:72, telemetry.ts:175 y telemetry-service.test.ts:17. Los archivos son idénticos a `810a873`; no se corrigen en esta retirada.
+- Build: se ejecutó en el checkout local `main` `810a873`, cuyo código funcional es el mismo que la reversión. Falla al descargar Inter y Plus Jakarta Sans desde Google Fonts. No se redujeron comprobaciones ni se modificaron fuentes.
+- Se reutilizó la instalación existente de dependencias para el worktree; los primeros intentos frontend fallaron por resolución incompleta de sus dependencias temporales y se repitieron con el enlace corregido. La suite API se repitió desde su directorio correcto tras un primer error de ruta de imports.
+- Tests frontend: `npm --prefix uis/backoffice run test` → **89 passed /16 suites**, 28,25 s.
+- Revisión final: sólo diferencias de registro de reinicio y whitespace de Dockerfile frente a `810a873`; `git diff --cached --check` pasa antes del commit. No se incluyen dependencias, cachés ni artefactos de pruebas en la PR.
 
-Los antecedentes previos de 137/5 skipped, pipeline 5 y UI dirigida 12 se conservan como historia, no se presentan como ejecución actual. No se afirma haber repetido indexación/modelos reales ni salud actual de un Qdrant productivo.
+## Continuidad para el siguiente prompt
 
-## Riesgos y siguientes pasos
-
-Configurar localmente `EMBEDDING_API_KEY`, `GENERATION_API_KEY` y modelo de generación habilitado; plantilla/procedimiento exactos en `docs/rag/rag-evaluation-report.md`. Ejecutar discovery/smoke, setup dos veces e inspección real de colección/IDs/payload; calibrar `KNOWLEDGE_MIN_SCORE` con resultados, alcanzar ≥13/16 aciertos y revisar fidelidad por separado. Cerrar E2E de navegador con sesión/API/modelos y registrar pregunta/respuesta real trazable. Colecciones incompatibles o sin metadata requieren migración explícita, sin borrado automático.
-
-Los guards son conservadores y léxicos, pueden rechazar paráfrasis válidas y no garantizan semántica ni resistencia al prompt injection. Las pruebas de integración frontend/backend usan HTTP/modelos simulados. No se declara el hito completado. Los fallos ajenos de typecheck/build necesitan alcance separado antes de modificar auth, telemetría o fuentes.
-
-## Borrador de descripción — sin publicar
-
-**Título:** `feat: rag knowledge base`
-
-Permite a gerentes autenticados consultar los cuatro manuales oficiales de Brasaland desde `/backoffice/knowledge`. La API recupera evidencia en `brasaland_knowledge` y solicita una respuesta en español mediante Perplexity directo sin herramientas externas, conservando el contrato público `{answer}` y estados de carga/error/reintento.
-
-Incluye ingestión idempotente, validación del espacio vectorial, embeddings signed INT8 con COSINE, errores de generación explícitos y evaluación reproducible de 16 preguntas dentro del corpus más dos fuera. Las colecciones incompatibles se preservan y exigen migración explícita.
-
-Validación offline: API 250 passed/5 PostgreSQL skipped; Backoffice 112 pruebas; corpus/evaluación 14; lock/Compose/Docker PASS. Typecheck reproduce tres errores del baseline y build queda bloqueado por Google Fonts. Pendientes antes del cierre: credenciales/modelo habilitado, indexación/consulta real, umbral calibrado, Recall@3 ≥13/16, fidelidad y E2E reales. No publicar KPI sin medición. Vista protegida; esta continuación no modifica el website público.
+La retirada publicada necesita fusión de su PR para que `main` remoto sea la base sin RAG. Después, actualizar `main` y crear una rama nueva, por ejemplo `feature/rag-knowledge-base-restart`. No reutilizar ni hacer cherry-pick de la rama RAG antigua, que mezcla otros proyectos. Leer AGENTS.md y Memory Bank antes de empezar. Confirmar configuración/modelos reales desde el inicio y obtener evidencia real antes de declarar el hito terminado.
 
 # Walkthrough: Dominio de Inventario con SQLModel y Doble Base de Datos en `services/api`
 

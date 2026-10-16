@@ -61,11 +61,4 @@ describe("BackofficeHeader Component", () => {
     expect(profileLink).toHaveClass("nav-link-active");
     expect(profileLink).toHaveAttribute("href", "/account/profile");
   });
-  it("marks the knowledge base link as active", () => {
-    render(<BackofficeHeader activeView="knowledge" badge="Manuales oficiales" />);
-
-    const knowledgeLink = screen.getByRole("link", { name: "Base de conocimiento" });
-    expect(knowledgeLink).toHaveClass("nav-link-active");
-    expect(knowledgeLink).toHaveAttribute("href", "/backoffice/knowledge");
-  });
 });
