@@ -19,7 +19,8 @@ UUID deterministas, limpieza limitada a puntos propios, incompatibilidad sin
 recreación destructiva, respuesta generada incluso sin contexto, errores sanitizados,
 UI protegida con carga y reintento, sin regresiones nuevas.
 
-El usuario confirmó que aún no dispone del contrato/modelos/API de 4Geeks.
-Conectores configurables y tests simulados autorizados; quedan pendientes embeddings,
-generación, calibración, Recall@3 >=80%, fidelidad y recorrido completo con modelos reales.
-No se inventarán URLs/IDs ni se contratarán servicios. No commit/push/PR/merge.
+Estado final (19-oct-2026): integración real completada con Google Gemini
+(`gemini-embedding-001` 768d float + `gemini-3.5-flash-lite`, soporte de clave única),
+indexación idempotente de los 14 chunks en Qdrant real, calibración `RAG_MIN_SCORE=0.60`,
+`Recall@3 = 16/16 (100.0%)`, auditoría humana de fidelidad aprobada (`19/19`) y recorrido
+E2E multicapa verificado (`Backoffice :3001 → FastAPI :8000 → Qdrant :6333 → Gemini`).

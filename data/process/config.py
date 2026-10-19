@@ -82,12 +82,17 @@ def settings() -> Settings:
     # This is an operator acknowledgement of the contract, not evidence of access.
     if required("RAG_HTTP_CONTRACT") != "embeddings-chat-v1":
         raise ConfigurationError("Contrato no soportado; confirme el contrato del proveedor")
+    shared_key = os.getenv("RAG_API_KEY", "").strip() or os.getenv("GEMINI_API_KEY", "").strip()
+    emb_key = os.getenv("RAG_EMBEDDING_API_KEY", "").strip() or shared_key or os.getenv("RAG_GENERATION_API_KEY", "").strip()
+    gen_key = os.getenv("RAG_GENERATION_API_KEY", "").strip() or shared_key or emb_key
+    if not emb_key:
+        raise ConfigurationError("Falta RAG_EMBEDDING_API_KEY")
     try:
         return Settings(
             embedding_url=required("RAG_EMBEDDING_URL"), embedding_model=required("RAG_EMBEDDING_MODEL"),
-            embedding_key=required("RAG_EMBEDDING_API_KEY"), dimension=int(required("RAG_EMBEDDING_DIMENSION")),
+            embedding_key=emb_key, dimension=int(required("RAG_EMBEDDING_DIMENSION")),
             encoding=required("RAG_EMBEDDING_ENCODING"), generation_url=required("RAG_GENERATION_URL"),
-            generation_model=required("RAG_GENERATION_MODEL"), generation_key=required("RAG_GENERATION_API_KEY"),
+            generation_model=required("RAG_GENERATION_MODEL"), generation_key=gen_key,
             min_score=float(required("RAG_MIN_SCORE")), qdrant_url=os.getenv("QDRANT_URL", "http://127.0.0.1:6333"),
             qdrant_key=os.getenv("QDRANT_API_KEY") or None,
             timeout=float(os.getenv("RAG_TIMEOUT_SECONDS", "30")),

@@ -1002,3 +1002,36 @@ Título: `feat: rag knowledge base`
 
 ## Aislamiento y estado
 El trabajo se hizo en el worktree aislado `/tmp/campivargas-pr17` sobre la rama de PR #17. No se tocaron el checkout, merge ni cambios staged de PR #16.
+
+---
+
+# Walkthrough: Feedback docente PR #29 — Integración real con Google Gemini y validación E2E del RAG
+
+## 1. Contexto y objetivo
+En la revisión de la PR #29 (`feature/rag-knowledge-base-restart`), el profesor indicó:
+> *"Carlos, todavía quedan pendientes partes clave del RAG, como la integración real del modelo y la validación E2E."*
+
+Se completó la integración real extremo a extremo utilizando los endpoints compatibles con OpenAI de **Google Gemini**, la reindexación idempotente de los 4 manuales en Qdrant, la calibración experimental de `RAG_MIN_SCORE`, la evaluación completa de `Recall@3` + fidelidad y la validación E2E multicapa desde el Backoffice autenticado.
+
+## 2. Cambios técnicos aplicados
+- **Soporte de API Key única (`data/process/config.py`)**: dado que Google Gemini provee una única clave para embeddings y generación, `settings()` ahora acepta una sola clave definida en `RAG_EMBEDDING_API_KEY` (o `RAG_API_KEY` / `GEMINI_API_KEY`) y la aplica automáticamente a ambos servicios si no se especifica una segunda clave distinta.
+- **Compatibilidad de respuesta de embeddings Gemini (`data/process/embeddings.py`)**: el endpoint OpenAI-compatible de Gemini omite el campo `"index"` cuando se solicita un solo vector; se ajustó la validación a `item.get("index", 0) != 0` manteniendo el rechazo ante índices distintos de cero.
+- **Separación de `Recall@3` y contexto de generación `k=5` (`data/eval/run.py`)**: cuando se ejecuta con `--generate`, el evaluador ahora recupera `k=5` para `generation_context` (idéntico al pipeline productivo `data.pipelines.rag.query`) y evalúa `Recall@3` sobre `all_retrieved[:3]`. Se añadió además `--delay` para ejecuciones respetuosas con límites de cuota.
+- **Corrección de acceso local a Qdrant (`docker-compose.yml`)**: se eliminó `QDRANT__SERVICE__API_KEY=${QDRANT_API_KEY:-}` en el servicio `qdrant`, ya que pasar una cadena vacía activaba el requisito de API key en Qdrant v1.16.3 y provocaba `401 Unauthorized` en conexiones locales sin clave.
+- **Plantilla no secreta (`services/api/.env.example`)**: actualizada con la configuración real de Gemini (`gemini-embedding-001`, `768`, `float`, `gemini-3.5-flash-lite`, `RAG_MIN_SCORE=0.60`) sin incluir claves secretas.
+
+## 3. Evidencias con modelos reales y validación E2E
+1. **Smoke test (`data.process.smoke`)**:
+   - `{"embedding_dimensions": 768, "answer": "La base de conocimiento no tiene información suficiente para responder a esta pregunta."}`
+2. **Indexación e idempotencia (`data.process.rag` x2 sobre Qdrant v1.16.3)**:
+   - Corrida 1 y Corrida 2: `{"collection": "brasaland_knowledge", "indexed": 14, "removed": 0, "vector_name": "embedding_c874deab2e0c764cb87fb252"}`.
+3. **Calibración y Evaluación (`data/eval/rag-evaluation-01.json`)**:
+   - Rango de similitud coseno en las 16 preguntas del corpus: `0.6170` (`in-06`) a `0.7751` (`in-13`).
+   - Máximo fuera del corpus en el set de prueba: `0.5378` (`out-01`) y `0.5637` (`out-02`).
+   - Con `RAG_MIN_SCORE=0.60`: **`Recall@3 = 16/16 (100.0%)`** (objetivo $\ge 13/16$).
+   - **Revisión humana de fidelidad (`19/19` aprobados)**: documentada caso por caso en `docs/rag/rag-evaluation-report.md` (16 en corpus conservando COP/USD, condiciones y advertencias de alérgenos/BBQ; 2 abstenciones limpias fuera de corpus; 1 rechazo de prompt injection hostil en contexto).
+4. **Recorrido E2E multicapa (`Backoffice :3001 → Proxy /api/knowledge/query → FastAPI :8000 → Qdrant :6333 → Gemini`)**:
+   - Registro y login real obteniendo JWT Bearer, seguido de consultas vía proxy de Next.js con respuestas `HTTP 200 OK` y payload público `{ "answer": "..." }` para lealtad, alérgenos de Costilla BBQ y abstención fuera de alcance (ventas de ayer en Miami).
+5. **Suites de regresión**:
+   - Python: `191 passed, 5 skipped` (`49` en `tests/pipelines/test_rag.py` + `142` en `services/api/tests`).
+   - Backoffice Vitest: `107 passed` en 18 suites.

@@ -9,9 +9,10 @@ revisión `b0489cb8eeba892b15aaae88b5341a326d546b9a`.
 [Contexto RAG](CONTEXT-brasaland.es.md) es una copia íntegra; el contexto histórico
 de incidentes en `docs/CONTEXT-brasaland.es.md` no se modificó.
 
-El usuario confirmó el 15 de octubre de 2026 que aún no conoce el contrato de API
-ni los modelos habilitados por 4Geeks. Ningún modelo, URL o acceso de pago se
-seleccionó por defecto. La integración real sigue pendiente de esa información.
+El 19 de octubre de 2026 se completó la integración y validación E2E con modelos
+reales utilizando los endpoints compatibles con OpenAI de **Google Gemini**
+(`gemini-embedding-001` a `768` dimensiones en formato `float` y
+`gemini-3.5-flash-lite` para generación controlada sin herramientas externas).
 
 ## Responsabilidades
 
@@ -45,7 +46,8 @@ No se añadió un servidor dentro de `data/`, ni API dentro de las UIs.
 | menu-allergens | 3 | Platos con advertencias, protocolo completo, certificación BBQ con protocolo |
 | supplier-ordering | 3 | Responsable/horario, frecuencias completas, stock+recargo+aprobación juntos |
 
-Son **14 chunks preparados**, no 14 embeddings reales verificados. No se divide
+Son **14 chunks semánticos verificados e indexados en Qdrant con embeddings reales**
+(`gemini-embedding-001`, 768 dimensiones). No se divide
 por caracteres ni por líneas. Las listas completas conservan sus condiciones.
 El título original acompaña cada bloque. En alérgenos se repiten advertencias
 para que ningún chunk aislado omita el protocolo de contaminación cruzada o
@@ -69,13 +71,17 @@ varias operaciones Qdrant. Si falla una escritura, repetir setup con el mismo co
 
 ## Contrato configurable de modelos
 
-Contrato admitido inicialmente: `RAG_HTTP_CONTRACT=embeddings-chat-v1`.
-**Activarlo sólo tras confirmar que el acceso de estudiante cumple este contrato**;
-no es una afirmación de que el proxy de 4Geeks ya sea compatible.
+Contrato activo: `RAG_HTTP_CONTRACT=embeddings-chat-v1`, validado con los endpoints
+compatibles con OpenAI de Google Gemini (`https://generativelanguage.googleapis.com/v1beta/openai/embeddings`
+y `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`).
 
 - Autenticación Bearer, endpoints completos HTTPS (HTTP sólo para pruebas locales).
+  Si el proveedor utiliza una sola clave de API para embeddings y generación (como
+  Google Gemini), basta con definir `RAG_EMBEDDING_API_KEY` (o `RAG_API_KEY` /
+  `GEMINI_API_KEY`) y `settings()` la reutiliza automáticamente para ambos servicios.
 - Embeddings: POST `{model,input:[text],dimensions,encoding_format}`;
-  respuesta `{model,data:[{index:0,embedding:...}]}`. Se verifica modelo,
+  respuesta `{model,data:[{index:0,embedding:...}]}` (acepta respuestas de un solo
+  elemento donde el proveedor omita `"index"`). Se verifica modelo,
   cantidad, dimensión, valores finitos y vector no nulo. `float` exige lista
   numérica; `base64_int8` exige base64 válido decodificado como int8 **con signo**.
   No se admite binario empaquetado ni conversión silenciosa entre formatos.
@@ -83,22 +89,16 @@ no es una afirmación de que el proxy de 4Geeks ya sea compatible.
   respuesta `choices[0].message.content` de tipo string no vacío, con
   `finish_reason="stop"`. Se rechazan truncamientos, refusals y tool calls.
   No se envían herramientas ni se ejecuta ninguna búsqueda externa.
-- No se presume equivalencia entre proveedores. Si 4Geeks no acepta esos campos
-  o emplea generación con búsqueda incorporada, adaptar el conector contra su
-  contrato antes de habilitarlo; no basta con cambiar la URL.
 - Timeout acotado y errores de transporte/HTTP/JSON convertidos a `ProviderError`.
-  Sin reintentos invisibles ni respuestas fijas atribuidas al modelo.
+  Sin reintentos invisibles en producción ni respuestas fijas atribuidas al modelo.
 
-Referencias consultadas: [embeddings de Perplexity](https://docs.perplexity.ai/api-reference/embeddings-post)
-(documenta `base64_int8`) y [Chat Completions del router de Perplexity](https://docs.perplexity.ai/api-reference/gateway-chat-completions-post).
-La documentación antigua de Sonar redirige a migración: no se asumió que
-`/chat/completions` fuera el endpoint disponible. Estas referencias no prueban
-acceso de estudiante ni asignan modelos a esta implementación.
-
-No hay modelos ni dimensión configurados todavía. `min_score` tampoco tiene
-valor predeterminado: requiere elección experimental explícita y calibración
-posterior, no se interpreta como probabilidad. Documentos y consultas pasan por
-el mismo `embed` y el mismo preprocesamiento.
+Configuración calibrada en `services/api/.env.example`:
+- `RAG_EMBEDDING_MODEL=gemini-embedding-001` (`RAG_EMBEDDING_DIMENSION=768`, `RAG_EMBEDDING_ENCODING=float`)
+- `RAG_GENERATION_MODEL=gemini-3.5-flash-lite`
+- `RAG_MIN_SCORE=0.60` (calibrado experimentalmente sobre las 18 consultas de evaluación:
+  las 16 consultas en corpus puntúan entre `0.6170` y `0.7751`, y las fuera de corpus
+  en el set de prueba puntúan $\le 0.5637$). Documentos y consultas pasan por
+  el mismo `embed` y el mismo preprocesamiento.
 
 ## Respuesta y seguridad de la integración
 
@@ -131,25 +131,22 @@ npm --prefix uis/backoffice run lint
 npm --prefix uis/backoffice run build
 ```
 
-Completar localmente `services/api/.env` usando `.env.example`:
-`RAG_HTTP_CONTRACT`, `RAG_EMBEDDING_URL`, `RAG_EMBEDDING_MODEL`,
-`RAG_EMBEDDING_API_KEY`, `RAG_EMBEDDING_DIMENSION`, `RAG_EMBEDDING_ENCODING`,
-`RAG_GENERATION_URL`, `RAG_GENERATION_MODEL`, `RAG_GENERATION_API_KEY`,
-`RAG_MIN_SCORE`. `RAG_TIMEOUT_SECONDS` es opcional. No enviar claves al chat.
-`QDRANT_URL` local apunta a `http://127.0.0.1:6333`; configurar `QDRANT_API_KEY`
-si se habilita autenticación del servidor. Antes de generar, confirmar con el
-profesor que el contrato permite generación sin búsqueda web.
+Completar localmente `services/api/.env` usando `.env.example` y colocando la clave
+de Gemini en `RAG_EMBEDDING_API_KEY` (no es necesario duplicarla en `RAG_GENERATION_API_KEY`
+ya que el cargador de configuración la reutiliza automáticamente si pertenecen al mismo
+proveedor). No enviar claves al chat ni versionar `.env`.
+`QDRANT_URL` local apunta a `http://127.0.0.1:6333`.
 
 ```bash
 # Compose requiere además DATABASE_URL y SECRET_KEY ya existentes en el entorno.
 docker compose config --quiet
 docker compose up -d qdrant
 docker compose build backend
-# Después de confirmar y configurar el acceso de estudiante:
+# Smoke check, indexación real idempotente y evaluación completa:
 uv run --project services/api --env-file services/api/.env python -m data.process.smoke
 uv run --project services/api --env-file services/api/.env python -m data.process.rag
 uv run --project services/api --env-file services/api/.env python -m data.process.rag
-uv run --project services/api --env-file services/api/.env python -m data.eval.run --generate --output /tmp/rag-evaluation-01.json
+uv run --project services/api --env-file services/api/.env python -m data.eval.run --generate --delay 4.5 --output /tmp/rag-evaluation-01.json
 ```
 
 El comando `data.process.rag` ejecuta realmente `setup`. En Compose se pasan
@@ -164,21 +161,18 @@ sigue reservado a los datos anteriores; `/data` contiene el paquete RAG y
 Qdrant 1.16.3 y SDK 1.16.2; volumen `brasaland-knowledge-storage`, puerto publicado
 sólo en loopback `127.0.0.1:6333`, sin puerto gRPC publicado. No se despliega a Internet.
 
-## Evaluación pendiente
+## Evaluación ejecutada
 
 `data/eval/test-queries.json`: 16 preguntas dentro del corpus y 2 fuera de alcance.
 Una pregunta cuenta como acierto si **un mismo chunk** entre los tres recuperados
-contiene todas las evidencias esperadas y pertenece al documento correcto.
+(`Recall@3`) contiene todas las evidencias esperadas y pertenece al documento correcto.
 No basta con coincidir en documento o encabezado. Objetivo: al menos 13/16.
 Los casos fuera de alcance no entran en el denominador.
 
-El evaluador guarda fecha, modelos/configuración no secreta, huellas del corpus
-y preguntas, evidencia recuperada, aciertos/fallos y, con `--generate`, respuestas
-para revisión humana más un caso de instrucciones maliciosas. Nunca marca
-fidelidad aprobada automáticamente. No sobrescribe informes existentes.
-
-Para calibrar: repetir evaluación con varios `RAG_MIN_SCORE` explícitos y archivos
-diferentes, comparar fallos dentro del corpus y recuperación fuera de alcance,
-seleccionar y justificar el umbral antes de ejecutar la evaluación final. Mantener
-las preguntas difíciles. Revisar por separado cifras, monedas, condiciones,
-alérgenos, insuficiencia e instrucciones maliciosas; documentar cada fallo.
+Cuando se ejecuta con `--generate`, el evaluador recupera `k=5` para
+`generation_context` (idéntico al flujo real de `data.pipelines.rag.query`) y evalúa
+`Recall@3` sobre los primeros 3 resultados (`all_retrieved[:3]`). El resultado
+completo y sanitizado (sin claves ni secretos) se encuentra en
+[rag-evaluation-01.json](../../data/eval/rag-evaluation-01.json) y su auditoría
+humana línea por línea en [rag-evaluation-report.md](rag-evaluation-report.md),
+alcanzando **Recall@3 = 16/16 (100.0%)** y **19/19 respuestas fieles**.

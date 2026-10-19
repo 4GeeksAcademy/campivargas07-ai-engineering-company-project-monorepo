@@ -418,3 +418,17 @@
   no se repitieron en esta sesión. Recall@3, fidelidad, calibración y recorrido con
   modelos reales siguen diferidos; no se presentan mocks como métricas reales. Sin
   commit, push ni PR.
+
+## Feedback docente PR #29: Integración real del modelo Gemini y validación E2E del RAG (19-oct-2026)
+
+- **Feedback atendido:** *"Carlos, todavía quedan pendientes partes clave del RAG, como la integración real del modelo y la validación E2E."*
+- **Proveedor y contrato real (Google Gemini):** configurado `RAG_HTTP_CONTRACT=embeddings-chat-v1` contra los endpoints compatibles con OpenAI de Gemini (`gemini-embedding-001` a `768` dimensiones en formato `float` y `gemini-3.5-flash-lite` para generación sin herramientas externas).
+- **Ajustes en conectores y evaluador:**
+  - `data/process/config.py`: soporte de clave única (`RAG_EMBEDDING_API_KEY`, `RAG_API_KEY` o `GEMINI_API_KEY`) reutilizada automáticamente para embeddings y generación.
+  - `data/process/embeddings.py`: tolerancia a la omisión del campo opcional `"index"` en respuestas unitarias de Gemini (`item.get("index", 0) != 0`).
+  - `data/eval/run.py`: separación entre `Recall@3` (`all_retrieved[:3]`) y `generation_context` (`k=5`, alineado con `data.pipelines.rag.query`), más soporte `--delay` para cuotas de API.
+  - `docker-compose.yml`: retiro de `QDRANT__SERVICE__API_KEY=${QDRANT_API_KEY:-}` vacío que causaba `401 Unauthorized` en Qdrant v1.16.3 cuando no se definía clave.
+- **Indexación e idempotencia reales:** `data.process.smoke` aprobado (`768` dims) y doble corrida de `data.process.rag` sobre Qdrant v1.16.3 persistente (`indexed: 14, removed: 0`, vector `embedding_c874deab2e0c764cb87fb252`).
+- **Calibración y Evaluación (`data/eval/rag-evaluation-01.json`):** `RAG_MIN_SCORE=0.60` calibrado experimentalmente (consultas en corpus `0.6170`–`0.7751`; fuera de corpus $\le 0.5637$). **Recall@3 = 16/16 (100.0%)**, superando el objetivo `>= 13/16`. Las 19 generaciones reales (16 en corpus, 2 fuera de corpus y 1 prueba de inyección hostil) fueron auditadas y aprobadas manualmente en `docs/rag/rag-evaluation-report.md`.
+- **Validación E2E multicapa:** verificada con Qdrant (`:6333`), FastAPI (`:8000`) y Next.js Backoffice (`:3001`) levantados simultáneamente, ejecutando registro, login JWT y consultas reales a través del proxy `/api/knowledge/query` para casos de lealtad, alérgenos/Costilla BBQ y fuera de alcance (ventas en Miami).
+- **Pruebas automatizadas:** `191 passed, 5 skipped` en Python (`49` en `tests/pipelines/test_rag.py` + `142` en `services/api/tests`) y `107 passed` en Vitest (`uis/backoffice`).

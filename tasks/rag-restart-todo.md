@@ -16,14 +16,10 @@ La evidencia anterior corresponde a validaciones registradas antes de esta sesi�
 no se repitió aquí. No se atribuyen métricas de Recall@3, fidelidad o calibración
 semántica a los mocks.
 
-## Diferido fuera del alcance simulado
+## Integración real y validación E2E completadas (19-oct-2026)
 
-- Confirmar el contrato, autenticación y modelos habilitados de 4Geeks.
-- Probar embeddings/generación reales y reindexar con esos vectores.
-- Calibrar `RAG_MIN_SCORE`, medir Recall@3 (objetivo >=13/16) y revisar fidelidad
-  con salidas reales. Estas métricas siguen sin medirse y no se simulan como resultados.
-- Registrar la pregunta/respuesta real trazable y recorrido completo con modelos reales.
-
-## Publicación
-
-- No se hizo commit, push ni PR. Requieren autorización explícita aparte.
+- [x] Configurar proveedor real Google Gemini (`gemini-embedding-001` 768d float y `gemini-3.5-flash-lite`) con soporte de clave única en `data/process/config.py`.
+- [x] Ejecutar smoke check (`data.process.smoke`) y reindexar de forma idempotente los 14 chunks reales en Qdrant (`data.process.rag` x2: `indexed: 14, removed: 0`).
+- [x] Separar `Recall@3` (`k=3`) y `generation_context` (`k=5`) en `data/eval/run.py`.
+- [x] Calibrar `RAG_MIN_SCORE=0.60`, medir `Recall@3 = 16/16 (100.0%)` (objetivo >=13/16) y auditar manualmente la fidelidad de las 19 salidas reales (`data/eval/rag-evaluation-01.json` y `docs/rag/rag-evaluation-report.md`).
+- [x] Verificar recorrido E2E completo con servicios reales (`Backoffice :3001 → Proxy /api/knowledge/query → FastAPI :8000 → Qdrant :6333 → Gemini`) con sesión autenticada y preguntas en alcance y fuera de alcance.

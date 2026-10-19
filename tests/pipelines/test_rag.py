@@ -208,3 +208,50 @@ def test_query_propagates_generation_failure(cfg, monkeypatch):
     def fail(*a, **kw): raise ProviderError('unavailable')
     monkeypatch.setattr(rag, 'generate_answer', fail)
     with pytest.raises(ProviderError): rag.query('q')
+
+
+def test_single_api_key_fallback_and_gemini_index_omitted(cfg, monkeypatch):
+    from data.process.config import settings
+    env = {
+        'RAG_HTTP_CONTRACT': 'embeddings-chat-v1',
+        'RAG_EMBEDDING_URL': 'https://generativelanguage.googleapis.com/v1beta/openai/embeddings',
+        'RAG_EMBEDDING_MODEL': 'gemini-embedding-001',
+        'RAG_EMBEDDING_API_KEY': 'single-gemini-key',
+        'RAG_EMBEDDING_DIMENSION': '3',
+        'RAG_EMBEDDING_ENCODING': 'float',
+        'RAG_GENERATION_URL': 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+        'RAG_GENERATION_MODEL': 'gemini-3.5-flash-lite',
+        'RAG_MIN_SCORE': '0.65',
+    }
+    monkeypatch.delenv('RAG_GENERATION_API_KEY', raising=False)
+    monkeypatch.delenv('RAG_API_KEY', raising=False)
+    monkeypatch.delenv('GEMINI_API_KEY', raising=False)
+    for k, v in env.items():
+        monkeypatch.setenv(k, v)
+    resolved = settings()
+    assert resolved.embedding_key == 'single-gemini-key'
+    assert resolved.generation_key == 'single-gemini-key'
+    with httpx.Client(transport=httpx.MockTransport(
+        lambda _: httpx.Response(200, json={'model': 'gemini-embedding-001', 'data': [{'object': 'embedding', 'embedding': [1, -2, .5]}]})
+    )) as client:
+        assert embed('hello', config=resolved, client=client) == [1., -2., .5]
+
+
+def test_evaluate_separates_recall_k3_and_generation_k5(cfg, monkeypatch):
+    from data.eval import run as eval_run
+    k_calls = []
+    monkeypatch.setattr(eval_run, 'settings', lambda: cfg)
+    def fake_retrieve(q, *, k, min_score, config):
+        k_calls.append(k)
+        return [{'source_document': 'loyalty-program', 'section': 'Niveles', 'text': '50+ puntos 15%'}] * k
+    monkeypatch.setattr(eval_run, 'retrieve', fake_retrieve)
+    monkeypatch.setattr(eval_run, 'generate_answer', lambda q, ctx, config: f'len={len(ctx)}')
+    report_retrieval = eval_run.evaluate(generate=False)
+    assert k_calls[0] == 3
+    assert len(report_retrieval['cases'][0]['retrieved']) == 3
+    k_calls.clear()
+    report_gen = eval_run.evaluate(generate=True)
+    assert k_calls[0] == 5
+    assert len(report_gen['cases'][0]['retrieved']) == 3
+    assert len(report_gen['cases'][0]['generation_context']) == 5
+    assert report_gen['cases'][0]['answer'] == 'len=5'

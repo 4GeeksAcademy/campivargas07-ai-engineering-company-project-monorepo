@@ -46,7 +46,7 @@ def embed(text: str, *, config: Settings | None = None, client=None) -> list[flo
         if result["model"] != cfg.embedding_model or len(result["data"]) != 1:
             raise ValueError("Modelo o cantidad inesperados")
         item = result["data"][0]
-        if item["index"] != 0:
+        if item.get("index", 0) != 0:
             raise ValueError("Índice inesperado")
         vector = item["embedding"]
         if cfg.encoding == "base64_int8":
