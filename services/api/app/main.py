@@ -16,6 +16,7 @@ from app.domains.procurement.suppliers.router import router as suppliers_router
 from app.domains.profiles.router import router as profiles_router
 from app.domains.telemetry.router import router as telemetry_router
 from app.domains.users.router import router as users_router
+from app.domains.knowledge.router import router as knowledge_router
 from pydantic import BaseModel
 
 
@@ -69,6 +70,7 @@ app.include_router(analytics_incidents_router)
 app.include_router(incidents_router)
 app.include_router(inventory_router)
 app.include_router(telemetry_router)
+app.include_router(knowledge_router)
 
 
 @app.get("/health", response_model=HealthResponse, tags=["health"])

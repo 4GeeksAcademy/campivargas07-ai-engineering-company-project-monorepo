@@ -1,3 +1,81 @@
+# Walkthrough: Preparación de PR borrador RAG — 16 de octubre de 2026
+
+El usuario autoriza publicar el trabajo en una PR Draft hacia `main`, incluyendo
+el resumen funcional, las pruebas verificadas, las complicaciones del entorno y
+los pendientes del evaluador y de los modelos reales de 4Geeks. No se solicita
+merge ni se declara completado el hito.
+
+La publicación incluye únicamente los archivos de este hito y preserva fuera
+del commit el cambio ajeno en `services/.dockerignore`. Se mantiene la base
+autorizada `f18688e583aba6d912e4a887b17ec3baf2dd0806`, sin incorporar otras ramas,
+commits o stashes del RAG retirado. La descripción de la PR conserva la distinción
+entre las validaciones nuevas de abajo y los antecedentes históricos posteriores.
+
+# Walkthrough: Continuación y verificación del RAG — 16 de octubre de 2026
+
+## Cambios de esta ejecución
+
+Se continuó sobre los archivos locales ya presentes, preservándolos y sin
+recuperar el RAG retirado. `HEAD` y `main` coinciden con la base autorizada
+`f18688e583aba6d912e4a887b17ec3baf2dd0806`. Se ampliaron tres suites existentes:
+
+- `tests/pipelines/test_rag.py`: resultados exactamente iguales a `min_score`.
+- `services/api/tests/test_knowledge_api.py`: tokens inválidos y usuarios
+  inactivos no pueden ejecutar generación.
+- `uis/backoffice/src/test/knowledge.test.tsx`: no hay petición sin sesión,
+  respuesta JSON inválida se rechaza y se conservan POST/proxy/AbortSignal.
+
+## Verificaciones nuevas, no heredadas
+
+Se extrajo exclusivamente el commit base con `git archive` a una carpeta temporal;
+se reutilizaron dependencias instaladas, sin cambiar ramas ni el checkout actual.
+El host no tiene `uv` en PATH; se usó el Python existente de `services/api/.venv`.
+
+| Verificación | Base autorizada | Checkout actual |
+|---|---|---|
+| API pytest | 129 passed, 5 skipped | 142 passed, 5 skipped |
+| Pipeline pytest | No existe en la base | 47 passed |
+| Backoffice Vitest | 89 passed, 16 suites | 107 passed, 18 suites |
+| Website Vitest | 4 passed | 4 passed |
+| Backoffice typecheck | 3 errores existentes | Los mismos 3 errores |
+| Backoffice lint global | 2 errores en telemetría | Los mismos 2 errores |
+| Backoffice build | Compila; falla en `AuthMeResponse.id` | Compila; falla en el mismo error |
+
+El build temporal necesitó `--webpack` porque Turbopack rechaza enlaces a
+dependencias fuera de su raíz. El actual usó el build normal. No se reprodujo el
+antiguo fallo de Google Fonts. Los cinco skipped son integración PostgreSQL sin
+`TEST_DATABASE_URL`, no pruebas aprobadas. Pasan lint dirigido a los archivos RAG
+y Compose config con valores ficticios únicamente de validación.
+
+Comandos principales ejecutados desde la raíz:
+
+```bash
+services/api/.venv/bin/python -m pytest tests/pipelines/test_rag.py services/api/tests -q -rs
+npm run test:uis
+npm --prefix uis/backoffice run typecheck
+npm --prefix uis/backoffice run lint
+NEXT_TELEMETRY_DISABLED=1 npm --prefix uis/backoffice run build
+```
+
+## Bloqueos y siguiente paso
+
+La edición de `data/` está excluida por Copilot. Quedó sin aplicar una corrección
+del evaluador: conservar Recall@3 con tres resultados, pero generar con cinco
+como `query()` y guardar ese contexto por separado para revisar fidelidad. Tras
+habilitar la edición, implementar esa separación y añadir una prueba con mocks
+que compruebe ambos valores de k y la evidencia registrada.
+
+El contrato HTTP provisional no demuestra compatibilidad con 4Geeks: confirmar
+endpoints, autenticación, modelos distintos, dimensión, formato y cuotas antes de
+conectar. Después faltan setup repetido con embeddings reales, calibración,
+Recall@3 y fidelidad real. No se iniciaron servicios ni se hizo recorrido navegador
+en esta ejecución; las evidencias simuladas históricas no se reutilizan como
+validación nueva. No hubo instalaciones, commit, push ni PR.
+
+Sólo se restauraron `.pyc` generados por estas pruebas y limpios al inicio. No se
+alteró el cambio concurrente en `services/.dockerignore`, cuyo whitespace hace
+fallar el chequeo global. Las zonas protegidas permanecen sin diferencias.
+
 # Walkthrough: Retirada de RAG para reinicio
 
 Fecha: 15 de octubre de 2026 (America/Mexico_City).
@@ -23,6 +101,34 @@ Los contextos generales protegidos, `memory-bank/projectbrief.md`, `memory-bank/
 ## Continuidad para el siguiente prompt
 
 La retirada publicada necesita fusión de su PR para que `main` remoto sea la base sin RAG. Después, actualizar `main` y crear una rama nueva, por ejemplo `feature/rag-knowledge-base-restart`. No reutilizar ni hacer cherry-pick de la rama RAG antigua, que mezcla otros proyectos. Leer AGENTS.md y Memory Bank antes de empezar. Confirmar configuración/modelos reales desde el inicio y obtener evidencia real antes de declarar el hito terminado.
+
+# Walkthrough: Cierre local del RAG en modo simulado
+
+Fecha: 16 de octubre de 2026.
+
+## Alcance y decisión
+
+El usuario pidió terminar el proyecto simulando lo que depende del proveedor. Se
+acepta como cierre local únicamente el alcance offline/mock ya implementado y
+documentado; no se inventan endpoints, modelos, respuestas de producción ni
+métricas de calidad semántica.
+
+## Evidencia preservada
+
+- El informe de evaluación registra 140 pruebas API aprobadas y 5 omitidas, 100
+  pruebas Backoffice aprobadas, Qdrant con setup repetido conservando 14 puntos
+  mediante vectores simulados, e integración de navegador con proveedor simulado.
+- Estas cifras son evidencia histórica registrada antes de esta sesión; no se
+  repitieron durante este cierre.
+- Recall@3 real, fidelidad, calibración del umbral y recorrido con modelos reales
+  continúan pendientes del contrato de 4Geeks y no son resultados simulables.
+
+## Restricción y entrega
+
+La política de exclusión de contenido impidió leer los módulos fuente RAG en esta
+sesión. No se intentó acceder a ellos por herramientas alternativas ni se cambió
+código. Se actualizaron únicamente los registros de alcance y estado. No se hizo
+commit, push ni PR.
 
 # Walkthrough: Dominio de Inventario con SQLModel y Doble Base de Datos en `services/api`
 
@@ -821,6 +927,65 @@ se documentan en sus respectivas secciones anteriores.
 - La prueba de regresión cubre un cruce de 25 a 19 con mínimo 20 y comprueba el payload emitido.
 - Validación enfocada: 8 pruebas del formulario pasaron y ESLint de los dos archivos modificados pasó. El typecheck general aún reporta 9 errores en otros archivos de la rama, ninguno en este cambio.
 - No se simulan eventos de compras, conciliación de precios, ventas ni POS: esos flujos y productores aún no existen en el monorepo. Su cobertura sigue pendiente de los módulos correspondientes.
+
+# Walkthrough: RAG y Base de Conocimiento — reinicio limpio
+
+## Alcance y arquitectura
+
+Se implementó desde `f18688e` una base de conocimiento independiente en `data/`,
+consumida por `services/api` como paquete local y expuesta al backoffice. El corpus
+oficial se conserva íntegro en `docs/company-knowledge-base`; el agrupamiento semántico
+produce 14 chunks con metadatos trazables. Qdrant se ejecuta como tercer servicio de
+Compose con almacenamiento persistente y puerto limitado a loopback.
+
+El flujo final es:
+
+1. `python -m data.process.rag` carga, fragmenta, embebe e indexa.
+2. `retrieve` embebe la pregunta y aplica top-k más `min_score`.
+3. `generate_answer` siempre redacta la respuesta, incluso sin contexto recuperado.
+4. `POST /knowledge/query` exige la autenticación existente y devuelve sólo `answer`.
+5. `/backoffice/knowledge` usa el proxy y token existentes, con carga, error y reintento.
+
+## Evidencias ejecutadas el 15 de octubre de 2026
+
+- Línea base reproducida antes de editar: API 129 passed/5 skipped; backoffice 89 passed;
+  tres errores TypeScript; build bloqueado al descargar Google Fonts.
+- Final Python: `185 passed, 5 skipped` (140 API + 45 pipeline). Las cinco omisiones
+  requieren `TEST_DATABASE_URL` para constraints y concurrencia real de inventario.
+- Final backoffice: 100 pruebas en 18 suites. ESLint dirigido de los archivos RAG: PASS.
+- Typecheck final: los mismos tres errores del baseline, ninguno en archivos RAG.
+- Lint global: dos errores preexistentes `no-explicit-any` en telemetría, archivo idéntico
+  a la base. Build: mismo fallo de descarga de Google Fonts.
+- `uv lock --check --offline`: PASS. `git diff --check`: PASS.
+- Compose: configuración válida con valores ficticios sólo para interpolación; Qdrant
+  respondió `healthz check passed`.
+- Imagen backend: build exitoso; `qdrant-client 1.16.2`, 14 chunks, router importable y
+  ningún archivo `.env` dentro de `/app`, `/data` o `/docs`.
+- Qdrant desechable con embeddings simulados: dos ejecuciones de setup conservaron
+  exactamente 14 puntos. Esta prueba sólo acredita contrato e idempotencia.
+- Navegador real con usuario, TinyDB, Qdrant y API aislados, y proveedor HTTP simulado:
+  redirección anónima, login, consulta 200 con única clave pública `answer`, fallo 502
+  sanitizado y reintento exitoso; sin errores de página. Inspección visual aprobada en
+  oscuro, claro y ancho móvil sin overflow horizontal.
+
+## Pendientes reales
+
+El usuario confirmó que consultará con el profesor el panel/API y los modelos habilitados
+por 4Geeks. Hasta entonces quedan pendientes embeddings y generación reales, dimensión,
+calibración de `min_score`, indexación real repetida, Recall@3 >= 13/16, revisión humana
+de fidelidad y una pregunta/respuesta real trazable. No se presentan mocks como métricas.
+
+## Borrador de PR (no publicado)
+
+Título: `feat: rag knowledge base`
+
+> Añade la base de conocimiento de Brasaland desde la base limpia de `main`: cuatro
+> manuales oficiales con chunking semántico, indexación idempotente en Qdrant, pipeline
+> separado de recuperación/generación, endpoint autenticado y pantalla protegida del
+> backoffice. Incluye adaptadores configurables sin proveedor asumido, pruebas offline,
+> 16 casos de retrieval y documentación reproducible. La validación con modelos de
+> estudiante, Recall@3 y fidelidad queda explícitamente pendiente de confirmar el acceso
+> de 4Geeks; no se publica evidencia simulada como resultado real.
 # Walkthrough: Correcciones de revisión del profesor — PR #17 (plan de telemetría)
 
 ## Hallazgos atendidos
@@ -837,3 +1002,36 @@ se documentan en sus respectivas secciones anteriores.
 
 ## Aislamiento y estado
 El trabajo se hizo en el worktree aislado `/tmp/campivargas-pr17` sobre la rama de PR #17. No se tocaron el checkout, merge ni cambios staged de PR #16.
+
+---
+
+# Walkthrough: Feedback docente PR #29 — Integración real con Google Gemini y validación E2E del RAG
+
+## 1. Contexto y objetivo
+En la revisión de la PR #29 (`feature/rag-knowledge-base-restart`), el profesor indicó:
+> *"Carlos, todavía quedan pendientes partes clave del RAG, como la integración real del modelo y la validación E2E."*
+
+Se completó la integración real extremo a extremo utilizando los endpoints compatibles con OpenAI de **Google Gemini**, la reindexación idempotente de los 4 manuales en Qdrant, la calibración experimental de `RAG_MIN_SCORE`, la evaluación completa de `Recall@3` + fidelidad y la validación E2E multicapa desde el Backoffice autenticado.
+
+## 2. Cambios técnicos aplicados
+- **Soporte de API Key única (`data/process/config.py`)**: dado que Google Gemini provee una única clave para embeddings y generación, `settings()` ahora acepta una sola clave definida en `RAG_EMBEDDING_API_KEY` (o `RAG_API_KEY` / `GEMINI_API_KEY`) y la aplica automáticamente a ambos servicios si no se especifica una segunda clave distinta.
+- **Compatibilidad de respuesta de embeddings Gemini (`data/process/embeddings.py`)**: el endpoint OpenAI-compatible de Gemini omite el campo `"index"` cuando se solicita un solo vector; se ajustó la validación a `item.get("index", 0) != 0` manteniendo el rechazo ante índices distintos de cero.
+- **Separación de `Recall@3` y contexto de generación `k=5` (`data/eval/run.py`)**: cuando se ejecuta con `--generate`, el evaluador ahora recupera `k=5` para `generation_context` (idéntico al pipeline productivo `data.pipelines.rag.query`) y evalúa `Recall@3` sobre `all_retrieved[:3]`. Se añadió además `--delay` para ejecuciones respetuosas con límites de cuota.
+- **Corrección de acceso local a Qdrant (`docker-compose.yml`)**: se eliminó `QDRANT__SERVICE__API_KEY=${QDRANT_API_KEY:-}` en el servicio `qdrant`, ya que pasar una cadena vacía activaba el requisito de API key en Qdrant v1.16.3 y provocaba `401 Unauthorized` en conexiones locales sin clave.
+- **Plantilla no secreta (`services/api/.env.example`)**: actualizada con la configuración real de Gemini (`gemini-embedding-001`, `768`, `float`, `gemini-3.5-flash-lite`, `RAG_MIN_SCORE=0.60`) sin incluir claves secretas.
+
+## 3. Evidencias con modelos reales y validación E2E
+1. **Smoke test (`data.process.smoke`)**:
+   - `{"embedding_dimensions": 768, "answer": "La base de conocimiento no tiene información suficiente para responder a esta pregunta."}`
+2. **Indexación e idempotencia (`data.process.rag` x2 sobre Qdrant v1.16.3)**:
+   - Corrida 1 y Corrida 2: `{"collection": "brasaland_knowledge", "indexed": 14, "removed": 0, "vector_name": "embedding_c874deab2e0c764cb87fb252"}`.
+3. **Calibración y Evaluación (`data/eval/rag-evaluation-01.json`)**:
+   - Rango de similitud coseno en las 16 preguntas del corpus: `0.6170` (`in-06`) a `0.7751` (`in-13`).
+   - Máximo fuera del corpus en el set de prueba: `0.5378` (`out-01`) y `0.5637` (`out-02`).
+   - Con `RAG_MIN_SCORE=0.60`: **`Recall@3 = 16/16 (100.0%)`** (objetivo $\ge 13/16$).
+   - **Revisión humana de fidelidad (`19/19` aprobados)**: documentada caso por caso en `docs/rag/rag-evaluation-report.md` (16 en corpus conservando COP/USD, condiciones y advertencias de alérgenos/BBQ; 2 abstenciones limpias fuera de corpus; 1 rechazo de prompt injection hostil en contexto).
+4. **Recorrido E2E multicapa (`Backoffice :3001 → Proxy /api/knowledge/query → FastAPI :8000 → Qdrant :6333 → Gemini`)**:
+   - Registro y login real obteniendo JWT Bearer, seguido de consultas vía proxy de Next.js con respuestas `HTTP 200 OK` y payload público `{ "answer": "..." }` para lealtad, alérgenos de Costilla BBQ y abstención fuera de alcance (ventas de ayer en Miami).
+5. **Suites de regresión**:
+   - Python: `191 passed, 5 skipped` (`49` en `tests/pipelines/test_rag.py` + `142` en `services/api/tests`).
+   - Backoffice Vitest: `107 passed` en 18 suites.
