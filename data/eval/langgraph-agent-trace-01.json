@@ -1,0 +1,141 @@
+{
+  "run_id": "langgraph-agent-trace-01",
+  "thread_id": "langgraph-agent-trace-01",
+  "started_at": "2026-10-21T17:11:12.191654+00:00",
+  "finished_at": "2026-10-21T17:11:14.442273+00:00",
+  "status": "completed",
+  "route": "grounded",
+  "question": "¿Cuántos puntos necesito para el nivel Oro y qué beneficios da cada nivel?",
+  "nodes_order": [
+    "receive_question",
+    "retrieve_context",
+    "generate_grounded_answer"
+  ],
+  "steps": [
+    {
+      "node": "receive_question",
+      "duration_ms": 0.024,
+      "route": "valid",
+      "retrieved_count": 0,
+      "retrieved_sources": []
+    },
+    {
+      "node": "retrieve_context",
+      "duration_ms": 532.131,
+      "route": "grounded",
+      "retrieved_count": 3,
+      "retrieved_sources": [
+        {
+          "source_document": "loyalty-program",
+          "section": "Niveles",
+          "chunk_index": 1
+        },
+        {
+          "source_document": "loyalty-program",
+          "section": "Redención",
+          "chunk_index": 2
+        },
+        {
+          "source_document": "loyalty-program",
+          "section": "Acumulación y vigencia",
+          "chunk_index": 0
+        }
+      ]
+    },
+    {
+      "node": "generate_grounded_answer",
+      "duration_ms": 1699.109,
+      "route": "grounded",
+      "answer_length": 512
+    }
+  ],
+  "checkpoints": [
+    {
+      "checkpoint_id": "1f1cd726-a819-6af5-bfff-e51a374e2ed1",
+      "step": -1,
+      "source": "input",
+      "next": [
+        "__start__"
+      ],
+      "route": null,
+      "has_context": false,
+      "has_answer": false,
+      "error_code": null
+    },
+    {
+      "checkpoint_id": "1f1cd726-a81c-6e6c-8000-8c1f4fd664a1",
+      "step": 0,
+      "source": "loop",
+      "next": [
+        "receive_question"
+      ],
+      "route": null,
+      "has_context": false,
+      "has_answer": false,
+      "error_code": null
+    },
+    {
+      "checkpoint_id": "1f1cd726-a81f-6dc8-8001-13bea825dccf",
+      "step": 1,
+      "source": "loop",
+      "next": [
+        "retrieve_context"
+      ],
+      "route": "valid",
+      "has_context": false,
+      "has_answer": false,
+      "error_code": null
+    },
+    {
+      "checkpoint_id": "1f1cd726-ad35-6ce0-8002-71b7247d859a",
+      "step": 2,
+      "source": "loop",
+      "next": [
+        "generate_grounded_answer"
+      ],
+      "route": "grounded",
+      "has_context": true,
+      "has_answer": false,
+      "error_code": null
+    },
+    {
+      "checkpoint_id": "1f1cd726-bd6b-6f2a-8003-a0022d8fa185",
+      "step": 3,
+      "source": "loop",
+      "next": [],
+      "route": "grounded",
+      "has_context": true,
+      "has_answer": true,
+      "error_code": null
+    }
+  ],
+  "retrieved_context": [
+    {
+      "company": "brasaland",
+      "source_document": "loyalty-program",
+      "section": "Niveles",
+      "chunk_index": 1,
+      "language": "es",
+      "text": "# Programa de Lealtad \"Brasa Points\"\n\nNiveles del programa:\n- Bronce (0-19 puntos): 5% de descuento en bebidas los martes.\n- Plata (20-49 puntos): 10% de descuento en el plato principal, una vez al mes.\n- Oro (50+ puntos): 15% de descuento permanente y acceso a menú de temporada\n  antes que el público general."
+    },
+    {
+      "company": "brasaland",
+      "source_document": "loyalty-program",
+      "section": "Redención",
+      "chunk_index": 2,
+      "language": "es",
+      "text": "# Programa de Lealtad \"Brasa Points\"\n\nLos puntos se pueden redimir desde 15 puntos acumulados, en incrementos de 5.\nCada 5 puntos redimidos equivalen a 20.000 COP (20 USD) de descuento en la\ncuenta. No se pueden combinar con otras promociones activas del mes."
+    },
+    {
+      "company": "brasaland",
+      "source_document": "loyalty-program",
+      "section": "Acumulación y vigencia",
+      "chunk_index": 0,
+      "language": "es",
+      "text": "# Programa de Lealtad \"Brasa Points\"\n\nBrasa Points es el programa de fidelización de Brasaland. Por cada 10.000 COP\n(o 10 USD en Florida) gastados, el cliente acumula 1 punto. Los puntos no\nvencen mientras la cuenta esté activa (con al menos una compra cada 12 meses)."
+    }
+  ],
+  "answer": "Hola. Para alcanzar el nivel Oro necesitas 50+ puntos.\n\nA continuación te detallo los beneficios de cada nivel según el programa de lealtad \"Brasa Points\":\n\n*   **Bronce (0-19 puntos):** 5% de descuento en bebidas los martes.\n*   **Plata (20-49 puntos):** 10% de descuento en el plato principal, una vez al mes.\n*   **Oro (50+ puntos):** 15% de descuento permanente y acceso a menú de temporada antes que el público general.\n\nEsta información está sustentada en el documento \"loyalty-program\", sección \"Niveles\".",
+  "error": null,
+  "saved_at": "2026-10-21T17:11:14.442413+00:00"
+}

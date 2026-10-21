@@ -432,3 +432,25 @@
 - **Calibración y Evaluación (`data/eval/rag-evaluation-01.json`):** `RAG_MIN_SCORE=0.60` calibrado experimentalmente (consultas en corpus `0.6170`–`0.7751`; fuera de corpus $\le 0.5637$). **Recall@3 = 16/16 (100.0%)**, superando el objetivo `>= 13/16`. Las 19 generaciones reales (16 en corpus, 2 fuera de corpus y 1 prueba de inyección hostil) fueron auditadas y aprobadas manualmente en `docs/rag/rag-evaluation-report.md`.
 - **Validación E2E multicapa:** verificada con Qdrant (`:6333`), FastAPI (`:8000`) y Next.js Backoffice (`:3001`) levantados simultáneamente, ejecutando registro, login JWT y consultas reales a través del proxy `/api/knowledge/query` para casos de lealtad, alérgenos/Costilla BBQ y fuera de alcance (ventas en Miami).
 - **Pruebas automatizadas:** `191 passed, 5 skipped` en Python (`49` en `tests/pipelines/test_rag.py` + `142` en `services/api/tests`) y `107 passed` en Vitest (`uis/backoffice`).
+
+## Hito: Agente de Soporte con LangGraph — Parte 1: Migración y Flujo del Agente (rama `feature/langgraph-agent-base`)
+
+- **Base Git verificada:** creada desde `main` actualizado (`1a34b24707f6f7cc1ebece228ab59a12d0bb4f4a`, tras el merge de la PR #29).
+- **Dependencia:** añadido `langgraph` en `services/api` mediante `uv add --project services/api langgraph` (`uv.lock` verificado).
+- **Estado mínimo y explícito (`services/api/app/domains/agent/state.py`):** `AgentState` tipado con `run_id`, `question`, `retrieved_context`, `answer`, `route` y `error_code`, más validador en tiempo de ejecución `validate_agent_state()` que rechaza historiales conversacionales, tokens/claves y clientes HTTP/BD.
+- **Grafo compilado y nodos independientes (`services/api/app/domains/agent/graph.py`):**
+  - `receive_question`: normaliza y valida la pregunta (`valid` vs `empty_question`).
+  - `reject_invalid_question`: ruta condicional que termina en `END` sin consultar Qdrant ni el LLM cuando la pregunta está vacía o fuera de rango.
+  - `retrieve_context`: importa y llama directamente a `retrieve()` de `data.pipelines.rag`.
+  - `generate_grounded_answer`: importa y llama a `generate_answer(question, context)` con el `retrieved_context` del estado cuando hay evidencia ($\ge 1$ chunk).
+  - `abstain_without_evidence`: ruta condicional explícita cuando `retrieved_context == []`, garantizando abstención honesta sin inventar datos.
+  - Compilación explícita (`COMPILED_AGENT_GRAPH`) con `InMemorySaver` por `thread_id` aislado; `rag.query()` nunca se invoca dentro del grafo.
+- **Checkpoints y Traces consultables (`services/api/app/domains/agent/traces.py`):**
+  - Funciones de inspección `get_run_state(thread_id)` y `get_run_checkpoints(thread_id)` sobre `get_state` / `get_state_history`.
+  - Persistencia automática por corrida en JSON local (`services/api/data/agent_traces/<run_id>.json`, ignorado en Git) con `nodes_order`, `steps` (duración y fuentes recuperadas), `checkpoints`, `retrieved_context`, `answer` y errores sanitizados.
+  - Export de corrida real contra Qdrant + Google Gemini versionado en `data/eval/langgraph-agent-trace-01.json`.
+- **Endpoint autenticado (`services/api/app/domains/agent/router.py`):** `POST /agent/query` protegido con `Depends(get_current_user)`, conviviendo con `POST /knowledge/query` y sanitizando errores (422/502/503/500) sin filtrar stack traces ni secretos.
+- **Evaluaciones y pruebas:**
+  - `tests/pipelines/test_agent_evals.py` + `tests/pipelines/fixtures/agent_traces.json`: 3 evals sobre traces guardados y corrida real (flujo nominal y orden de nodos, rutas condicionales alternativas sin evidencia/pregunta vacía, y anclaje de políticas de Brasaland: Nivel Oro `50+ puntos` / `15%` y Costilla BBQ / contaminación cruzada) + pruebas estructurales, aislamiento de checkpoints y sanitización.
+  - `tests/pipelines/`: `67 passed` (`49` RAG + `18` LangGraph).
+  - `services/api/tests`: `156 passed, 5 skipped` (`14` nuevas en `test_agent_api.py`).

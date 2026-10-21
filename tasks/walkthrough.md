@@ -1035,3 +1035,40 @@ Se completó la integración real extremo a extremo utilizando los endpoints com
 5. **Suites de regresión**:
    - Python: `191 passed, 5 skipped` (`49` en `tests/pipelines/test_rag.py` + `142` en `services/api/tests`).
    - Backoffice Vitest: `107 passed` en 18 suites.
+
+---
+
+# Walkthrough: Agente de Soporte con LangGraph — Parte 1: Migración y Flujo del Agente
+
+## 1. Alcance y arquitectura implementada
+Partiendo de `main` actualizado (`1a34b24707f6f7cc1ebece228ab59a12d0bb4f4a`, con la PR #29 ya integrada), se implementó en la rama `feature/langgraph-agent-base` la **Parte 1 del Agente de Soporte con LangGraph** dentro del backend activo (`services/api/app/domains/agent/`), manteniendo intactos los módulos de `data/process/`, `data/pipelines/rag.py` y el endpoint `POST /knowledge/query`.
+
+### Componentes creados y modificados
+1. **Estado mínimo y validación (`services/api/app/domains/agent/state.py`)**:
+   - `AgentState(TypedDict, total=False)` con `run_id`, `question`, `retrieved_context`, `answer`, `route` y `error_code`.
+   - `validate_agent_state()` verifica tipos e invariantes en cada transición y prohíbe historiales completos (`messages`, `history`), credenciales (`api_key`, `token`, `authorization`) y clientes HTTP/almacén (`client`, `store`).
+2. **Grafo compilado, nodos y aristas condicionales (`services/api/app/domains/agent/graph.py`)**:
+   - Nodos con responsabilidad única:
+     - `receive_question`: limpia y valida longitud (`1..2000`).
+     - `reject_invalid_question`: ruta condicional (`route == "empty_question"`) hacia `END` sin consultar Qdrant ni el LLM.
+     - `retrieve_context`: importa y llama directamente a `retrieve()` de `data.pipelines.rag`.
+     - `generate_grounded_answer`: ruta condicional (`route == "grounded"`, $\ge 1$ chunk) que llama a `generate_answer(question, state["retrieved_context"])`.
+     - `abstain_without_evidence`: ruta condicional (`route == "no_evidence"`, $0$ chunks sobre `RAG_MIN_SCORE=0.60`) que garantiza una abstención honesta sin inventar datos.
+   - Compilación explícita (`COMPILED_AGENT_GRAPH = build_agent_graph(checkpointer=DEFAULT_CHECKPOINTER)`) usando `InMemorySaver` de `langgraph.checkpoint.memory`. En ningún nodo se invoca `rag.query()`.
+3. **Checkpointing y Traces consultables (`services/api/app/domains/agent/traces.py`)**:
+   - Cada corrida recibe un `run_id` / `thread_id` propio y persiste un archivo JSON consultable en `services/api/data/agent_traces/<run_id>.json` (o `AGENT_TRACES_DIR`).
+   - Funciones `get_run_state(thread_id)` y `get_run_checkpoints(thread_id)` para inspeccionar el estado y las transiciones (`checkpoint_id`, `step`, `source`, `next`).
+   - Corrida real contra Qdrant (`127.0.0.1:6333`) + Google Gemini (`gemini-embedding-001` y `gemini-3.5-flash-lite`) exportada en `data/eval/langgraph-agent-trace-01.json`.
+4. **Endpoint autenticado (`services/api/app/domains/agent/router.py` y `services/api/app/main.py`)**:
+   - `POST /agent/query` autenticado con `Depends(get_current_user)`, conviviendo con `POST /knowledge/query`, devolviendo `{"answer": "..."}` y sanitizando cualquier error interno (422/502/503/500).
+5. **Evals y pruebas (`tests/pipelines/test_agent_evals.py`, `tests/pipelines/fixtures/agent_traces.json`, `services/api/tests/test_agent_api.py`)**:
+   - **Eval 1 (`test_eval_01_nominal_flow_and_node_order_from_saved_traces`)**: valida en fixtures y en el trace real exportado el orden `["receive_question", "retrieve_context", "generate_grounded_answer"]` y sus checkpoints.
+   - **Eval 2 (`test_eval_02_conditional_alternative_routes_from_saved_traces`)**: valida las rutas condicionales alternativas (`reject_invalid_question` sin tocar Qdrant y `abstain_without_evidence` ante contexto vacío).
+   - **Eval 3 (`test_eval_03_brasaland_grounding_on_saved_and_real_traces`)**: valida el anclaje tanto en `retrieved_context` como en `answer` para políticas reales de Brasaland (Nivel Oro `50+ puntos` y `15%` de descuento permanente en `loyalty-program`; `Costilla BBQ`, `soya`, `sin gluten` y `contaminación cruzada` en `menu-allergens`).
+
+## 2. Evidencias de validación ejecutadas
+- `uv lock --project services/api --check`: PASS (`80 packages`).
+- `uv run --project services/api --extra dev python -m pytest tests/pipelines/test_rag.py tests/pipelines/test_agent_evals.py -v`: **`67 passed`** (`49` tests RAG existentes + `18` evals y pruebas estructurales de LangGraph).
+- `uv run --directory services/api --extra dev pytest -q -rs`: **`156 passed, 5 skipped`** (`14` pruebas nuevas en `test_agent_api.py`).
+- `npm --prefix uis/backoffice run test`: **`107 passed`** en 18 suites.
+- `git diff --check`: limpio.
