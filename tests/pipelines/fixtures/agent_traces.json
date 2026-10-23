@@ -1,0 +1,321 @@
+{
+  "description": "Offline saved traces for deterministic LangGraph agent evaluations (Part 1). Separate from real run artifact data/eval/langgraph-agent-trace-01.json.",
+  "traces": {
+    "nominal_oro": {
+      "run_id": "fixture-nominal-oro",
+      "thread_id": "fixture-nominal-oro",
+      "started_at": "2026-10-21T17:00:00+00:00",
+      "finished_at": "2026-10-21T17:00:01+00:00",
+      "status": "completed",
+      "route": "grounded",
+      "question": "¿Cuántos puntos necesito para el nivel Oro y qué beneficios da cada nivel?",
+      "nodes_order": [
+        "receive_question",
+        "retrieve_context",
+        "generate_grounded_answer"
+      ],
+      "steps": [
+        {
+          "node": "receive_question",
+          "duration_ms": 0.12,
+          "route": "valid"
+        },
+        {
+          "node": "retrieve_context",
+          "duration_ms": 12.4,
+          "route": "grounded",
+          "retrieved_count": 2,
+          "retrieved_sources": [
+            {
+              "source_document": "loyalty-program",
+              "section": "Niveles",
+              "chunk_index": 1
+            },
+            {
+              "source_document": "loyalty-program",
+              "section": "Acumulación y vigencia",
+              "chunk_index": 0
+            }
+          ]
+        },
+        {
+          "node": "generate_grounded_answer",
+          "duration_ms": 180.5,
+          "route": "grounded",
+          "answer_length": 318
+        }
+      ],
+      "checkpoints": [
+        {
+          "checkpoint_id": "cp-00-input",
+          "step": -1,
+          "source": "input",
+          "next": ["receive_question"],
+          "route": null,
+          "has_context": false,
+          "has_answer": false,
+          "error_code": null
+        },
+        {
+          "checkpoint_id": "cp-01-receive",
+          "step": 0,
+          "source": "loop",
+          "next": ["retrieve_context"],
+          "route": "valid",
+          "has_context": false,
+          "has_answer": false,
+          "error_code": null
+        },
+        {
+          "checkpoint_id": "cp-02-retrieve",
+          "step": 1,
+          "source": "loop",
+          "next": ["generate_grounded_answer"],
+          "route": "grounded",
+          "has_context": true,
+          "has_answer": false,
+          "error_code": null
+        },
+        {
+          "checkpoint_id": "cp-03-generate",
+          "step": 2,
+          "source": "loop",
+          "next": [],
+          "route": "grounded",
+          "has_context": true,
+          "has_answer": true,
+          "error_code": null
+        }
+      ],
+      "retrieved_context": [
+        {
+          "company": "brasaland",
+          "source_document": "loyalty-program",
+          "section": "Niveles",
+          "chunk_index": 1,
+          "language": "es",
+          "text": "# Programa de Lealtad \"Brasa Points\"\n\nNiveles del programa:\n- Bronce (0-19 puntos): 5% de descuento en bebidas los martes.\n- Plata (20-49 puntos): 10% de descuento en el plato principal, una vez al mes.\n- Oro (50+ puntos): 15% de descuento permanente y acceso a menú de temporada\n  antes que el público general."
+        },
+        {
+          "company": "brasaland",
+          "source_document": "loyalty-program",
+          "section": "Acumulación y vigencia",
+          "chunk_index": 0,
+          "language": "es",
+          "text": "# Programa de Lealtad \"Brasa Points\"\n\nBrasa Points es el programa de fidelización de Brasaland. Por cada 10.000 COP\n(o 10 USD en Florida) gastados, el cliente acumula 1 punto. Los puntos no\nvencen mientras la cuenta esté activa (con al menos una compra cada 12 meses)."
+        }
+      ],
+      "answer": "Según el manual Programa de Lealtad \"Brasa Points\" (sección Niveles), para el nivel Oro necesitas 50+ puntos. Los beneficios por nivel son: Bronce (0-19 puntos) con 5% de descuento en bebidas los martes; Plata (20-49 puntos) con 10% de descuento en el plato principal una vez al mes; y Oro (50+ puntos) con 15% de descuento permanente y acceso a menú de temporada antes que el público general.",
+      "error": null
+    },
+    "nominal_allergens_bbq": {
+      "run_id": "fixture-nominal-allergens-bbq",
+      "thread_id": "fixture-nominal-allergens-bbq",
+      "started_at": "2026-10-21T17:01:00+00:00",
+      "finished_at": "2026-10-21T17:01:01+00:00",
+      "status": "completed",
+      "route": "grounded",
+      "question": "¿La Costilla BBQ tiene versión sin gluten certificada y qué alérgenos declara?",
+      "nodes_order": [
+        "receive_question",
+        "retrieve_context",
+        "generate_grounded_answer"
+      ],
+      "steps": [
+        {
+          "node": "receive_question",
+          "duration_ms": 0.1,
+          "route": "valid"
+        },
+        {
+          "node": "retrieve_context",
+          "duration_ms": 11.2,
+          "route": "grounded",
+          "retrieved_count": 1,
+          "retrieved_sources": [
+            {
+              "source_document": "menu-allergens",
+              "section": "Costilla BBQ y certificación",
+              "chunk_index": 2
+            }
+          ]
+        },
+        {
+          "node": "generate_grounded_answer",
+          "duration_ms": 165.0,
+          "route": "grounded",
+          "answer_length": 310
+        }
+      ],
+      "checkpoints": [
+        {
+          "checkpoint_id": "cp-bbq-01",
+          "step": 0,
+          "source": "loop",
+          "next": ["retrieve_context"],
+          "route": "valid",
+          "has_context": false,
+          "has_answer": false,
+          "error_code": null
+        },
+        {
+          "checkpoint_id": "cp-bbq-02",
+          "step": 1,
+          "source": "loop",
+          "next": ["generate_grounded_answer"],
+          "route": "grounded",
+          "has_context": true,
+          "has_answer": false,
+          "error_code": null
+        },
+        {
+          "checkpoint_id": "cp-bbq-03",
+          "step": 2,
+          "source": "loop",
+          "next": [],
+          "route": "grounded",
+          "has_context": true,
+          "has_answer": true,
+          "error_code": null
+        }
+      ],
+      "retrieved_context": [
+        {
+          "company": "brasaland",
+          "source_document": "menu-allergens",
+          "section": "Costilla BBQ y certificación",
+          "chunk_index": 2,
+          "language": "es",
+          "text": "# Guía de Alérgenos del Menú\n\nNo existe versión sin gluten certificada de la Costilla BBQ debido a la salsa\nimportada; esto debe comunicarse siempre que se pregunte.\n\nProtocolo ante alergias reportadas por el cliente:\n1. El mesero informa a cocina antes de iniciar la preparación.\n2. Cocina usa utensilios y superficie limpios, separados del área general.\n3. Nunca se garantiza \"cero riesgo de contaminación cruzada\" — el mesero debe\n   comunicar esto explícitamente si el cliente tiene alergia severa."
+        }
+      ],
+      "answer": "De acuerdo con la Guía de Alérgenos del Menú (sección Costilla BBQ y certificación), no existe versión sin gluten certificada de la Costilla BBQ debido a la salsa importada (que contiene soya y puede contener trazas de maní). Además, nunca se garantiza \"cero riesgo de contaminación cruzada\" y debe aplicarse el protocolo de utensilios y superficie separados en cocina.",
+      "error": null
+    },
+    "alternative_no_evidence": {
+      "run_id": "fixture-no-evidence",
+      "thread_id": "fixture-no-evidence",
+      "started_at": "2026-10-21T17:02:00+00:00",
+      "finished_at": "2026-10-21T17:02:01+00:00",
+      "status": "completed",
+      "route": "no_evidence",
+      "question": "¿Cuál es la clave del servidor de administración?",
+      "nodes_order": [
+        "receive_question",
+        "retrieve_context",
+        "abstain_without_evidence"
+      ],
+      "steps": [
+        {
+          "node": "receive_question",
+          "duration_ms": 0.09,
+          "route": "valid"
+        },
+        {
+          "node": "retrieve_context",
+          "duration_ms": 9.8,
+          "route": "no_evidence",
+          "retrieved_count": 0,
+          "retrieved_sources": []
+        },
+        {
+          "node": "abstain_without_evidence",
+          "duration_ms": 140.2,
+          "route": "no_evidence",
+          "answer_length": 112
+        }
+      ],
+      "checkpoints": [
+        {
+          "checkpoint_id": "cp-ne-01",
+          "step": 0,
+          "source": "loop",
+          "next": ["retrieve_context"],
+          "route": "valid",
+          "has_context": false,
+          "has_answer": false,
+          "error_code": null
+        },
+        {
+          "checkpoint_id": "cp-ne-02",
+          "step": 1,
+          "source": "loop",
+          "next": ["abstain_without_evidence"],
+          "route": "no_evidence",
+          "has_context": false,
+          "has_answer": false,
+          "error_code": null
+        },
+        {
+          "checkpoint_id": "cp-ne-03",
+          "step": 2,
+          "source": "loop",
+          "next": [],
+          "route": "no_evidence",
+          "has_context": false,
+          "has_answer": true,
+          "error_code": null
+        }
+      ],
+      "retrieved_context": [],
+      "answer": "La base de conocimiento de Brasaland no tiene información suficiente sobre claves o servidores de administración.",
+      "error": null
+    },
+    "alternative_empty_question": {
+      "run_id": "fixture-empty-question",
+      "thread_id": "fixture-empty-question",
+      "started_at": "2026-10-21T17:03:00+00:00",
+      "finished_at": "2026-10-21T17:03:00+00:00",
+      "status": "rejected",
+      "route": "empty_question",
+      "question": "",
+      "nodes_order": [
+        "receive_question",
+        "reject_invalid_question"
+      ],
+      "steps": [
+        {
+          "node": "receive_question",
+          "duration_ms": 0.05,
+          "route": "empty_question",
+          "error_code": "INVALID_QUESTION"
+        },
+        {
+          "node": "reject_invalid_question",
+          "duration_ms": 0.04,
+          "route": "empty_question",
+          "answer_length": 0,
+          "error_code": "INVALID_QUESTION"
+        }
+      ],
+      "checkpoints": [
+        {
+          "checkpoint_id": "cp-eq-01",
+          "step": 0,
+          "source": "loop",
+          "next": ["reject_invalid_question"],
+          "route": "empty_question",
+          "has_context": false,
+          "has_answer": false,
+          "error_code": "INVALID_QUESTION"
+        },
+        {
+          "checkpoint_id": "cp-eq-02",
+          "step": 1,
+          "source": "loop",
+          "next": [],
+          "route": "empty_question",
+          "has_context": false,
+          "has_answer": false,
+          "error_code": "INVALID_QUESTION"
+        }
+      ],
+      "retrieved_context": [],
+      "answer": "",
+      "error": {
+        "code": "INVALID_QUESTION",
+        "message": "La pregunta debe tener entre 1 y 2000 caracteres."
+      }
+    }
+  }
+}
