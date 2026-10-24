@@ -50,7 +50,12 @@ def test_agent_returns_serialized_answer_and_coexists_with_knowledge(client, aut
     monkeypatch.setattr(
         agent_router,
         "execute_agent_query",
-        lambda q: seen_agent.append(q) or {"run_id": "run-test", "thread_id": "run-test", "answer": "Respuesta agente", "route": "grounded"},
+        lambda q, **kwargs: seen_agent.append((q, kwargs)) or {
+            "run_id": "run-test",
+            "thread_id": "run-test",
+            "answer": "Respuesta agente",
+            "route": "grounded",
+        },
     )
     monkeypatch.setattr(
         knowledge_router,
@@ -61,7 +66,7 @@ def test_agent_returns_serialized_answer_and_coexists_with_knowledge(client, aut
     res_agent = client.post("/agent/query", headers=auth_headers, json={"question": "  nivel Oro  "})
     assert res_agent.status_code == 200
     assert res_agent.json() == {"answer": "Respuesta agente"}
-    assert seen_agent == ["nivel Oro"]
+    assert seen_agent == [("nivel Oro", {"incident_token": auth_headers["Authorization"].removeprefix("Bearer ")})]
 
     res_knowledge = client.post("/knowledge/query", headers=auth_headers, json={"question": "  nivel Oro  "})
     assert res_knowledge.status_code == 200
@@ -74,7 +79,7 @@ def test_agent_returns_serialized_answer_and_coexists_with_knowledge(client, aut
     [(ConfigurationError, 503), (ProviderError, 502), (StoreError, 503), (RuntimeError, 500)],
 )
 def test_agent_sanitizes_internal_errors(client, auth_headers, monkeypatch, error, status):
-    def fail(_):
+    def fail(_, **kwargs):
         raise error("secret api_key sk-fake-12345 and internal traceback details")
 
     monkeypatch.setattr(agent_router, "execute_agent_query", fail)

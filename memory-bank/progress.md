@@ -1,3 +1,38 @@
+# Hito: Agente de Soporte con LangGraph — Parte 2: Herramientas Fuera del RAG (23-oct-2026)
+
+- Se inicia en `feature/langgraph-external-tools`, creada desde
+  `origin/main` (`7327ea61c43a5f2333e502341989bc62890f3a6b`, Parte 1 integrada).
+  La rama anterior, los stashes y las PR previas no se modifican.
+- Se añade una herramienta HTTP tipada de sólo lectura al gestor real:
+  `GET /api/incidents` y `GET /api/incidents/{incident_id}`. Usa
+  `INCIDENTS_SERVICE_URL`, timeout `5.0s` y reenvía el Bearer ya validado por
+  `get_current_user`, que el backend de incidentes vuelve a validar. No hay
+  token de servicio hardcodeado ni credenciales en estado/checkpoints/traces.
+- El grafo existente decide entre RAG, incidencias, ambas fuentes o pedir un
+  ID interno válido. Los fallbacks para timeout, permisos, no encontrado y
+  servicio no disponible no consultan RAG ni inventan estados. Las preguntas
+  combinadas presentan respuestas separadas. Los campos libres `title` y
+  `description` se descartan como contenido no confiable.
+- Los traces nuevos omiten el texto de la pregunta y los IDs operativos;
+  registran fuente, nodos, resultado categórico y fallback. Se documenta el
+  diseño y los comandos en `docs/rag/langgraph-agent-part2.md`.
+- Verificación dirigida: 94 pruebas pasan (`test_agent_evals.py`, `test_rag.py`
+  y `services/api/tests/test_agent_api.py`) con pytest. Se instaló el entorno
+  temporal fuera del checkout en `/tmp/brasaland-agent-part2-venv`; no se
+  modificaron manifiestos.
+- La validación real y export de traces no pudo ejecutarse: faltan
+  `INCIDENTS_SERVICE_URL`, token y configuración RAG; el API no escucha en
+  `localhost:8000`. Qdrant responde en `localhost:6333`, lo que no basta para
+  validar consultas reales de ninguna de las dos fuentes. No se presentan los
+  mocks de pruebas como integración.
+- Se generaron traces sanitizados de evaluación con mocks para routing de
+  incidencias y RAG, y un resumen de los evals. No se incluyen en la PR porque
+  la política de contenido restringe los artifacts bajo `data/eval/`; no se
+  intentó acceder por otra vía. No son evidencia de integración real.
+- Después de las pruebas apareció `data/suppliers.json` como ruta no versionada.
+  La política de exclusión bloqueó su inspección; se dejó intacta y no se
+  intentó acceder por otra vía. No se hizo commit, push ni PR.
+
 # Preparación de PR borrador RAG — 16 de octubre de 2026
 
 - El usuario solicitó publicar una PR con el trabajo, las complicaciones y los

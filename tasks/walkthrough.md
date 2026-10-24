@@ -1,3 +1,69 @@
+# Walkthrough: Agente LangGraph — Herramientas Fuera del RAG — 23 de octubre de 2026
+
+## Cambios
+
+Se creó `feature/langgraph-external-tools` desde el `origin/main` integrado en
+`7327ea61c43a5f2333e502341989bc62890f3a6b`. La implementación extiende el grafo
+de Parte 1; no reutiliza ni modifica ramas previas.
+
+- Nuevo cliente tipado y de sólo lectura en
+  `services/api/app/domains/agent/incident_tool.py`; GET al API real, URL de
+  servicio configurada, credencial Bearer validada reenviada y timeout numérico
+  de 5 segundos. La herramienta no implementa escritura ni busca por
+  `external_ref`.
+- Grafo extendido con clasificación documental/operativa/mixta, nodo de
+  consulta, aclaración de referencia y composición/fallback. Las operaciones
+  no pasan por RAG. `retrieve()` y `generate_answer()` se mantienen separados.
+- El estado sólo incluye los campos nuevos de routing y resultado categórico;
+  no contiene token ni cliente. Las traces minimizan datos: no persisten la
+  pregunta ni IDs, y no incluyen texto interno de respuesta remota. `title` y
+  `description` se excluyen de la respuesta tipada y del contexto del modelo.
+- Se añadieron evals de consultas operativas, documentales, combinadas,
+  ambigüedad, timeout y errores/no encontrado. El contrato autenticado
+  `POST /agent/query` y `POST /knowledge/query` se conserva.
+- Diseño, autenticación, timeout, fallback y comandos reproducibles:
+  `docs/rag/langgraph-agent-part2.md`.
+- Se generaron localmente dos traces sanitizados de eval con mocks (tool y RAG)
+  y el resumen de evals. La política de contenido de la organización restringe
+  los archivos bajo `data/eval/`, por lo que no se pueden revisar ni incluir en
+  la PR; no se intentó acceder a ellos por otra vía.
+
+## Verificación ejecutada
+
+```bash
+python -m compileall -q services/api/app/domains/agent/graph.py \
+  services/api/app/domains/agent/state.py \
+  services/api/app/domains/agent/router.py \
+  services/api/app/domains/agent/incident_tool.py \
+  tests/pipelines/test_agent_evals.py \
+  services/api/tests/test_agent_api.py
+git diff --check
+UV_PROJECT_ENVIRONMENT=/tmp/brasaland-agent-part2-venv \
+  uv run --project services/api --extra dev python -m pytest \
+  tests/pipelines/test_agent_evals.py tests/pipelines/test_rag.py \
+  services/api/tests/test_agent_api.py -q
+```
+
+Resultado final: **94 passed** en las pruebas dirigidas; sintaxis y whitespace
+limpios. El entorno pytest se creó fuera del checkout porque la instalación
+existente bajo `services/api/.venv` está restringida por la política del
+workspace.
+
+## Pendiente de evidencia en vivo y entrega
+
+No se ejecutaron consultas reales al servicio de incidentes ni al RAG, ni se
+exportaron traces/evaluaciones reales: no hay `INCIDENTS_SERVICE_URL`, token o
+configuración RAG en el entorno, y no hay API escuchando en `localhost:8000`.
+Qdrant está alcanzable en `localhost:6333`, pero no sustituye el proveedor RAG.
+Los tests de herramienta usan mocks y no se presentan como evidencia de
+integración. Los artifacts de traces/evals no pueden incluirse porque están
+bajo un área restringida por la política de contenido.
+
+Tras ejecutar las pruebas apareció `data/suppliers.json` como ruta no
+versionada; la política de exclusión impidió inspeccionarla. Se dejó intacta y
+no se intentó acceder mediante otra herramienta. No se hicieron commit, push,
+PR o merge.
+
 # Walkthrough: Preparación de PR borrador RAG — 16 de octubre de 2026
 
 El usuario autoriza publicar el trabajo en una PR Draft hacia `main`, incluyendo
