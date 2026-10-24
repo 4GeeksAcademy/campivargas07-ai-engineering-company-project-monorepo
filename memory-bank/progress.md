@@ -31,7 +31,11 @@
   intentó acceder por otra vía. No son evidencia de integración real.
 - Después de las pruebas apareció `data/suppliers.json` como ruta no versionada.
   La política de exclusión bloqueó su inspección; se dejó intacta y no se
-  intentó acceder por otra vía. No se hizo commit, push ni PR.
+  intentó acceder por otra vía.
+- Commit local `94fc21b` creado con sólo los nueve archivos permitidos. El push
+  a `origin` falló porque no hay credenciales disponibles para Git (`unable to
+  get password from user`); `gh auth status` también indica que no hay sesión.
+  La rama no llegó al remoto y no se pudo crear la PR ni aplicar su etiqueta.
 
 # Preparación de PR borrador RAG — 16 de octubre de 2026
 

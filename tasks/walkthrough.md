@@ -61,8 +61,10 @@ bajo un área restringida por la política de contenido.
 
 Tras ejecutar las pruebas apareció `data/suppliers.json` como ruta no
 versionada; la política de exclusión impidió inspeccionarla. Se dejó intacta y
-no se intentó acceder mediante otra herramienta. No se hicieron commit, push,
-PR o merge.
+no se intentó acceder mediante otra herramienta. Se creó el commit local
+`94fc21b` con los nueve archivos permitidos. El push falló porque el entorno no
+tiene credenciales de GitHub; tampoco hay sesión de `gh`. Sin rama remota no se
+pudo abrir la PR ni añadir la etiqueta solicitada.
 
 # Walkthrough: Preparación de PR borrador RAG — 16 de octubre de 2026
 
