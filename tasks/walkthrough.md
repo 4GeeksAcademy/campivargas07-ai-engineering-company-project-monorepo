@@ -93,7 +93,10 @@ los artifacts sanitizados.
   sanitizado, marcado `mocked_evaluation_only_not_live_integration`.
 - Faltan `INCIDENTS_SERVICE_URL`, `DATABASE_URL` y la clave del proveedor RAG; la
   API tampoco escucha en `localhost:8000`. No hay trazas de integración en vivo.
-  El push final, la etiqueta y la PR siguen pendientes al registrar esta nota.
+  La rama se publicó y la PR Draft [#31](https://github.com/4GeeksAcademy/campivargas07-ai-engineering-company-project-monorepo/pull/31)
+  quedó abierta en el repo del proyecto con la etiqueta `langgraph-external-tools`.
+  Las trazas de integración en vivo siguen pendientes por falta de configuración
+  y credenciales externas.
 
 # Walkthrough: Preparación de PR borrador RAG — 16 de octubre de 2026
 

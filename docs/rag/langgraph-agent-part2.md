@@ -117,3 +117,12 @@ por otras vías. La publicación también requiere sesión GitHub: `gh auth stat
 no encuentra una sesión y el `git push --dry-run` no puede autenticarse. Por
 ello, la rama y la PR con la etiqueta `langgraph-external-tools` quedan
 pendientes de habilitar esos accesos y adjuntar los traces sanitizados exigidos.
+
+## Seguimiento de entrega — 24 de octubre de 2026
+
+La rama se publicó en el repositorio del proyecto y la PR Draft [#31](https://github.com/4GeeksAcademy/campivargas07-ai-engineering-company-project-monorepo/pull/31)
+se abrió con la etiqueta `langgraph-external-tools`. El PR incluye un resumen
+sanitizado de las rutas mock de incidencias y RAG, además del resultado **94
+passed**. No representa integración en vivo: siguen faltando la URL/token del
+servicio de incidencias, la base de datos y las credenciales del proveedor RAG.
+Mantener la PR en Draft hasta adjuntar esas trazas reales.

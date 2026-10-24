@@ -45,7 +45,10 @@
   resultado, sin preguntas, respuestas ni IDs operativos. No hay
   `INCIDENTS_SERVICE_URL`, `DATABASE_URL` ni claves de proveedor RAG en el
   entorno, y `localhost:8000` no responde; por tanto, las trazas en vivo siguen
-  pendientes. Publicación y PR aún pendientes al registrar esta actualización.
+  pendientes. La rama está publicada y la PR Draft [#31](https://github.com/4GeeksAcademy/campivargas07-ai-engineering-company-project-monorepo/pull/31)
+  quedó abierta en el repo del proyecto con la etiqueta `langgraph-external-tools`.
+  Siguen pendientes las trazas de integración en vivo por falta de configuración
+  y credenciales externas.
 
 # Preparación de PR borrador RAG — 16 de octubre de 2026
 
