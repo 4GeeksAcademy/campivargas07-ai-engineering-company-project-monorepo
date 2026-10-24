@@ -1,0 +1,27 @@
+{
+  "evidence_mode": "automated_tests_with_mocks_not_live_integration",
+  "command": "uv run --project services/api --extra dev python -m pytest tests/pipelines/test_agent_evals.py tests/pipelines/test_rag.py services/api/tests/test_agent_api.py -q",
+  "latest_result": "94 passed",
+  "new_evaluations": [
+    {
+      "name": "test_eval_incident_question_uses_real_tool_route_without_rag",
+      "result": "passed"
+    },
+    {
+      "name": "test_eval_document_question_uses_rag_without_incidents",
+      "result": "passed"
+    },
+    {
+      "name": "test_combined_question_keeps_rag_and_incident_results_separate",
+      "result": "passed"
+    },
+    {
+      "name": "test_incident_failure_and_not_found_use_honest_fallback",
+      "result": "passed"
+    },
+    {
+      "name": "test_short_incident_number_requests_clarification_without_lookup",
+      "result": "passed"
+    }
+  ]
+}
