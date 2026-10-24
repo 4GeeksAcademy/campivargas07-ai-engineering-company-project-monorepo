@@ -1,0 +1,31 @@
+{
+  "evidence_mode": "mocked_evaluation_only_not_live_integration",
+  "traces": {
+    "incident_tool": {
+      "source": "incidents",
+      "route": "incidents",
+      "nodes_order": [
+        "receive_question",
+        "query_incidents",
+        "compose_incident_answer"
+      ],
+      "status": "completed",
+      "fallback": false
+    },
+    "rag": {
+      "source": "rag",
+      "route": "grounded",
+      "nodes_order": [
+        "receive_question",
+        "retrieve_context",
+        "generate_grounded_answer"
+      ],
+      "status": "completed",
+      "fallback": false
+    }
+  },
+  "evaluations": {
+    "command": "UV_PROJECT_ENVIRONMENT=/tmp/brasaland-agent-part2-venv uv run --project services/api --extra dev python -m pytest tests/pipelines/test_agent_evals.py tests/pipelines/test_rag.py services/api/tests/test_agent_api.py -q",
+    "result": "94 passed"
+  }
+}

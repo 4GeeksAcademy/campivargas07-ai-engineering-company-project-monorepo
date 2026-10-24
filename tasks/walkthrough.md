@@ -82,6 +82,19 @@ traces obligatorios. Para continuar, el usuario debe habilitar acceso GitHub y
 proveer servicios/configuración de prueba y una vía permitida para acceder a
 los artifacts sanitizados.
 
+## Reanudación de entrega — 24 de octubre de 2026
+
+- GitHub volvió a estar autenticado; `git push --dry-run` al fork aceptó la rama.
+- Se repitió la suite dirigida: **94 passed**. Los campos de routing verifican
+  `receive_question → query_incidents → compose_incident_answer` para incidencias
+  y `receive_question → retrieve_context → generate_grounded_answer` para RAG.
+  Ambos traces son mock, completan sin fallback y no incluyen la pregunta.
+- Se agregó `docs/rag/langgraph-agent-external-tools-evidence.json` como resumen
+  sanitizado, marcado `mocked_evaluation_only_not_live_integration`.
+- Faltan `INCIDENTS_SERVICE_URL`, `DATABASE_URL` y la clave del proveedor RAG; la
+  API tampoco escucha en `localhost:8000`. No hay trazas de integración en vivo.
+  El push final, la etiqueta y la PR siguen pendientes al registrar esta nota.
+
 # Walkthrough: Preparación de PR borrador RAG — 16 de octubre de 2026
 
 El usuario autoriza publicar el trabajo en una PR Draft hacia `main`, incluyendo

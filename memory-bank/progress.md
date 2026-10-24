@@ -38,6 +38,14 @@
   `git push --dry-run` falla por falta de credenciales. No se creó una PR ni se
   aplicó etiqueta. Se requiere restaurar acceso a GitHub y proporcionar/autorizar
   evidencias de trace accesibles para completar la entrega solicitada.
+- Continuación (24-oct-2026): GitHub volvió a estar autenticado y el push dry-run
+  al fork fue aceptado. Los evals dirigidos se repitieron: **94 passed**. Los
+  artefactos locales confirman dos recorridos mock (incidencias y RAG); se añadió
+  `docs/rag/langgraph-agent-external-tools-evidence.json` con nodos, rutas y
+  resultado, sin preguntas, respuestas ni IDs operativos. No hay
+  `INCIDENTS_SERVICE_URL`, `DATABASE_URL` ni claves de proveedor RAG en el
+  entorno, y `localhost:8000` no responde; por tanto, las trazas en vivo siguen
+  pendientes. Publicación y PR aún pendientes al registrar esta actualización.
 
 # Preparación de PR borrador RAG — 16 de octubre de 2026
 
