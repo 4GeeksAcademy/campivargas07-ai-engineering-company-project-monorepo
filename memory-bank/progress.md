@@ -25,17 +25,19 @@
   `localhost:8000`. Qdrant responde en `localhost:6333`, lo que no basta para
   validar consultas reales de ninguna de las dos fuentes. No se presentan los
   mocks de pruebas como integración.
-- Se generaron traces sanitizados de evaluación con mocks para routing de
-  incidencias y RAG, y un resumen de los evals. No se incluyen en la PR porque
-  la política de contenido restringe los artifacts bajo `data/eval/`; no se
-  intentó acceder por otra vía. No son evidencia de integración real.
 - Después de las pruebas apareció `data/suppliers.json` como ruta no versionada.
   La política de exclusión bloqueó su inspección; se dejó intacta y no se
-  intentó acceder por otra vía.
-- Commit local `94fc21b` creado con sólo los nueve archivos permitidos. El push
-  a `origin` falló porque no hay credenciales disponibles para Git (`unable to
-  get password from user`); `gh auth status` también indica que no hay sesión.
-  La rama no llegó al remoto y no se pudo crear la PR ni aplicar su etiqueta.
+  intentó acceder por otra vía. No se hizo commit, push ni PR.
+- Seguimiento (24-oct-2026): el usuario solicitó publicar la rama con traces
+  de incidencias y RAG y resultados de evals. Se confirmó **94 passed** en la
+  suite dirigida, incluyendo nuevos evals con mocks; no demuestra integración
+  real. No hay servicios/credenciales para generar traces reales. La política
+  de exclusión también bloqueó la lectura de archivos de traces bajo
+  `data/eval/`, por lo que no se intentaron rutas alternativas ni se adjuntan.
+- La rama aún no está publicada: `gh auth status` indica que no hay sesión y
+  `git push --dry-run` falla por falta de credenciales. No se creó una PR ni se
+  aplicó etiqueta. Se requiere restaurar acceso a GitHub y proporcionar/autorizar
+  evidencias de trace accesibles para completar la entrega solicitada.
 
 # Preparación de PR borrador RAG — 16 de octubre de 2026
 

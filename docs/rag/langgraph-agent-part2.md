@@ -99,15 +99,21 @@ curl -fsS http://127.0.0.1:8000/agent/query \
   -d '{"question":"¿Cuántos puntos necesito para Oro?"}'
 ```
 
-Los traces sanitizados de cada corrida local se escriben en `AGENT_TRACES_DIR`
-(por defecto `services/api/data/agent_traces/`, ignorado por Git). El comando
-anterior reproduce las pruebas/evals. Los tests verifican ruta operacional sin
-RAG, ruta RAG sin herramienta, timeout/servicio no disponible/no encontrado,
-aclaración de ID ambiguo y consulta combinada.
+Los traces sanitizados se escriben en `AGENT_TRACES_DIR` (por defecto
+`services/api/data/agent_traces/`, ignorado por Git). Ejecutar los comandos de
+pytest anteriores exporta el resultado de evaluaciones en la salida estándar.
+Los tests verifican ruta operacional sin RAG, ruta RAG sin herramienta,
+timeout/servicio no disponible/no encontrado, aclaración de ID ambiguo y
+consulta combinada.
 
-Los traces de evaluación con mocks y su resumen se generaron localmente, pero
-no se incluyen en esta PR: la política de contenido de la organización restringe
-los artifacts bajo `data/eval/`. No se intentó acceder a ellos por otras vías.
-La integración en vivo requiere una sesión de prueba y servicios RAG e
-incidencias configurados localmente; los mocks no confirman el estado de una
-incidencia real.
+## Estado de publicación
+
+La suite dirigida se ejecutó con **94 passed**, incluyendo los evals nuevos;
+son verificaciones con mocks y no representan consultas reales. No se generaron
+traces reales porque este entorno no tiene credenciales/configuración de
+incidencias ni del proveedor RAG. Los traces/evals encontrados bajo `data/eval/`
+están bloqueados por la política de exclusión y no se intentó acceder a ellos
+por otras vías. La publicación también requiere sesión GitHub: `gh auth status`
+no encuentra una sesión y el `git push --dry-run` no puede autenticarse. Por
+ello, la rama y la PR con la etiqueta `langgraph-external-tools` quedan
+pendientes de habilitar esos accesos y adjuntar los traces sanitizados exigidos.

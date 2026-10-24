@@ -23,10 +23,6 @@ de Parte 1; no reutiliza ni modifica ramas previas.
   `POST /agent/query` y `POST /knowledge/query` se conserva.
 - Diseño, autenticación, timeout, fallback y comandos reproducibles:
   `docs/rag/langgraph-agent-part2.md`.
-- Se generaron localmente dos traces sanitizados de eval con mocks (tool y RAG)
-  y el resumen de evals. La política de contenido de la organización restringe
-  los archivos bajo `data/eval/`, por lo que no se pueden revisar ni incluir en
-  la PR; no se intentó acceder a ellos por otra vía.
 
 ## Verificación ejecutada
 
@@ -56,15 +52,35 @@ exportaron traces/evaluaciones reales: no hay `INCIDENTS_SERVICE_URL`, token o
 configuración RAG en el entorno, y no hay API escuchando en `localhost:8000`.
 Qdrant está alcanzable en `localhost:6333`, pero no sustituye el proveedor RAG.
 Los tests de herramienta usan mocks y no se presentan como evidencia de
-integración. Los artifacts de traces/evals no pueden incluirse porque están
-bajo un área restringida por la política de contenido.
+integración.
 
 Tras ejecutar las pruebas apareció `data/suppliers.json` como ruta no
 versionada; la política de exclusión impidió inspeccionarla. Se dejó intacta y
-no se intentó acceder mediante otra herramienta. Se creó el commit local
-`94fc21b` con los nueve archivos permitidos. El push falló porque el entorno no
-tiene credenciales de GitHub; tampoco hay sesión de `gh`. Sin rama remota no se
-pudo abrir la PR ni añadir la etiqueta solicitada.
+no se intentó acceder mediante otra herramienta. No se hicieron commit, push,
+PR o merge.
+
+## Seguimiento de entrega — 24 de octubre de 2026
+
+Se confirmó de nuevo el resultado dirigido: **94 passed**, incluyendo los
+nuevos evals de enrutamiento, fallback y consulta combinada. Son pruebas con
+mocks, no trazas de consultas reales.
+
+La entrega queda bloqueada por dos condiciones concretas:
+
+- No están configurados el servicio/token de incidentes ni las credenciales del
+  RAG; la API no está escuchando en `localhost:8000`. No se pueden producir
+  traces reales de ambas fuentes en este entorno.
+- La política de exclusión impide leer los archivos de traces/evals detectados
+  bajo `data/eval/`. No se intentó leerlos con herramientas alternativas ni
+  copiarlos a otro lugar.
+- GitHub no tiene sesión autenticada en el entorno y el `git push --dry-run`
+  falla por falta de credenciales. La rama no está en el remoto; por ello no
+  puede abrirse ni etiquetarse la PR desde esta sesión.
+
+No se presenta la suite mock como evidencia operativa ni se crea una PR sin los
+traces obligatorios. Para continuar, el usuario debe habilitar acceso GitHub y
+proveer servicios/configuración de prueba y una vía permitida para acceder a
+los artifacts sanitizados.
 
 # Walkthrough: Preparación de PR borrador RAG — 16 de octubre de 2026
 
