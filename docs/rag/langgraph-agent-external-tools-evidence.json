@@ -1,6 +1,8 @@
 {
   "evidence_mode": "live_local_integration_with_synthetic_incident",
   "executed_on": "2026-10-28",
+  "incident_fixture": "synthetic_api_record_removed_after_run",
+  "test_user_store": "temporary_tinydb_removed_after_run",
   "traces": {
     "incident_tool": {
       "source": "incidents",

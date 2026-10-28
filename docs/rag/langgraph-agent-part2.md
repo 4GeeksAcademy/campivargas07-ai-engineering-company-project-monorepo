@@ -141,3 +141,8 @@ La evidencia de integración en vivo no debe confundirse con los **94 passed**:
 esa suite automatizada continúa usando mocks. Los traces originales completos
 se conservaron temporalmente fuera del repo y no se adjuntan porque contienen
 respuestas/contexto.
+
+La cuenta de prueba vivió en una TinyDB temporal. La incidencia sintética se
+persistió brevemente en `services/api/data/brasaland_incidents.json`; se verificó
+que era el único registro y se eliminó al terminar. La carpeta temporal y los
+traces completos también se limpiaron.

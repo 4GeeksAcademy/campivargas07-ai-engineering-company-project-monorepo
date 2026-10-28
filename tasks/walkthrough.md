@@ -100,9 +100,10 @@ los artifacts sanitizados.
 
 ## Validación E2E real — 28 de octubre de 2026
 
-- Se usó una instancia FastAPI aislada en `127.0.0.1:8001`, con TinyDB temporal,
-  usuario e incidencia sintéticos y salida de traces bajo `/tmp`; no se tocó la
-  base local habitual.
+- Se usó una instancia FastAPI en `127.0.0.1:8001`, con TinyDB temporal para el
+  usuario y salida de traces bajo `/tmp`. La incidencia sintética se persistió
+  brevemente en `services/api/data/brasaland_incidents.json`; se verificó que era
+  el único registro y se retiró al terminar.
 - La corrida de incidencias devolvió HTTP 200, ruta `incidents`, nodos
   `receive_question → query_incidents → compose_incident_answer`, resultado de
   herramienta `success` y sin fallback.
