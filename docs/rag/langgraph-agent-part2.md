@@ -126,3 +126,18 @@ sanitizado de las rutas mock de incidencias y RAG, además del resultado **94
 passed**. No representa integración en vivo: siguen faltando la URL/token del
 servicio de incidencias, la base de datos y las credenciales del proveedor RAG.
 Mantener la PR en Draft hasta adjuntar esas trazas reales.
+
+## Validación E2E real — 28 de octubre de 2026
+
+Se ejecutó el grafo contra una instancia FastAPI local aislada, con TinyDB
+temporal y una incidencia sintética; el flujo de incidencias hizo una llamada
+HTTP autenticada real y devolvió `success`. El flujo RAG usó Qdrant local y el
+proveedor configurado, recuperó un fragmento y generó respuesta. Ambas consultas
+respondieron HTTP 200 y terminaron sin fallback. La metadata sanitizada, sin
+preguntas, respuestas, contexto ni IDs, está en
+[`langgraph-agent-external-tools-evidence.json`](langgraph-agent-external-tools-evidence.json).
+
+La evidencia de integración en vivo no debe confundirse con los **94 passed**:
+esa suite automatizada continúa usando mocks. Los traces originales completos
+se conservaron temporalmente fuera del repo y no se adjuntan porque contienen
+respuestas/contexto.

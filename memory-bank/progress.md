@@ -49,6 +49,13 @@
   quedó abierta en el repo del proyecto con la etiqueta `langgraph-external-tools`.
   Siguen pendientes las trazas de integración en vivo por falta de configuración
   y credenciales externas.
+- Validación E2E real (28-oct-2026): se levantó una segunda API aislada en
+  `127.0.0.1:8001`, con TinyDB temporal y traces bajo `/tmp`; se creó un usuario
+  y una incidencia sintéticos sin tocar la base local habitual. Ambas consultas
+  autenticadas respondieron HTTP 200: incidencias `success`, completada sin
+  fallback; RAG `grounded`, un fragmento recuperado, completada sin fallback.
+  Se actualizó el artefacto sanitizado. Los 94 evals automatizados siguen siendo
+  pruebas con mocks; no se reclasifican como ejecuciones reales.
 
 # Preparación de PR borrador RAG — 16 de octubre de 2026
 

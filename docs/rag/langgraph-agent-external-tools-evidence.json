@@ -1,5 +1,6 @@
 {
-  "evidence_mode": "mocked_evaluation_only_not_live_integration",
+  "evidence_mode": "live_local_integration_with_synthetic_incident",
+  "executed_on": "2026-10-28",
   "traces": {
     "incident_tool": {
       "source": "incidents",
@@ -9,8 +10,10 @@
         "query_incidents",
         "compose_incident_answer"
       ],
+      "http_status": 200,
       "status": "completed",
-      "fallback": false
+      "fallback": false,
+      "incident_tool_result": "success"
     },
     "rag": {
       "source": "rag",
@@ -20,11 +23,14 @@
         "retrieve_context",
         "generate_grounded_answer"
       ],
+      "http_status": 200,
       "status": "completed",
-      "fallback": false
+      "fallback": false,
+      "retrieved_context_count": 1
     }
   },
   "evaluations": {
+    "mode": "automated_tests_with_mocks",
     "command": "UV_PROJECT_ENVIRONMENT=/tmp/brasaland-agent-part2-venv uv run --project services/api --extra dev python -m pytest tests/pipelines/test_agent_evals.py tests/pipelines/test_rag.py services/api/tests/test_agent_api.py -q",
     "result": "94 passed"
   }

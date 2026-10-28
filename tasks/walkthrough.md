@@ -98,6 +98,22 @@ los artifacts sanitizados.
   Las trazas de integración en vivo siguen pendientes por falta de configuración
   y credenciales externas.
 
+## Validación E2E real — 28 de octubre de 2026
+
+- Se usó una instancia FastAPI aislada en `127.0.0.1:8001`, con TinyDB temporal,
+  usuario e incidencia sintéticos y salida de traces bajo `/tmp`; no se tocó la
+  base local habitual.
+- La corrida de incidencias devolvió HTTP 200, ruta `incidents`, nodos
+  `receive_question → query_incidents → compose_incident_answer`, resultado de
+  herramienta `success` y sin fallback.
+- La corrida RAG devolvió HTTP 200, ruta `grounded`, nodos
+  `receive_question → retrieve_context → generate_grounded_answer`, recuperó un
+  fragmento de Qdrant y completó generación sin fallback.
+- Se guardó metadata sanitizada en
+  `docs/rag/langgraph-agent-external-tools-evidence.json`. Los JSON originales
+  con respuestas/contexto no se adjuntan. Los 94 evals anteriores son tests con
+  mocks y se informan por separado.
+
 # Walkthrough: Preparación de PR borrador RAG — 16 de octubre de 2026
 
 El usuario autoriza publicar el trabajo en una PR Draft hacia `main`, incluyendo
