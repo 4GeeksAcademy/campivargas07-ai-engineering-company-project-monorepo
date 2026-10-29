@@ -1189,3 +1189,50 @@ Partiendo de `main` actualizado (`1a34b24707f6f7cc1ebece228ab59a12d0bb4f4a`, con
 - `uv run --directory services/api --extra dev pytest -q -rs`: **`156 passed, 5 skipped`** (`14` pruebas nuevas en `test_agent_api.py`).
 - `npm --prefix uis/backoffice run test`: **`107 passed`** en 18 suites.
 - `git diff --check`: limpio.
+
+---
+
+# Walkthrough: Servidor MCP — Conectando tu Agente con las Herramientas de la Empresa
+
+## 1. Alcance y arquitectura implementada
+Rama de trabajo: `feature/mcp-oauth-tools`, creada sobre `feature/langgraph-external-tools` (PR #31, HEAD `95fc772`), para disponer del código de la Parte 2 del agente (herramienta de incidencias) que este hito migra. No se fusionó ni modificó la PR #31.
+
+### Servidor MCP (`mcps/brasaland-mcp/`)
+- **Transporte**: Streamable HTTP (FastMCP `stateless_http=True` montado en Starlette). Justificado por clientes remotos, OAuth (RFC 9728/8414) y compatibilidad con MCP Playground y `langchain-mcp-adapters`.
+- **OAuth con `mcpauth`** (resource server, sin la auth integrada de FastMCP): `MCPAuth(protected_resources=[...])`, `fetch_server_config`, `bearer_auth_middleware('jwt', audience=resource_id, resource=resource_id)` y `resource_metadata_router()`. Verifica firma (JWKS), issuer, audience, expiración y scopes. Sin token válido: 401 con `WWW-Authenticate` para `initialize`/`tools/list`/`tools/call`. La metadata OAuth es pública; el discovery de tools no.
+- **Scopes por operación** (mínimo privilegio): `incidents:read`, `incidents:write`, `inventory:read`. Enforce por tool con `MCPAuthBearerAuthException(MISSING_REQUIRED_SCOPES)` → 403 distinguible del 401.
+- **Herramientas reales** (llaman a `services/api` vía `httpx`, timeout 5 s, URL por env `BRASALAND_API_URL`, sin datos hardcodeados):
+  - Incidencias: `get_incident`, `list_incidents`, `create_incident`, `update_incident_status` (exclusivamente `PATCH /api/incidents/{id}/status`; transiciones del backend, sin PATCH genérico).
+  - Inventario: `list_inventory_products`, `get_inventory_product` (sólo lectura; `local_id` obligatorio y distinto del `branch` de incidencias). Escritura rechazada en tres capas: sin tool de escritura, inputs tipados estrictos, y política local `_check_policy` que bloquea no-GET sobre `/inventory/*` antes de red (`write_not_supported`).
+- **Auditoría**: una línea JSON por invocación (`correlation_id`, `client_id`, `subject`, `tool`, `status`, `duration_ms`) en el logger `brasaland_mcp.audit`, sin tokens ni contenido sensible.
+- **Configuración**: `Settings` fail-fast desde entorno (ver `.env.example`); issuer, resource id, backend URL y credenciales de servicio son obligatorios y no tienen defaults inventados. Puerto único `9100` (sólo el MCP se publica; el backend no).
+
+### Migración del agente (`services/api/app/domains/agent/`)
+- Nuevo `mcp_client.py` con `langchain-mcp-adapters` (`MultiServerMCPClient`, `transport="streamable_http"`), modelos `IncidentToolInput`/`IncidentToolResult`/`IncidentToolStatus`/`IncidentRecord` trasladados aquí, y `query_incidents_via_mcp` (síncrona, con timeout y mapeo de errores). Token OAuth por client credentials (`incidents:read` únicamente; sin ampliar permisos ni activar mutaciones por lenguaje natural).
+- `graph.py`: el nodo `query_incidents` invoca `query_incidents_via_mcp` en lugar de HTTP directo; `execute_agent_query` ya no recibe `incident_token`.
+- `router.py`: `POST /agent/query` sigue protegido con `Depends(get_current_user)`; se eliminó la dependencia de `oauth2_scheme` para la llamada a incidencias.
+- `incident_tool.py` **retirado**: no queda ningún camino directo al Incidents Manager. Si el MCP falla, el agente responde `unavailable`/`timeout` de forma explícita (sin consultar RAG para aparentar confirmación).
+- Se conservan: rutas RAG/incidencias/mixtas/aclaraciones, contrato autenticado, checkpoints (`InMemorySaver`), trazas sanitizadas, fallbacks, RAG y configuración de modelos.
+
+### Dependencias
+- `mcps/brasaland-mcp`: `mcp>=1.24,<2`, `mcpauth==0.2.0b1`, `httpx`, `pydantic`, `uvicorn` (+ `pytest` en dev). `uv.lock` propio.
+- `services/api`: `langchain-mcp-adapters` añadido con `uv add` (actualiza `uv.lock`).
+
+## 2. Evidencias de validación ejecutadas
+- Servidor MCP: `uv run pytest` → **54 passed** (config, backend/policy, auth/transport, incidencias, inventario). Incluye validación real de firma/issuer/audience/expiración/scopes con un proveedor OIDC mock local (JWKS real, tokens RS256 reales) y verificación de que los intentos de escritura sobre inventario nunca alcanzan el backend.
+- Agente: `uv run --project services/api --extra dev python -m pytest tests/pipelines/test_agent_evals.py services/api/tests/test_agent_api.py` → **45 passed**. Suite completa `services/api/tests` → **156 passed, 5 skipped** (PostgreSQL sin `TEST_DATABASE_URL`). `tests/pipelines/` → **80 passed**.
+- `git diff --check`: limpio.
+
+## 3. Validación pendiente (no declarada como completada)
+- **MCP Playground** con la URL HTTPS pública reenviada del puerto 9100 del Codespace (no localhost): pendiente de ejecución real con un proveedor OAuth configurado por el usuario. El servidor ya publica metadata OAuth y rechaza sin token; falta adjuntar capturas/evidencia sanitizada.
+- **Proveedor OAuth real** para boundary 1: la implementación es env-driven (`MCP_AUTH_ISSUER`); falta que el usuario cree el tenant/proveedor y los clients/scopes. No se inventó configuración.
+- **Cuenta de servicio del MCP en Brasaland**: crear el usuario `mcp-service` en el backend (vía flujo de registro/admin) y configurar `MCP_BACKEND_SERVICE_EMAIL/PASSWORD`.
+- **Agente en vivo**: configurar `AGENT_MCP_SERVER_URL/TOKEN_URL/CLIENT_ID/CLIENT_SECRET` (client credentials con scope `incidents:read`) y ejecutar `POST /agent/query` contra el MCP real para adjuntar trazas sanitizadas.
+
+## 4. Decisiones aplicadas (según plan aprobado)
+- Alcance `mcps/` aprobado explícitamente (AGENTS.md protege esta zona).
+- Base apilada sobre la rama de la PR #31 (sin merge ni push).
+- OAuth env-driven + mocks ahora; proveedor real pendiente de datos del usuario.
+- `incident_tool.py` retirado (no deprecado).
+- Scope único `incidents:write` para crear + cambiar estado.
+- Frontera MCP→backend por cuenta de servicio dedicada (sin token exchange en el backend; ampliar alcance sólo si se decide después).

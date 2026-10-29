@@ -66,7 +66,7 @@ def test_agent_returns_serialized_answer_and_coexists_with_knowledge(client, aut
     res_agent = client.post("/agent/query", headers=auth_headers, json={"question": "  nivel Oro  "})
     assert res_agent.status_code == 200
     assert res_agent.json() == {"answer": "Respuesta agente"}
-    assert seen_agent == [("nivel Oro", {"incident_token": auth_headers["Authorization"].removeprefix("Bearer ")})]
+    assert seen_agent == [("nivel Oro", {})]
 
     res_knowledge = client.post("/knowledge/query", headers=auth_headers, json={"question": "  nivel Oro  "})
     assert res_knowledge.status_code == 200

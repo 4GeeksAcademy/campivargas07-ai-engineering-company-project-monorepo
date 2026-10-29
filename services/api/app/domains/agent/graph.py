@@ -10,11 +10,11 @@ from uuid import uuid4
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 
-from app.domains.agent.incident_tool import (
+from app.domains.agent.mcp_client import (
     IncidentToolInput,
     IncidentToolResult,
     IncidentToolStatus,
-    query_incidents,
+    query_incidents_via_mcp,
 )
 from app.domains.agent.state import AgentState, StateValidationError, validate_agent_state
 from app.domains.agent.traces import sanitize_chunk_summary, save_trace
@@ -307,10 +307,7 @@ def build_agent_graph(
             )
         else:
             query = IncidentToolInput.model_validate(state.get("incident_query", {}))
-            result = incident_fn(query) if incident_fn is not None else query_incidents(
-                query,
-                bearer_token=None,
-            )
+            result = incident_fn(query) if incident_fn is not None else query_incidents_via_mcp(query)
         return _observe(
             "query_incidents",
             {
@@ -461,7 +458,6 @@ def execute_agent_query(
     retrieve_fn: Callable[..., list[dict[str, Any]]] = retrieve,
     generate_fn: Callable[..., str] = generate_answer,
     config_fn: Callable[[], Settings] = settings,
-    incident_token: str | None = None,
     incident_fn: Callable[[IncidentToolInput], IncidentToolResult] | None = None,
 ) -> dict[str, Any]:
     """Execute the compiled LangGraph agent, record checkpoints, and persist a consultable trace."""
@@ -508,7 +504,7 @@ def execute_agent_query(
         generate_fn=generate_fn,
         config_fn=config_fn,
         incident_fn=incident_fn or (
-            lambda query: query_incidents(query, bearer_token=incident_token)
+            lambda query: query_incidents_via_mcp(query)
         ),
         step_observer=record_step,
     )
