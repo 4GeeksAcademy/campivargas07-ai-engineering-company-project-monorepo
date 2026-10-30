@@ -1,10 +1,24 @@
-"""Minimal, typed state for the Brasaland support agent graph (Part 1)."""
+"""Minimal, typed state for the Brasaland support agent graph."""
 from collections.abc import Mapping
 from typing import Any, Literal, TypedDict
 
-RouteLiteral = Literal["valid", "empty_question", "grounded", "no_evidence"]
+RouteLiteral = Literal[
+    "valid",
+    "empty_question",
+    "grounded",
+    "no_evidence",
+    "incidents",
+    "both",
+    "clarification",
+    "fallback",
+]
+SourceLiteral = Literal["rag", "incidents", "both", "clarification"]
 
-ALLOWED_ROUTES: frozenset[str] = frozenset({"valid", "empty_question", "grounded", "no_evidence"})
+ALLOWED_ROUTES: frozenset[str] = frozenset({
+    "valid", "empty_question", "grounded", "no_evidence", "incidents", "both",
+    "clarification", "fallback",
+})
+ALLOWED_SOURCES: frozenset[str] = frozenset({"rag", "incidents", "both", "clarification"})
 ALLOWED_STATE_KEYS: frozenset[str] = frozenset({
     "run_id",
     "question",
@@ -12,6 +26,12 @@ ALLOWED_STATE_KEYS: frozenset[str] = frozenset({
     "answer",
     "route",
     "error_code",
+    "source",
+    "incident_query",
+    "incident_result",
+    "incident_clarification",
+    "fallback",
+    "rag_answer",
 })
 FORBIDDEN_STATE_KEYS: frozenset[str] = frozenset({
     "messages",
@@ -31,6 +51,9 @@ FORBIDDEN_STATE_KEYS: frozenset[str] = frozenset({
     "store",
     "user",
     "user_id",
+    "bearer_token",
+    "incident_token",
+    "credentials",
 })
 REQUIRED_CHUNK_KEYS: frozenset[str] = frozenset({"source_document", "section", "text"})
 
@@ -52,6 +75,12 @@ class AgentState(TypedDict, total=False):
     answer: str
     route: RouteLiteral
     error_code: str | None
+    source: SourceLiteral
+    incident_query: dict[str, Any]
+    incident_result: dict[str, Any]
+    incident_clarification: bool
+    fallback: bool
+    rag_answer: str
 
 
 def validate_agent_state(state: Mapping[str, Any]) -> AgentState:
@@ -105,5 +134,30 @@ def validate_agent_state(state: Mapping[str, Any]) -> AgentState:
     if "error_code" in state and state["error_code"] is not None:
         if not isinstance(state["error_code"], str) or not state["error_code"].strip():
             raise StateValidationError("error_code debe ser None o un código string no vacío.")
+
+    if "source" in state and state["source"] not in ALLOWED_SOURCES:
+        raise StateValidationError(f"source inválida: {state['source']!r}")
+
+    if "incident_query" in state:
+        if not isinstance(state["incident_query"], Mapping):
+            raise StateValidationError("incident_query debe ser un mapeo.")
+        if set(state["incident_query"]) - {"incident_id", "status", "category", "branch"}:
+            raise StateValidationError("incident_query contiene campos no permitidos.")
+
+    if "incident_result" in state:
+        result = state["incident_result"]
+        if not isinstance(result, Mapping) or result.get("status") not in {
+            "success", "not_found", "permission_denied", "timeout", "unavailable", "ambiguous",
+        }:
+            raise StateValidationError("incident_result debe contener un estado de resultado válido.")
+
+    if "incident_clarification" in state and not isinstance(state["incident_clarification"], bool):
+        raise StateValidationError("incident_clarification debe ser booleano.")
+
+    if "fallback" in state and not isinstance(state["fallback"], bool):
+        raise StateValidationError("fallback debe ser booleano.")
+
+    if "rag_answer" in state and not isinstance(state["rag_answer"], str):
+        raise StateValidationError("rag_answer debe ser de tipo str.")
 
     return dict(state)  # type: ignore[return-value]

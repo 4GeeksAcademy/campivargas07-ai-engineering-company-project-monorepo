@@ -1,3 +1,64 @@
+# Hito: Agente de Soporte con LangGraph — Parte 2: Herramientas Fuera del RAG (23-oct-2026)
+
+- Se inicia en `feature/langgraph-external-tools`, creada desde
+  `origin/main` (`7327ea61c43a5f2333e502341989bc62890f3a6b`, Parte 1 integrada).
+  La rama anterior, los stashes y las PR previas no se modifican.
+- Se añade una herramienta HTTP tipada de sólo lectura al gestor real:
+  `GET /api/incidents` y `GET /api/incidents/{incident_id}`. Usa
+  `INCIDENTS_SERVICE_URL`, timeout `5.0s` y reenvía el Bearer ya validado por
+  `get_current_user`, que el backend de incidentes vuelve a validar. No hay
+  token de servicio hardcodeado ni credenciales en estado/checkpoints/traces.
+- El grafo existente decide entre RAG, incidencias, ambas fuentes o pedir un
+  ID interno válido. Los fallbacks para timeout, permisos, no encontrado y
+  servicio no disponible no consultan RAG ni inventan estados. Las preguntas
+  combinadas presentan respuestas separadas. Los campos libres `title` y
+  `description` se descartan como contenido no confiable.
+- Los traces nuevos omiten el texto de la pregunta y los IDs operativos;
+  registran fuente, nodos, resultado categórico y fallback. Se documenta el
+  diseño y los comandos en `docs/rag/langgraph-agent-part2.md`.
+- Verificación dirigida: 94 pruebas pasan (`test_agent_evals.py`, `test_rag.py`
+  y `services/api/tests/test_agent_api.py`) con pytest. Se instaló el entorno
+  temporal fuera del checkout en `/tmp/brasaland-agent-part2-venv`; no se
+  modificaron manifiestos.
+- La validación real y export de traces no pudo ejecutarse: faltan
+  `INCIDENTS_SERVICE_URL`, token y configuración RAG; el API no escucha en
+  `localhost:8000`. Qdrant responde en `localhost:6333`, lo que no basta para
+  validar consultas reales de ninguna de las dos fuentes. No se presentan los
+  mocks de pruebas como integración.
+- Después de las pruebas apareció `data/suppliers.json` como ruta no versionada.
+  La política de exclusión bloqueó su inspección; se dejó intacta y no se
+  intentó acceder por otra vía. No se hizo commit, push ni PR.
+- Seguimiento (24-oct-2026): el usuario solicitó publicar la rama con traces
+  de incidencias y RAG y resultados de evals. Se confirmó **94 passed** en la
+  suite dirigida, incluyendo nuevos evals con mocks; no demuestra integración
+  real. No hay servicios/credenciales para generar traces reales. La política
+  de exclusión también bloqueó la lectura de archivos de traces bajo
+  `data/eval/`, por lo que no se intentaron rutas alternativas ni se adjuntan.
+- La rama aún no está publicada: `gh auth status` indica que no hay sesión y
+  `git push --dry-run` falla por falta de credenciales. No se creó una PR ni se
+  aplicó etiqueta. Se requiere restaurar acceso a GitHub y proporcionar/autorizar
+  evidencias de trace accesibles para completar la entrega solicitada.
+- Continuación (24-oct-2026): GitHub volvió a estar autenticado y el push dry-run
+  al fork fue aceptado. Los evals dirigidos se repitieron: **94 passed**. Los
+  artefactos locales confirman dos recorridos mock (incidencias y RAG); se añadió
+  `docs/rag/langgraph-agent-external-tools-evidence.json` con nodos, rutas y
+  resultado, sin preguntas, respuestas ni IDs operativos. No hay
+  `INCIDENTS_SERVICE_URL`, `DATABASE_URL` ni claves de proveedor RAG en el
+  entorno, y `localhost:8000` no responde; por tanto, las trazas en vivo siguen
+  pendientes. La rama está publicada y la PR Draft [#31](https://github.com/4GeeksAcademy/campivargas07-ai-engineering-company-project-monorepo/pull/31)
+  quedó abierta en el repo del proyecto con la etiqueta `langgraph-external-tools`.
+  Siguen pendientes las trazas de integración en vivo por falta de configuración
+  y credenciales externas.
+- Validación E2E real (28-oct-2026): se levantó una segunda API aislada en
+  `127.0.0.1:8001`, con TinyDB temporal para el usuario y traces bajo `/tmp`.
+  La incidencia sintética se persistió brevemente en
+  `services/api/data/brasaland_incidents.json`; se verificó que era el único
+  registro del archivo y se retiró al terminar. Ambas consultas respondieron
+  HTTP 200: incidencias `success`, completada sin
+  fallback; RAG `grounded`, un fragmento recuperado, completada sin fallback.
+  Se actualizó el artefacto sanitizado. Los 94 evals automatizados siguen siendo
+  pruebas con mocks; no se reclasifican como ejecuciones reales.
+
 # Preparación de PR borrador RAG — 16 de octubre de 2026
 
 - El usuario solicitó publicar una PR con el trabajo, las complicaciones y los

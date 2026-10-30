@@ -1,3 +1,120 @@
+# Walkthrough: Agente LangGraph — Herramientas Fuera del RAG — 23 de octubre de 2026
+
+## Cambios
+
+Se creó `feature/langgraph-external-tools` desde el `origin/main` integrado en
+`7327ea61c43a5f2333e502341989bc62890f3a6b`. La implementación extiende el grafo
+de Parte 1; no reutiliza ni modifica ramas previas.
+
+- Nuevo cliente tipado y de sólo lectura en
+  `services/api/app/domains/agent/incident_tool.py`; GET al API real, URL de
+  servicio configurada, credencial Bearer validada reenviada y timeout numérico
+  de 5 segundos. La herramienta no implementa escritura ni busca por
+  `external_ref`.
+- Grafo extendido con clasificación documental/operativa/mixta, nodo de
+  consulta, aclaración de referencia y composición/fallback. Las operaciones
+  no pasan por RAG. `retrieve()` y `generate_answer()` se mantienen separados.
+- El estado sólo incluye los campos nuevos de routing y resultado categórico;
+  no contiene token ni cliente. Las traces minimizan datos: no persisten la
+  pregunta ni IDs, y no incluyen texto interno de respuesta remota. `title` y
+  `description` se excluyen de la respuesta tipada y del contexto del modelo.
+- Se añadieron evals de consultas operativas, documentales, combinadas,
+  ambigüedad, timeout y errores/no encontrado. El contrato autenticado
+  `POST /agent/query` y `POST /knowledge/query` se conserva.
+- Diseño, autenticación, timeout, fallback y comandos reproducibles:
+  `docs/rag/langgraph-agent-part2.md`.
+
+## Verificación ejecutada
+
+```bash
+python -m compileall -q services/api/app/domains/agent/graph.py \
+  services/api/app/domains/agent/state.py \
+  services/api/app/domains/agent/router.py \
+  services/api/app/domains/agent/incident_tool.py \
+  tests/pipelines/test_agent_evals.py \
+  services/api/tests/test_agent_api.py
+git diff --check
+UV_PROJECT_ENVIRONMENT=/tmp/brasaland-agent-part2-venv \
+  uv run --project services/api --extra dev python -m pytest \
+  tests/pipelines/test_agent_evals.py tests/pipelines/test_rag.py \
+  services/api/tests/test_agent_api.py -q
+```
+
+Resultado final: **94 passed** en las pruebas dirigidas; sintaxis y whitespace
+limpios. El entorno pytest se creó fuera del checkout porque la instalación
+existente bajo `services/api/.venv` está restringida por la política del
+workspace.
+
+## Pendiente de evidencia en vivo y entrega
+
+No se ejecutaron consultas reales al servicio de incidentes ni al RAG, ni se
+exportaron traces/evaluaciones reales: no hay `INCIDENTS_SERVICE_URL`, token o
+configuración RAG en el entorno, y no hay API escuchando en `localhost:8000`.
+Qdrant está alcanzable en `localhost:6333`, pero no sustituye el proveedor RAG.
+Los tests de herramienta usan mocks y no se presentan como evidencia de
+integración.
+
+Tras ejecutar las pruebas apareció `data/suppliers.json` como ruta no
+versionada; la política de exclusión impidió inspeccionarla. Se dejó intacta y
+no se intentó acceder mediante otra herramienta. No se hicieron commit, push,
+PR o merge.
+
+## Seguimiento de entrega — 24 de octubre de 2026
+
+Se confirmó de nuevo el resultado dirigido: **94 passed**, incluyendo los
+nuevos evals de enrutamiento, fallback y consulta combinada. Son pruebas con
+mocks, no trazas de consultas reales.
+
+La entrega queda bloqueada por dos condiciones concretas:
+
+- No están configurados el servicio/token de incidentes ni las credenciales del
+  RAG; la API no está escuchando en `localhost:8000`. No se pueden producir
+  traces reales de ambas fuentes en este entorno.
+- La política de exclusión impide leer los archivos de traces/evals detectados
+  bajo `data/eval/`. No se intentó leerlos con herramientas alternativas ni
+  copiarlos a otro lugar.
+- GitHub no tiene sesión autenticada en el entorno y el `git push --dry-run`
+  falla por falta de credenciales. La rama no está en el remoto; por ello no
+  puede abrirse ni etiquetarse la PR desde esta sesión.
+
+No se presenta la suite mock como evidencia operativa ni se crea una PR sin los
+traces obligatorios. Para continuar, el usuario debe habilitar acceso GitHub y
+proveer servicios/configuración de prueba y una vía permitida para acceder a
+los artifacts sanitizados.
+
+## Reanudación de entrega — 24 de octubre de 2026
+
+- GitHub volvió a estar autenticado; `git push --dry-run` al fork aceptó la rama.
+- Se repitió la suite dirigida: **94 passed**. Los campos de routing verifican
+  `receive_question → query_incidents → compose_incident_answer` para incidencias
+  y `receive_question → retrieve_context → generate_grounded_answer` para RAG.
+  Ambos traces son mock, completan sin fallback y no incluyen la pregunta.
+- Se agregó `docs/rag/langgraph-agent-external-tools-evidence.json` como resumen
+  sanitizado, marcado `mocked_evaluation_only_not_live_integration`.
+- Faltan `INCIDENTS_SERVICE_URL`, `DATABASE_URL` y la clave del proveedor RAG; la
+  API tampoco escucha en `localhost:8000`. No hay trazas de integración en vivo.
+  La rama se publicó y la PR Draft [#31](https://github.com/4GeeksAcademy/campivargas07-ai-engineering-company-project-monorepo/pull/31)
+  quedó abierta en el repo del proyecto con la etiqueta `langgraph-external-tools`.
+  Las trazas de integración en vivo siguen pendientes por falta de configuración
+  y credenciales externas.
+
+## Validación E2E real — 28 de octubre de 2026
+
+- Se usó una instancia FastAPI en `127.0.0.1:8001`, con TinyDB temporal para el
+  usuario y salida de traces bajo `/tmp`. La incidencia sintética se persistió
+  brevemente en `services/api/data/brasaland_incidents.json`; se verificó que era
+  el único registro y se retiró al terminar.
+- La corrida de incidencias devolvió HTTP 200, ruta `incidents`, nodos
+  `receive_question → query_incidents → compose_incident_answer`, resultado de
+  herramienta `success` y sin fallback.
+- La corrida RAG devolvió HTTP 200, ruta `grounded`, nodos
+  `receive_question → retrieve_context → generate_grounded_answer`, recuperó un
+  fragmento de Qdrant y completó generación sin fallback.
+- Se guardó metadata sanitizada en
+  `docs/rag/langgraph-agent-external-tools-evidence.json`. Los JSON originales
+  con respuestas/contexto no se adjuntan. Los 94 evals anteriores son tests con
+  mocks y se informan por separado.
+
 # Walkthrough: Preparación de PR borrador RAG — 16 de octubre de 2026
 
 El usuario autoriza publicar el trabajo en una PR Draft hacia `main`, incluyendo
