@@ -129,12 +129,14 @@ def test_invented_write_tools_are_rejected_and_never_reach_backend(
 
 def test_read_tool_rejects_write_arguments(mcp_server, token_full, mock_brasaland):
     """Extra write-like arguments do not match the typed input schema."""
+    mock_brasaland.set_response("GET", "/inventory/products", 200, [])
     outcome = call_tool(
         mcp_server,
         token_full,
         "list_inventory_products",
         {"local_id": LOCAL_ID, "current_stock": 0, "minimum_stock": 999},
     )
+    assert mock_brasaland.requests == []
     assert outcome.is_error or outcome.error or (outcome.payload and outcome.payload["status"] != "success")
     assert mock_brasaland.write_requests() == []
 

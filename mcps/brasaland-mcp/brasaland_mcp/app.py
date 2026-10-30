@@ -70,6 +70,16 @@ def build_app(
     register_incident_tools(mcp, deps)
     register_inventory_tools(mcp, deps)
 
+    # FastMCP otherwise discards extra arguments before calling a tool.
+    @mcp._mcp_server.list_tools()
+    async def list_strict_tools():
+        tools = await mcp.list_tools()
+        for tool in tools:
+            tool.inputSchema["additionalProperties"] = False
+        return tools
+
+    mcp._mcp_server.call_tool(validate_input=True)(mcp.call_tool)
+
     # streamable_http_app() must be called before accessing session_manager.
     mcp_http_app = mcp.streamable_http_app()
 
