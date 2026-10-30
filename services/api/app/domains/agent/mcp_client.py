@@ -339,7 +339,7 @@ def query_incidents_via_mcp(
 
         token = "test-token"
     else:
-        assert provider is not None
+        provider = token_provider or _resolve_token_provider()
         try:
             token = provider.get()
         except ConfigurationError:
