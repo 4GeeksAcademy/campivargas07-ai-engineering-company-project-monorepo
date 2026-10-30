@@ -115,9 +115,24 @@ def _is_expired(record: dict, now: datetime | None = None) -> bool:
         return False
 
 
+# Categories sanctioned by the official Brasaland BRIEFING (Hito 8, Parte 1).
+ALLOWED_MEMORY_CATEGORIES: frozenset[str] = frozenset({
+    "operational_correction",
+    "escalation_context",
+    "communication_preference",
+})
+
+# Terms that must never be consolidated, per the BRIEFING.
+PROHIBITED_MEMORY_TERMS: tuple[str, ...] = (
+    "brasa points", "cliente", "customer", "email", "correo", "telefono", "teléfono",
+    "phone", "direccion", "dirección", "address", "nomina", "nómina", "payroll",
+    "salario", "salary", "compensacion", "compensación", "compensation", "sueldo",
+)
+
+
 @dataclass(frozen=True)
 class MemoryPolicy:
-    allowed_categories: frozenset[str] = frozenset()
+    allowed_categories: frozenset[str] = ALLOWED_MEMORY_CATEGORIES
     max_fact_length: int = 280
     max_active_per_user: int = 50
     max_active_per_conversation: int = 10
@@ -128,7 +143,10 @@ class MemoryPolicy:
     @classmethod
     def from_env(cls) -> "MemoryPolicy":
         raw = os.getenv("AGENT_MEMORY_ALLOWED_CATEGORIES", "").strip()
-        cats = frozenset(x.strip() for x in raw.split(",") if x.strip())
+        if raw:
+            cats = frozenset(x.strip() for x in raw.split(",") if x.strip())
+        else:
+            cats = ALLOWED_MEMORY_CATEGORIES
         return cls(allowed_categories=cats)
 
 
@@ -200,6 +218,9 @@ def validate_memory_candidate(candidate: Any, policy: MemoryPolicy) -> dict[str,
     if category not in policy.allowed_categories:
         return None
     if re.search(r"\b(password|token|api[_ -]?key|secret|bearer)\b", fact, re.I):
+        return None
+    lowered = fact.lower()
+    if any(term in lowered for term in PROHIBITED_MEMORY_TERMS):
         return None
     try:
         confidence = float(candidate.get("confidence", 0.0))

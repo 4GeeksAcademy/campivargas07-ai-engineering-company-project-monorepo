@@ -568,3 +568,11 @@
 - Pruebas: `170 passed, 5 skipped` (suite completa API); `11 passed` en `test_agent_memory.py`.
 - Evidencia simulada documentada en `docs/agent/agent-memory-part1.md`.
 - Pendiente real: BRIEFING oficial de memoria (hechos permitidos/prohibidos/audiencia), integración real RAG y concurrencia multi-proceso.
+
+## MEM-092 — BRIEFING oficial incorporado
+
+- BRIEFING `brasaland-BRIEFING.es.md` (Hito 8, Parte 1) recibido e incorporado.
+- Categorías memorables: operational_correction, escalation_context, communication_preference.
+- Términos prohibidos bloqueados en validación: datos de clientes Brasa Points, nómina/compensación, PII.
+- Ejemplos memorables/no memorables alineados con el BRIEFING.
+- Pendientes restantes: integración real RAG, concurrencia multi-proceso, clasificación con LLM real.

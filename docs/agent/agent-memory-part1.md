@@ -23,8 +23,15 @@ TinyDB dedicado (`services/api/data/agent_memory.json`), tablas `memories`, `pro
 - `services/api/tests/conftest.py` (aislamiento)
 - `data/pipelines/rag.py` (`generate_answer_with_memory`)
 
-## Política
-La allowlist de categorías memorables está vacía por defecto (`AGENT_MEMORY_ALLOWED_CATEGORIES`); la política oficial del BRIEFING sigue pendiente. Las pruebas inyectan una política explícita.
+## Política (BRIEFING oficial resuelto)
+Categorías memorables permitidas (BRIEFING Hito 8):
+- `operational_correction`
+- `escalation_context`
+- `communication_preference`
+
+Nunca se consolidan: datos personales de clientes Brasa Points, cifras de nómina/compensación individual, ni datos de una sola conversación sin patrón repetible. La validación rechaza hechos que contengan términos sensibles (cliente, email, teléfono, nómina, salario, etc.).
+
+Consolidación: se deduplica por `user + categoría + fact`; el BRIEFING sugiere agrupar por location + categoría, decisión de diseño documentada como evolución futura (location se conserva dentro del fact). Las pruebas inyectan una política explícita.
 
 ## Evidencia simulada (almacenamiento temporal, proveedor simulado)
 
@@ -44,7 +51,7 @@ La allowlist de categorías memorables está vacía por defecto (`AGENT_MEMORY_A
 - `python -m compileall app/domains/agent`: OK
 
 ## Pendientes reales
-- BRIEFING oficial de memoria (hechos permitidos/prohibidos, audiencia/alcance) para desbloquear reglas de contenido.
 - Integración real con proveedor RAG (las pruebas usan proveedor simulado).
 - Evaluación de clasificación de confirmación con LLM real (actualmente heurística explícita).
 - Migración a PostgreSQL si se requiere concurrencia multi-proceso.
+- Incorporar `location_id` estructurado si se quiere consolidación física por location (hoy se conserva en el texto del fact).
