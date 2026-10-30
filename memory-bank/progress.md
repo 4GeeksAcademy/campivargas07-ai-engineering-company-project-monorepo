@@ -576,3 +576,13 @@
 - Términos prohibidos bloqueados en validación: datos de clientes Brasa Points, nómina/compensación, PII.
 - Ejemplos memorables/no memorables alineados con el BRIEFING.
 - Pendientes restantes: integración real RAG, concurrencia multi-proceso, clasificación con LLM real.
+
+## Hito 8 Parte 2 — Aseguramiento de Agentes (implementación local)
+
+- Rama: `feature/agent-guardrails`, base `de615e8` (PR #33). PR #33 no modificada.
+- Defensas implementadas en `services/api/app/domains/agent/guardrails.py` y integradas en `graph.py`: clasificación de intención, saneamiento de contenido externo, guardia de herramientas, validación de salida, protección de memoria, registro y resumen.
+- Estado tipado ampliado con rutas `casual` y `blocked`.
+- `memory.validate_memory_candidate` reforzado contra claves extra y frases de override.
+- Pruebas nuevas: `tests/test_agent_guardrails.py` (13 passed).
+- Verificación: guardrails 13 passed; memoria/API/MCP 28 passed; suite completa 183 passed, 5 skipped; compileall OK.
+- Pendientes: LLM real y servicios externos no disponibles; BRIEFING oficial Parte 2 no encontrado (se reutilizó Parte 1).

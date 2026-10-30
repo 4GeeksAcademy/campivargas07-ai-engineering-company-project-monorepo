@@ -10,6 +10,7 @@ from uuid import uuid4
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 
+from app.domains.agent import guardrails as agent_guardrails
 from app.domains.agent.mcp_client import (
     IncidentToolInput,
     IncidentToolResult,
@@ -188,6 +189,14 @@ def build_agent_graph(
         raw_question = state.get("question")
         cleaned = raw_question.strip() if isinstance(raw_question, str) else ""
         if not cleaned or len(cleaned) > MAX_QUESTION_LENGTH:
+            agent_guardrails.record_guardrail_event(
+                run_id=run_id,
+                conversation_id=conversation_id,
+                guardrail="input_validation",
+                action="block",
+                failure_type="structural",
+                reason="empty_or_too_long_question",
+            )
             return _observe(
                 "receive_question",
                 {
@@ -203,10 +212,51 @@ def build_agent_graph(
                 },
                 started,
             )
+
+        intent = agent_guardrails.classify_user_intent(cleaned)
+        if intent.intent != "business":
+            agent_guardrails.record_guardrail_event(
+                run_id=run_id,
+                conversation_id=conversation_id,
+                guardrail=intent.guardrail or "scope_guardrail",
+                action=intent.action,
+                failure_type=intent.failure_type,
+                reason=intent.reason,
+            )
+            if intent.intent == "casual":
+                answer = agent_guardrails.CASUAL_REDIRECT_ANSWER
+                route = "casual"
+                error_code = None
+            elif intent.intent == "personal_task":
+                answer = agent_guardrails.PERSONAL_TASK_ANSWER
+                route = "blocked"
+                error_code = "PERSONAL_TASK_REJECTED"
+            else:
+                answer = agent_guardrails.BLOCKED_ANSWER
+                route = "blocked"
+                error_code = "INSTRUCTION_OVERRIDE_REJECTED"
+            return _observe(
+                "receive_question",
+                {
+                    "run_id": run_id,
+                    "question": cleaned,
+                    "conversation_id": conversation_id,
+                    "retrieved_context": [],
+                    "memory_context": [],
+                    "memory_candidate": None,
+                    "answer": answer,
+                    "route": route,
+                    "source": "clarification",
+                    "error_code": error_code,
+                },
+                started,
+            )
+
         memories: list[dict[str, Any]] = []
         if memory_read_fn is not None:
             try:
-                memories = memory_read_fn(conversation_id or "", cleaned) or []
+                raw_memories = memory_read_fn(conversation_id or "", cleaned) or []
+                memories = agent_guardrails.sanitize_memory_context(raw_memories)
             except Exception:
                 memories = []
         source, incident_query, incident_clarification = _decide_sources(cleaned)
@@ -248,6 +298,7 @@ def build_agent_graph(
         cfg = config_fn()
         question = state["question"]
         chunks = retrieve_fn(question, k=5, min_score=cfg.min_score, config=cfg)
+        chunks = agent_guardrails.sanitize_rag_chunks(chunks)
         route: Literal["grounded", "no_evidence"] = "grounded" if chunks else "no_evidence"
         return _observe(
             "retrieve_context",
@@ -269,14 +320,32 @@ def build_agent_graph(
             answer, candidate = gen_result
         else:
             answer, candidate = gen_result, None
+        is_valid, reason, candidate = agent_guardrails.validate_agent_output(answer, candidate)
+        if not is_valid:
+            agent_guardrails.record_guardrail_event(
+                run_id=state.get("run_id"),
+                conversation_id=state.get("conversation_id"),
+                guardrail="output_validation",
+                action="block",
+                failure_type="content",
+                reason=reason or "invalid_output",
+            )
+            answer = agent_guardrails.OUTPUT_INVALID_ANSWER
+            candidate = None
+            route = "blocked"
+            error_code = "OUTPUT_VALIDATION_FAILED"
+        else:
+            route = "grounded"
+            error_code = None
         return _observe(
             "generate_grounded_answer",
             {
                 "answer": answer,
                 "rag_answer": answer,
-                "route": "grounded",
-                "error_code": None,
+                "route": route,
+                "error_code": error_code,
                 "memory_candidate": candidate,
+                "fallback": route == "blocked",
             },
             started,
         )
@@ -291,14 +360,32 @@ def build_agent_graph(
             answer, candidate = gen_result
         else:
             answer, candidate = gen_result, None
+        is_valid, reason, candidate = agent_guardrails.validate_agent_output(answer, candidate)
+        if not is_valid:
+            agent_guardrails.record_guardrail_event(
+                run_id=state.get("run_id"),
+                conversation_id=state.get("conversation_id"),
+                guardrail="output_validation",
+                action="block",
+                failure_type="content",
+                reason=reason or "invalid_output",
+            )
+            answer = agent_guardrails.OUTPUT_INVALID_ANSWER
+            candidate = None
+            route = "blocked"
+            error_code = "OUTPUT_VALIDATION_FAILED"
+        else:
+            route = "no_evidence"
+            error_code = None
         return _observe(
             "abstain_without_evidence",
             {
                 "answer": answer,
                 "rag_answer": answer,
-                "route": "no_evidence",
-                "error_code": None,
+                "route": route,
+                "error_code": error_code,
                 "memory_candidate": candidate,
+                "fallback": route == "blocked",
             },
             started,
         )
@@ -333,7 +420,25 @@ def build_agent_graph(
             )
         else:
             query = IncidentToolInput.model_validate(state.get("incident_query", {}))
-            result = incident_fn(query) if incident_fn is not None else query_incidents_via_mcp(query)
+            try:
+                agent_guardrails.guard_tool_call("query_incidents_mcp", query.model_dump(mode="json"))
+            except agent_guardrails.GuardrailBlocked as exc:
+                agent_guardrails.record_guardrail_event(
+                    run_id=state.get("run_id"),
+                    conversation_id=state.get("conversation_id"),
+                    guardrail=exc.guardrail,
+                    action="block",
+                    failure_type="security",
+                    reason=exc.reason,
+                )
+                result = IncidentToolResult(
+                    status=IncidentToolStatus.PERMISSION_DENIED,
+                    message=agent_guardrails.BLOCKED_ANSWER,
+                )
+                # Skip the real tool call.
+                query = None  # type: ignore[assignment]
+            if query is not None:
+                result = incident_fn(query) if incident_fn is not None else query_incidents_via_mcp(query)
         return _observe(
             "query_incidents",
             {
@@ -505,6 +610,35 @@ def execute_agent_query(
             policy = None
 
     working_question = question
+    intent = agent_guardrails.classify_user_intent(question if isinstance(question, str) else "")
+    if intent.intent != "business":
+        agent_guardrails.record_guardrail_event(
+            run_id=resolved_run_id,
+            conversation_id=resolved_conversation_id,
+            user_uuid=user_uuid,
+            guardrail=intent.guardrail or "scope_guardrail",
+            action=intent.action,
+            failure_type=intent.failure_type,
+            reason=intent.reason,
+        )
+        if intent.intent == "casual":
+            answer = agent_guardrails.CASUAL_REDIRECT_ANSWER
+            route = "casual"
+        elif intent.intent == "personal_task":
+            answer = agent_guardrails.PERSONAL_TASK_ANSWER
+            route = "blocked"
+        else:
+            answer = agent_guardrails.BLOCKED_ANSWER
+            route = "blocked"
+        return {
+            "run_id": resolved_run_id,
+            "thread_id": resolved_thread_id,
+            "conversation_id": resolved_conversation_id,
+            "answer": answer,
+            "route": route,
+            "memory_proposal": None,
+        }
+
     if user_uuid is not None:
         try:
             pending = agent_memory.get_pending_proposal(resolved_conversation_id, user_uuid)
@@ -569,7 +703,8 @@ def execute_agent_query(
         if user_uuid is None:
             return []
         try:
-            return agent_memory.read_relevant_memories(user_uuid, conv_id, q, policy=policy, limit=5)
+            raw = agent_memory.read_relevant_memories(user_uuid, conv_id, q, policy=policy, limit=5)
+            return agent_guardrails.sanitize_memory_context(raw)
         except Exception:
             return []
 
@@ -630,7 +765,7 @@ def execute_agent_query(
         sanitized_context = [
             sanitize_chunk_summary(c) for c in (final_state.get("retrieved_context") or [])
         ]
-        if final_state.get("route") == "empty_question" or final_state.get("error_code"):
+        if final_state.get("route") == "empty_question" or final_state.get("error_code") == "INVALID_QUESTION":
             trace_payload = {
                 "run_id": resolved_run_id,
                 "thread_id": resolved_thread_id,
@@ -678,27 +813,35 @@ def execute_agent_query(
         save_trace(trace_payload, directory=trace_dir)
         memory_proposal = None
         memory_candidate = final_state.get("memory_candidate")
-        if user_uuid is not None and memory_candidate is not None:
-            try:
-                proposal = agent_memory.propose_memory(
-                    user_uuid,
-                    resolved_conversation_id,
-                    resolved_run_id,
-                    memory_candidate,
-                    policy=policy,
-                )
-                if proposal is not None:
-                    memory_proposal = {
-                        "proposal_id": proposal.proposal_id,
-                        "fact": proposal.proposed_fact,
-                        "category": proposal.category,
-                        "rationale": proposal.rationale,
-                        "confidence": proposal.confidence,
-                        "status": proposal.status,
-                        "expires_at": proposal.expires_at,
-                    }
-            except Exception:
-                memory_proposal = None
+        if (
+            user_uuid is not None
+            and memory_candidate is not None
+            and final_state.get("route") not in {"blocked", "casual", "empty_question"}
+        ):
+            is_valid, _, memory_candidate = agent_guardrails.validate_agent_output(
+                final_state.get("answer", ""), memory_candidate
+            )
+            if is_valid and memory_candidate is not None:
+                try:
+                    proposal = agent_memory.propose_memory(
+                        user_uuid,
+                        resolved_conversation_id,
+                        resolved_run_id,
+                        memory_candidate,
+                        policy=policy,
+                    )
+                    if proposal is not None:
+                        memory_proposal = {
+                            "proposal_id": proposal.proposal_id,
+                            "fact": proposal.proposed_fact,
+                            "category": proposal.category,
+                            "rationale": proposal.rationale,
+                            "confidence": proposal.confidence,
+                            "status": proposal.status,
+                            "expires_at": proposal.expires_at,
+                        }
+                except Exception:
+                    memory_proposal = None
         return {
             "run_id": resolved_run_id,
             "thread_id": resolved_thread_id,

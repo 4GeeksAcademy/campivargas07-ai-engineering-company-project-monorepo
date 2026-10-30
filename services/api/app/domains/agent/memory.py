@@ -209,6 +209,9 @@ def _sanitize_fact(fact: str) -> str:
 def validate_memory_candidate(candidate: Any, policy: MemoryPolicy) -> dict[str, Any] | None:
     if not isinstance(candidate, dict):
         return None
+    allowed_keys = {"should_remember", "fact", "category", "rationale", "confidence"}
+    if set(candidate.keys()) - allowed_keys:
+        return None
     if candidate.get("should_remember") is not True:
         return None
     fact = _sanitize_fact(str(candidate.get("fact", "")))
@@ -221,6 +224,8 @@ def validate_memory_candidate(candidate: Any, policy: MemoryPolicy) -> dict[str,
         return None
     lowered = fact.lower()
     if any(term in lowered for term in PROHIBITED_MEMORY_TERMS):
+        return None
+    if re.search(r"ignor\w*.*(instrucc|reglas|prompt)|(instrucciones?|reglas?|prompt).*(internas|sistema|anteriores|previas)|act[uú]a\s+como|sin\s+restricciones|developer\s+mode|jailbreak|bypass", fact, re.I):
         return None
     try:
         confidence = float(candidate.get("confidence", 0.0))
