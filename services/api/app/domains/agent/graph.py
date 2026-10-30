@@ -10,11 +10,11 @@ from uuid import uuid4
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 
-from app.domains.agent.incident_tool import (
+from app.domains.agent.mcp_client import (
     IncidentToolInput,
     IncidentToolResult,
     IncidentToolStatus,
-    query_incidents,
+    query_incidents_via_mcp,
 )
 from app.domains.agent.state import AgentState, StateValidationError, validate_agent_state
 from app.domains.agent.traces import sanitize_chunk_summary, save_trace
@@ -165,9 +165,10 @@ def build_agent_graph(
     *,
     checkpointer: Any = None,
     retrieve_fn: Callable[..., list[dict[str, Any]]] = retrieve,
-    generate_fn: Callable[..., str] = generate_answer,
+    generate_fn: Callable[..., Any] = generate_answer,
     config_fn: Callable[[], Settings] = settings,
     incident_fn: Callable[[IncidentToolInput], IncidentToolResult] | None = None,
+    memory_read_fn: Callable[[str, str], list[dict[str, Any]]] | None = None,
     step_observer: Callable[[str, dict[str, Any], float], None] | None = None,
 ):
     """Build and explicitly compile the Brasaland support agent StateGraph."""
@@ -183,6 +184,7 @@ def build_agent_graph(
         started = time.perf_counter()
         validate_agent_state(state)
         run_id = (state.get("run_id") or f"run-{uuid4().hex[:12]}").strip()
+        conversation_id = state.get("conversation_id")
         raw_question = state.get("question")
         cleaned = raw_question.strip() if isinstance(raw_question, str) else ""
         if not cleaned or len(cleaned) > MAX_QUESTION_LENGTH:
@@ -191,20 +193,32 @@ def build_agent_graph(
                 {
                     "run_id": run_id,
                     "question": cleaned,
+                    "conversation_id": conversation_id,
                     "retrieved_context": [],
+                    "memory_context": [],
+                    "memory_candidate": None,
                     "route": "empty_question",
                     "source": "clarification",
                     "error_code": "INVALID_QUESTION",
                 },
                 started,
             )
+        memories: list[dict[str, Any]] = []
+        if memory_read_fn is not None:
+            try:
+                memories = memory_read_fn(conversation_id or "", cleaned) or []
+            except Exception:
+                memories = []
         source, incident_query, incident_clarification = _decide_sources(cleaned)
         return _observe(
             "receive_question",
             {
                 "run_id": run_id,
                 "question": cleaned,
+                "conversation_id": conversation_id,
                 "retrieved_context": [],
+                "memory_context": memories,
+                "memory_candidate": None,
                 "route": "valid",
                 "source": source,
                 "incident_query": incident_query or {},
@@ -249,7 +263,12 @@ def build_agent_graph(
         validate_agent_state(state)
         cfg = config_fn()
         context = state.get("retrieved_context") or []
-        answer = generate_fn(state["question"], context, config=cfg)
+        memories = state.get("memory_context") or []
+        gen_result = generate_fn(state["question"], context, memories=memories, config=cfg)
+        if isinstance(gen_result, tuple):
+            answer, candidate = gen_result
+        else:
+            answer, candidate = gen_result, None
         return _observe(
             "generate_grounded_answer",
             {
@@ -257,6 +276,7 @@ def build_agent_graph(
                 "rag_answer": answer,
                 "route": "grounded",
                 "error_code": None,
+                "memory_candidate": candidate,
             },
             started,
         )
@@ -265,7 +285,12 @@ def build_agent_graph(
         started = time.perf_counter()
         validate_agent_state(state)
         cfg = config_fn()
-        answer = generate_fn(state["question"], [], config=cfg)
+        memories = state.get("memory_context") or []
+        gen_result = generate_fn(state["question"], [], memories=memories, config=cfg)
+        if isinstance(gen_result, tuple):
+            answer, candidate = gen_result
+        else:
+            answer, candidate = gen_result, None
         return _observe(
             "abstain_without_evidence",
             {
@@ -273,6 +298,7 @@ def build_agent_graph(
                 "rag_answer": answer,
                 "route": "no_evidence",
                 "error_code": None,
+                "memory_candidate": candidate,
             },
             started,
         )
@@ -307,10 +333,7 @@ def build_agent_graph(
             )
         else:
             query = IncidentToolInput.model_validate(state.get("incident_query", {}))
-            result = incident_fn(query) if incident_fn is not None else query_incidents(
-                query,
-                bearer_token=None,
-            )
+            result = incident_fn(query) if incident_fn is not None else query_incidents_via_mcp(query)
         return _observe(
             "query_incidents",
             {
@@ -456,18 +479,100 @@ def execute_agent_query(
     *,
     run_id: str | None = None,
     thread_id: str | None = None,
+    conversation_id: str | None = None,
+    user_uuid: str | None = None,
+    memory_policy: Any = None,
     trace_dir: Path | str | None = None,
     checkpointer: Any = None,
     retrieve_fn: Callable[..., list[dict[str, Any]]] = retrieve,
-    generate_fn: Callable[..., str] = generate_answer,
+    generate_fn: Callable[..., Any] = generate_answer,
     config_fn: Callable[[], Settings] = settings,
-    incident_token: str | None = None,
     incident_fn: Callable[[IncidentToolInput], IncidentToolResult] | None = None,
 ) -> dict[str, Any]:
     """Execute the compiled LangGraph agent, record checkpoints, and persist a consultable trace."""
     resolved_run_id = (run_id or f"run-{uuid4().hex[:12]}").strip()
-    resolved_thread_id = (thread_id or resolved_run_id).strip()
+    resolved_conversation_id = (conversation_id or thread_id or f"conv-{uuid4().hex[:12]}").strip()
+    resolved_thread_id = resolved_conversation_id
     started_at = datetime.now(timezone.utc).isoformat()
+
+    from app.domains.agent import memory as agent_memory
+    policy = memory_policy
+    if policy is None:
+        try:
+            from app.domains.agent.memory import DEFAULT_POLICY as _DP
+            policy = _DP
+        except Exception:
+            policy = None
+
+    working_question = question
+    if user_uuid is not None:
+        try:
+            pending = agent_memory.get_pending_proposal(resolved_conversation_id, user_uuid)
+        except Exception:
+            pending = None
+        if pending is not None:
+            try:
+                classification = agent_memory.classify_proposal_response(question, pending)
+            except Exception:
+                classification = None
+            if classification is not None:
+                decision = classification.decision
+                if decision in {"approve", "reject", "edit"}:
+                    try:
+                        agent_memory.resolve_proposal(
+                            pending.proposal_id,
+                            user_uuid,
+                            decision,
+                            revised_fact=classification.revised_fact,
+                            policy=policy,
+                            user_uuid=user_uuid,
+                        )
+                    except Exception:
+                        pass
+                elif decision == "ambiguous":
+                    try:
+                        agent_memory.expire_pending(resolved_conversation_id, user_uuid, "ambiguous_or_topic_change", actor_uuid=user_uuid)
+                    except Exception:
+                        pass
+                residual = None
+                if decision in {"approve", "reject", "edit"}:
+                    residual = classification.new_query
+                elif decision == "ambiguous":
+                    residual = question
+                if residual is None:
+                    try:
+                        new_pending = agent_memory.get_pending_proposal(resolved_conversation_id, user_uuid)
+                    except Exception:
+                        new_pending = None
+                    if decision == "approve":
+                        ack = "He procesado la propuesta de memoria."
+                    elif decision == "reject":
+                        ack = "Entendido: no guardaré ese recuerdo."
+                    elif decision == "edit":
+                        if new_pending is not None:
+                            ack = f"He creado una propuesta revisada: {new_pending.proposed_fact}. ¿La apruebas?"
+                        else:
+                            ack = "No pude crear una propuesta revisada válida."
+                    else:
+                        ack = "No entendí la respuesta a la propuesta pendiente; la he descartado."
+                    return {
+                        "run_id": resolved_run_id,
+                        "thread_id": resolved_thread_id,
+                        "conversation_id": resolved_conversation_id,
+                        "answer": ack,
+                        "route": "memory_proposal_resolved",
+                        "memory_proposal": None,
+                    }
+                working_question = residual
+
+    def _read_memories(conv_id: str, q: str) -> list[dict[str, Any]]:
+        if user_uuid is None:
+            return []
+        try:
+            return agent_memory.read_relevant_memories(user_uuid, conv_id, q, policy=policy, limit=5)
+        except Exception:
+            return []
+
     steps: list[dict[str, Any]] = []
     nodes_order: list[str] = []
 
@@ -508,15 +613,16 @@ def execute_agent_query(
         generate_fn=generate_fn,
         config_fn=config_fn,
         incident_fn=incident_fn or (
-            lambda query: query_incidents(query, bearer_token=incident_token)
+            lambda query: query_incidents_via_mcp(query)
         ),
+        memory_read_fn=_read_memories,
         step_observer=record_step,
     )
     run_config = {"configurable": {"thread_id": resolved_thread_id}}
 
     try:
         final_state: AgentState = graph.invoke(
-            {"run_id": resolved_run_id, "question": question},
+            {"run_id": resolved_run_id, "question": working_question, "conversation_id": resolved_conversation_id, "memory_context": _read_memories(resolved_conversation_id, working_question) if user_uuid is not None else []},
             config=run_config,
         )
         validate_agent_state(final_state)
@@ -556,7 +662,7 @@ def execute_agent_query(
             "finished_at": datetime.now(timezone.utc).isoformat(),
             "status": "completed",
             "route": final_state.get("route", "grounded"),
-            "question_length": len(final_state.get("question", question.strip())),
+            "question_length": len(final_state.get("question", working_question.strip())),
             "source": final_state.get("source"),
             "incident_tool_result": (
                 final_state.get("incident_result", {}).get("status")
@@ -570,11 +676,36 @@ def execute_agent_query(
             "error": None,
         }
         save_trace(trace_payload, directory=trace_dir)
+        memory_proposal = None
+        memory_candidate = final_state.get("memory_candidate")
+        if user_uuid is not None and memory_candidate is not None:
+            try:
+                proposal = agent_memory.propose_memory(
+                    user_uuid,
+                    resolved_conversation_id,
+                    resolved_run_id,
+                    memory_candidate,
+                    policy=policy,
+                )
+                if proposal is not None:
+                    memory_proposal = {
+                        "proposal_id": proposal.proposal_id,
+                        "fact": proposal.proposed_fact,
+                        "category": proposal.category,
+                        "rationale": proposal.rationale,
+                        "confidence": proposal.confidence,
+                        "status": proposal.status,
+                        "expires_at": proposal.expires_at,
+                    }
+            except Exception:
+                memory_proposal = None
         return {
             "run_id": resolved_run_id,
             "thread_id": resolved_thread_id,
+            "conversation_id": resolved_conversation_id,
             "answer": final_state["answer"],
             "route": final_state["route"],
+            "memory_proposal": memory_proposal,
         }
     except InvalidQuestionError:
         raise
@@ -593,7 +724,7 @@ def execute_agent_query(
             "status": "error",
             "route": snapshot.get("route"),
             "question_length": len(snapshot.get(
-                "question", question.strip() if isinstance(question, str) else ""
+                "question", working_question.strip() if isinstance(working_question, str) else ""
             )),
             "source": snapshot.get("source"),
             "incident_tool_result": snapshot.get("incident_result", {}).get("status"),
