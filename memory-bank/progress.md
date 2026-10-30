@@ -555,3 +555,16 @@
 - **Herramientas reales y tipadas**: `get_incident`, `list_incidents`, `create_incident`, `update_incident_status` (sólo `PATCH /api/incidents/{id}/status`, transiciones del backend), `list_inventory_products`, `get_inventory_product` (inventario sólo lectura; escritura rechazada por diseño en tres capas, incluida política local que bloquea no-GET sobre `/inventory/*` antes de red).
 - **Migración del agente**: nueva `services/api/app/domains/agent/mcp_client.py` con `langchain-mcp-adapters`; el nodo `query_incidents` deja de llamar HTTP directo; `incident_tool.py` retirado; sin fallback directo. Se conservan rutas RAG/incidencias/mixtas/aclaraciones, contrato autenticado de `POST /agent/query`, checkpoints, trazas, fallbacks, RAG y configuración de modelos.
 - **Pruebas**: 54 pasando en `mcps/brasaland-mcp/tests` (auth/transport, incidencias, inventario, config, backend) y 45 en `tests/pipelines/test_agent_evals.py` + `services/api/tests/test_agent_api.py`, más la suite completa `services/api/tests` (156 passed, 5 skipped postgres). Validación real en MCP Playground queda pendiente de ejecutar con URL pública reenviada.
+
+## MEM-092 — Memoria y Auto-mejora de Agentes (Parte 1) — implementación local
+
+- Rama: `feature/agent-memory`, base `77a9379` (PR #32 incluido).
+- Almacenamiento: TinyDB dedicado `services/api/data/agent_memory.json`, aislado por `user_uuid` + `conversation_id`.
+- Flujo implementado: consulta → lectura de recuerdos permitidos → respuesta + propuesta opcional → decisión explícita → auditoría → consolidación solo si aprobada.
+- Extensión HTTP: `POST /agent/query` acepta `conversation_id`/`client_request_id` opcionales y devuelve `conversation_id`, `run_id`, `route`, `memory_proposal`.
+- Estado LangGraph extendido con `conversation_id`, `memory_context`, `memory_candidate`, `memory_proposal`, `pending_proposal_id`.
+- Autoevaluación estructurada en `data/pipelines/rag.py` (`generate_answer_with_memory`).
+- Auditoría, deduplicación, límites, expiración y clasificación de confirmación implementados.
+- Pruebas: `170 passed, 5 skipped` (suite completa API); `11 passed` en `test_agent_memory.py`.
+- Evidencia simulada documentada en `docs/agent/agent-memory-part1.md`.
+- Pendiente real: BRIEFING oficial de memoria (hechos permitidos/prohibidos/audiencia), integración real RAG y concurrencia multi-proceso.

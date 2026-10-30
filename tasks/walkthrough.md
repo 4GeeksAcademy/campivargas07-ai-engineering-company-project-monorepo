@@ -1286,3 +1286,30 @@ Rama de trabajo: `feature/mcp-oauth-tools`, creada sobre `feature/langgraph-exte
 - `incident_tool.py` retirado (no deprecado).
 - Scope único `incidents:write` para crear + cambiar estado.
 - Frontera MCP→backend por cuenta de servicio dedicada (sin token exchange en el backend; ampliar alcance sólo si se decide después).
+
+## MEM-092 — Memoria y Auto-mejora de Agentes (Parte 1) — walkthrough local
+
+### Cambios principales
+- `services/api/app/domains/agent/memory.py`: repositorio y servicio de memoria (TinyDB), política, propuestas, resolución, consolidación, auditoría, limpieza, clasificación.
+- `services/api/app/domains/agent/state.py`: nuevas claves permitidas y validaciones.
+- `services/api/app/domains/agent/graph.py`: integración de memoria, `conversation_id`, propuestas, ack de confirmación.
+- `services/api/app/domains/agent/router.py`: extensión de contrato HTTP y usuario autenticado.
+- `services/api/tests/conftest.py`: aislamiento de tablas de memoria.
+- `services/api/tests/test_agent_memory.py`: 11 pruebas aisladas.
+- `data/pipelines/rag.py`: `generate_answer_with_memory`.
+- `services/api/.env.example`, `pyproject.toml` (pythonpath).
+- `docs/agent/agent-memory-part1.md`, `memory-bank/progress.md`.
+
+### Verificación
+- `uv run python -m pytest` (services/api): `170 passed, 5 skipped`
+- `uv run python -m pytest tests/test_agent_memory.py`: `11 passed`
+- `uv run python -m compileall app/domains/agent`: OK
+
+### Evidencia simulada
+- Ciclo 1 (aprobado): propuesta → consolidación → memoria recuperada en turno posterior.
+- Ciclo 2 (rechazado): propuesta → rechazo → memoria no recuperada.
+
+### Pendientes
+- BRIEFING oficial de memoria.
+- Integración real con proveedor RAG.
+- No se realizó commit, push ni PR.
