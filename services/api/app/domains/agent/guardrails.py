@@ -100,9 +100,9 @@ OVERRIDE_PHRASES = re.compile(
 )
 
 PROHIBITED_OUTPUT_TERMS: tuple[str, ...] = (
-    "brasa points", "cliente", "customer", "email", "correo", "telefono", "teléfono",
-    "phone", "direccion", "dirección", "address", "nomina", "nómina", "payroll",
-    "salario", "salary", "compensacion", "compensación", "compensation", "sueldo",
+    "email", "correo", "telefono", "teléfono", "phone", "direccion", "dirección",
+    "address", "nomina", "nómina", "payroll", "salario", "salary",
+    "compensacion", "compensación", "compensation", "sueldo",
 )
 
 SYSTEM_PROMPT_FRAGMENTS: tuple[str, ...] = (
@@ -152,7 +152,7 @@ def classify_user_intent(question: str) -> IntentDecision:
             "casual",
             "scope_guardrail",
             "redirect",
-            None,
+            "content",
             "casual or general-knowledge conversation",
         )
 
@@ -162,7 +162,7 @@ def classify_user_intent(question: str) -> IntentDecision:
         "casual",
         "scope_guardrail",
         "redirect",
-        None,
+        "content",
         "not a recognizable Brasaland business question",
     )
 
