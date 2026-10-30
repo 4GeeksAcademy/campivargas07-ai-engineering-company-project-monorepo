@@ -50,6 +50,19 @@ Consolidación: se deduplica por `user + categoría + fact`; el BRIEFING sugiere
 - `tests/test_agent_memory.py`: `11 passed`
 - `python -m compileall app/domains/agent`: OK
 
+## Checklist de aceptación
+- [x] Arquitectura de memoria justificada y alineada con lo que el agente debe recordar.
+- [x] Escrituras fuera de colecciones `*_knowledge` / RAG (store aparte).
+- [x] Interfaz explícita de lectura/escritura de memoria.
+- [x] Distinción de interacciones memorables/no memorables con ≥3 ejemplos de cada tipo.
+- [x] Propuesta de memoria en la misma conversación.
+- [x] Sin escritura sin decisión explícita del usuario, clasificada correctamente.
+- [x] Una sola propuesta pendiente; silencio/ambigüedad = rechazo por defecto.
+- [x] Auditoría de propuestas y resultados.
+- [x] Consolidación/limpieza documentada y funcional.
+- [x] Dos ciclos completos de evidencia (aprobado/rechazado).
+- [x] Decisiones alineadas con `brasaland-BRIEFING.es.md` (qué no recordar jamás).
+
 ## Pendientes reales
 - Integración real con proveedor RAG (las pruebas usan proveedor simulado).
 - Evaluación de clasificación de confirmación con LLM real (actualmente heurística explícita).
