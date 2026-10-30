@@ -13,6 +13,7 @@ In every case the mock backend records ZERO write requests.
 from __future__ import annotations
 
 import uuid
+import logging
 
 import pytest
 
@@ -117,28 +118,45 @@ INVENTED_WRITE_TOOLS = [
 
 @pytest.mark.parametrize("tool_name,arguments", INVENTED_WRITE_TOOLS)
 def test_invented_write_tools_are_rejected_and_never_reach_backend(
-    mcp_server, token_full, mock_brasaland, tool_name, arguments
+    mcp_server, token_full, mock_brasaland, tool_name, arguments, caplog
 ):
-    outcome = call_tool(mcp_server, token_full, tool_name, arguments)
+    with caplog.at_level(logging.INFO, logger="brasaland_mcp.audit"):
+        outcome = call_tool(mcp_server, token_full, tool_name, arguments)
     # The MCP server itself rejects the unknown tool (protocol/tool error).
     assert outcome.payload is None or outcome.payload.get("status") != "success"
     assert outcome.is_error or (outcome.payload and outcome.payload["status"] != "success") or outcome.error
     assert mock_brasaland.write_requests() == []
     assert mock_brasaland.requests == []
+    records = [r.msg for r in caplog.records if r.name == "brasaland_mcp.audit"]
+    assert len(records) == 1
+    assert records[0]["tool"] == tool_name
+    assert records[0]["status"] == "tool_error"
+    assert records[0]["client_id"] == "test-client"
+    assert token_full not in str(records)
 
 
-def test_read_tool_rejects_write_arguments(mcp_server, token_full, mock_brasaland):
+def test_read_tool_rejects_write_arguments(mcp_server, token_full, mock_brasaland, caplog):
     """Extra write-like arguments do not match the typed input schema."""
     mock_brasaland.set_response("GET", "/inventory/products", 200, [])
-    outcome = call_tool(
-        mcp_server,
-        token_full,
-        "list_inventory_products",
-        {"local_id": LOCAL_ID, "current_stock": 0, "minimum_stock": 999},
-    )
+    with caplog.at_level(logging.INFO, logger="brasaland_mcp.audit"):
+        outcome = call_tool(
+            mcp_server,
+            token_full,
+            "list_inventory_products",
+            {"local_id": LOCAL_ID, "current_stock": 0, "minimum_stock": 999},
+        )
     assert mock_brasaland.requests == []
     assert outcome.is_error or outcome.error or (outcome.payload and outcome.payload["status"] != "success")
     assert mock_brasaland.write_requests() == []
+    records = [r.msg for r in caplog.records if r.name == "brasaland_mcp.audit"]
+    assert len(records) == 1
+    assert records[0]["tool"] == "list_inventory_products"
+    assert records[0]["status"] == "validation_error"
+    assert records[0]["client_id"] == "test-client"
+    assert records[0]["correlation_id"]
+    assert token_full not in str(records)
+    assert "current_stock" not in str(records)
+    assert "minimum_stock" not in str(records)
 
 
 def test_no_inventory_write_tool_in_discovery(mcp_server, token_full):

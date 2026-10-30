@@ -1,3 +1,34 @@
+# Auditoria y publicacion autorizadas - 30 de octubre de 2026
+
+- El usuario autorizo modificar `mcps/` y hacer commit/push a la rama de PR #32, sin merge. Se incorporan las dos correcciones locales anteriores y su evidencia; se excluyen datos operativos y metadatos egg-info.
+- Auditoria corregida: se envuelve el handler MCP ya validado para registrar rechazos de esquema (`validation_error`) y otros errores MCP (`tool_error`). Se reutiliza el contexto OAuth; no se registran argumentos ni mensajes de error que puedan contenerlos. Las llamadas normales no duplican logs.
+- Verificacion: 54 pruebas MCP aprobadas, incluidas aserciones nuevas en pruebas existentes sobre un unico registro, cliente, tool, resultado y ausencia de tokens/argumentos; 3 regresiones de credenciales del agente aprobadas; compilacion Python correcta. Un primer comando sin ruta selecciono pruebas ajenas y fallo en coleccion; se corrigio la seleccion sin instalar dependencias.
+- Cliente de lectura aun bloqueado: tras dos reemplazos privados confirmados por el usuario, el JWT observable en Playground sigue concediendo `incidents:read incidents:write inventory:read`. No se certifica el grant exclusivo ni la configuracion privada del agente. No se repitieron escrituras con ese token.
+- El proceso MCP en vivo no se reinicio: el cambio de auditoria se verifico en los servidores aislados de la suite, no en un log exportado de Playground.
+
+# Validacion real en MCP Playground - 30 de octubre de 2026
+
+- PR #32: descripcion remota actualizada con evidencia real, 51 pruebas dirigidas y checklist con limites. Se verifico la persistencia del texto y que la cabeza sigue en `c1b15c0`; no se hizo commit, push ni merge. Las dos correcciones locales aun no forman parte del diff publicado.
+- Seguimiento de cierre: otras 8 pruebas de politica del backend y 3 regresiones de credenciales del agente aprobaron (51 pruebas dirigidas en total, no una suite completa nueva). El token de Playground concede los tres scopes; no acredita el grant exclusivo del agente. La salida del proceso MCP va a una terminal, no se exporto un log historico. No se modifico codigo ni archivos protegidos para corregir estos pendientes.
+- MCP Playground conecto mediante OAuth a la URL HTTPS publica reenviada del puerto 9100, con ruta `/mcp`. Discovery mostro Brasaland MCP y las seis herramientas con descripciones y esquemas. Inspector no se usa como sustituto de esta evidencia.
+- Se ejecutaron las seis herramientas desde la interfaz de Playground: `create_incident`, `get_incident`, `update_incident_status` y `list_incidents` devolvieron `success`. La incidencia sintetica creada para esta corrida quedo en `discarded`, confirmado tambien en el listado filtrado.
+- `list_inventory_products(local_id=MED-001)` devolvio `success`, `products=[]`, `count=0`; `get_inventory_product` con UUID inexistente devolvio `not_found`. No se demuestra consulta de un producto existente ni se insertaron productos.
+- Un estado destino invalido devolvio `validation_error` con `field=status`, distinto del HTTP 401 observado sin token. La URL raiz no es el endpoint MCP: debe usarse `/mcp`.
+- Verificacion dirigida nueva: 40 pruebas aprobadas de transporte OAuth, inventario e incidencias, incluyendo permisos insuficientes, rechazo de argumentos de escritura y auditoria. Comando y limites en `tasks/walkthrough.md`. Son pruebas con backend/proveedor simulados, separadas de las ejecuciones reales de Playground.
+- No se guardaron tokens, credenciales ni cuerpos de incidencias en esta evidencia. No se genero una captura ni se exporto un log real. Siguen abiertos la comprobacion del cliente Auth0 exclusivo de lectura y la auditoria de rechazos de esquema anteriores al ejecutor; no se declara cerrado todo el hito. Sin commit, push ni merge en esta corrida.
+
+# Correcciones y validacion MCP — 29 de octubre de 2026
+
+- Corregida la rama real de `query_incidents_via_mcp`: resuelve el proveedor OAuth inyectado o el configurado en entorno antes de obtener el token. Tres pruebas nuevas cubren ambos caminos y las credenciales ausentes.
+- Los esquemas MCP rechazan propiedades adicionales y el servidor valida argumentos antes de ejecutar una herramienta. Se reprodujo que FastMCP descartaba argumentos de escritura silenciosamente; la prueba ahora exige cero solicitudes al backend, incluso GET.
+- Verificacion automatizada: API/pipelines 239 passed, 5 skipped; MCP 54 passed. Los skipped de PostgreSQL no se cuentan como aprobados.
+- Integracion real local y publica con Auth0: initialize y listado de seis herramientas; crear/listar/consultar incidencias y actualizar a discarded: success. Las incidencias sinteticas de verificacion quedaron descartadas. Consulta del agente por HTTP: 200, con estado open confirmado durante la prueba. Inspector 2.13.0: Connected y list_incidents ejecutado correctamente.
+- Inventario inicialmente fallaba porque faltaba DATABASE_URL. Se inicio PostgreSQL local desde el Compose existente y se inicializaron las tablas del proyecto. Tras configurar el entorno y reiniciar API: listado success (base vacia); consulta de UUID inexistente not_found. No se afirma una consulta exitosa de producto existente.
+- Puerto MCP 9100 publicado con autorizacion del usuario; API 8000 y PostgreSQL 5432 permanecen privados. Credenciales solo en archivos .env ignorados, sin valores en esta evidencia.
+- RAG sigue respondiendo 503 por configuracion ausente. PR #31 contiene evidencia historica exitosa y la plantilla .env.example de su rama tiene endpoints/modelos, pero las claves estan vacias. PR #32 ya tiene esa rama como base. No se encontro una clave RAG en los archivos .env del proyecto ni en la terminal; no se hizo merge.
+- Pendiente de minimo privilegio en Auth0: aunque AGENT_MCP_SCOPES solicita incidents:read, el JWT real del cliente usado en las pruebas contiene los tres permisos concedidos. Para produccion, usar una M2M separada autorizada exclusivamente para incidents:read y verificar el JWT resultante. El adaptador del agente solo invoca herramientas de lectura.
+- MCP Playground y una corrida RAG nueva no se declaran validados por estos resultados.
+
 # Hito: Agente de Soporte con LangGraph — Parte 2: Herramientas Fuera del RAG (23-oct-2026)
 
 - Se inicia en `feature/langgraph-external-tools`, creada desde

@@ -100,6 +100,12 @@ Cada invocación registra una línea JSON en el logger `brasaland_mcp.audit`:
 `duration_ms`. **Nunca** tokens, bodies, preguntas ni contenido de
 incidencias.
 
+Los rechazos de esquema anteriores a la tool se auditan como
+`validation_error`; otros errores MCP de invocacion, como una tool inexistente,
+como `tool_error`. Se conserva el error MCP original sin registrar su texto
+ni los argumentos. Las llamadas que llegan al ejecutor mantienen su unico
+registro habitual; los rechazos OAuth de transporte no son invocaciones de tool.
+
 ## Configuración (sólo entorno; nada de secretos en Git)
 
 | Variable | Obligatoria | Descripción |
@@ -166,3 +172,31 @@ servidor con `langchain-mcp-adapters` usando client-credentials OAuth con
 **sólo `incidents:read`**. No existe fallback HTTP directo al Incidents
 Manager: si el MCP falla, el agente responde `unavailable`/`timeout` de forma
 explícita.
+
+
+## Inspector: diagnostico de conexion con Bearer
+
+En Inspector 2.13.0: agregar el servidor con Streamable HTTP y su URL /mcp.
+En Settings > Custom Headers, usar una sola fila Authorization con valor
+`Bearer TOKEN`: un espacio y el access_token completo, sin repetir Bearer,
+sin comillas y sin pegar el JSON de Auth0. El valor debe tener dos palabras.
+El SDK ya envia `Accept: application/json, text/event-stream`; no duplicarlo.
+Cerrar Settings y reconectar para aplicar los cambios.
+
+Si aparece `Incompatible auth server: does not support dynamic client registration`,
+revisar primero Network y el 401 anterior. En la validacion del 29-oct-2026,
+el error era secundario a un Bearer mal formado/invalido o al tunel privado:
+con un access_token valido el Inspector conecto sin registrar otro cliente OAuth.
+Un cliente que necesite login OAuth interactivo requiere su registro/configuracion
+propios; las credenciales M2M no sustituyen ese flujo.
+
+En Codespaces comprobar que 9100 sigue publico tras reiniciar el proceso.
+El backend 8000 y PostgreSQL deben seguir privados. Un initialize correcto no
+prueba la autenticacion del backend: ejecutar una herramienta y revisar su status.
+`backend_unavailable` en inventario puede provenir de DATABASE_URL ausente;
+la base debe estar disponible y las tablas inicializadas segun el proyecto.
+
+Para el agente, usar una M2M con grant exclusivo `incidents:read` y comprobar
+los scopes del JWT emitido. No asumir que pedir ese scope en el request reduce
+los permisos de un cliente Auth0 autorizado para los tres scopes. Mantener
+otro cliente para las pruebas que necesitan crear/actualizar incidencias.

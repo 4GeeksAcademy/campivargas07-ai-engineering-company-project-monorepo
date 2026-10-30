@@ -40,7 +40,7 @@ class ToolDeps:
     backend: BrasalandBackend
 
 
-def _auth_context(info: AuthInfo | None, correlation_id: str, tool: str) -> InvocationContext:
+def invocation_context(info: AuthInfo | None, correlation_id: str, tool: str) -> InvocationContext:
     return InvocationContext(
         correlation_id=correlation_id,
         tool=tool,
@@ -64,7 +64,7 @@ def execute_tool(
     """
     correlation_id = uuid4().hex[:CORRELATION_ID_LENGTH]
     info = deps.mcp_auth.auth_info
-    context = _auth_context(info, correlation_id, tool_name)
+    context = invocation_context(info, correlation_id, tool_name)
 
     token_scopes = list(getattr(info, "scopes", None) or [])
     missing = [scope for scope in required_scopes if scope not in token_scopes]

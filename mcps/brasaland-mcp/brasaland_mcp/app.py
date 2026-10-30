@@ -10,9 +10,11 @@ no initialize, no tools/list and no tools/call.
 from __future__ import annotations
 
 import contextlib
+from uuid import uuid4
 
 import uvicorn
 from mcp.server.fastmcp import FastMCP
+from mcp.types import CallToolRequest, CallToolResult, ServerResult, TextContent
 from mcpauth import MCPAuth
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
@@ -23,7 +25,7 @@ from starlette.routing import Mount, Route
 from .auth import create_mcp_auth
 from .backend import BrasalandBackend
 from .config import Settings
-from .tools import ToolDeps
+from .tools import CORRELATION_ID_LENGTH, ToolDeps, invocation_context
 from .tools.incidents import register_incident_tools
 from .tools.inventory import register_inventory_tools
 
@@ -79,6 +81,23 @@ def build_app(
         return tools
 
     mcp._mcp_server.call_tool(validate_input=True)(mcp.call_tool)
+    validated_call = mcp._mcp_server.request_handlers[CallToolRequest]
+
+    async def audited_call(request: CallToolRequest) -> ServerResult:
+        context = invocation_context(
+            mcp_auth.auth_info, uuid4().hex[:CORRELATION_ID_LENGTH], request.params.name
+        )
+        result = await validated_call(request)
+        if isinstance(result.root, CallToolResult) and result.root.isError:
+            # Rejected calls never reach execute_tool, which audits normal results.
+            schema_error = any(
+                isinstance(block, TextContent) and block.text.startswith("Input validation error:")
+                for block in result.root.content
+            )
+            context.record("validation_error" if schema_error else "tool_error")
+        return result
+
+    mcp._mcp_server.request_handlers[CallToolRequest] = audited_call
 
     # streamable_http_app() must be called before accessing session_manager.
     mcp_http_app = mcp.streamable_http_app()

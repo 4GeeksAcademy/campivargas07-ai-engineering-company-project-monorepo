@@ -241,7 +241,7 @@ def test_audit_log_records_invocation_without_secrets(mcp_server, token_full, mo
     with caplog.at_level(logging.INFO, logger="brasaland_mcp.audit"):
         call_tool(mcp_server, token_full, "get_incident", {"incident_id": INCIDENT_ID})
     audit_lines = [r.getMessage() for r in caplog.records if r.name == "brasaland_mcp.audit"]
-    assert audit_lines, "no audit line emitted"
+    assert len(audit_lines) == 1, "expected exactly one audit line per invocation"
     line = audit_lines[-1]
     assert "get_incident" in line
     assert "success" in line
