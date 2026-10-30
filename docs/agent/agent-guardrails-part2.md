@@ -34,5 +34,4 @@
 ## Pendientes reales
 
 - Validación E2E con LLM real y servicios externos (RAG/MCP) no disponible.
-- BRIEFING oficial de Parte 2 no encontrado; se reutilizó `brasaland-BRIEFING.es.md` (Parte 1).
 - Concurrencia multi-proceso y almacenamiento PostgreSQL siguen diferidos de Parte 1.

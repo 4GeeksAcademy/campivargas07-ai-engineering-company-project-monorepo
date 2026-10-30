@@ -1319,4 +1319,4 @@ Rama de trabajo: `feature/mcp-oauth-tools`, creada sobre `feature/langgraph-exte
 - Rama: `feature/agent-guardrails`, base `de615e8`.
 - Cambios: nuevo `guardrails.py`, integración en `graph.py`, ajustes en `state.py` y `memory.py`, pruebas `test_agent_guardrails.py`, documentación `docs/agent/agent-guardrails-part2.md`.
 - Validación: 13 pruebas de guardrails, 28 de memoria/API/MCP, 183 en suite completa (5 skipped), compileall OK.
-- Pendientes: LLM/servicios externos no disponibles; BRIEFING Parte 2 no encontrado.
+- Pendientes: LLM/servicios externos no disponibles.

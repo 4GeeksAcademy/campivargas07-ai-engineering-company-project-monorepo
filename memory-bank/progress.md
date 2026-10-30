@@ -585,4 +585,4 @@
 - `memory.validate_memory_candidate` reforzado contra claves extra y frases de override.
 - Pruebas nuevas: `tests/test_agent_guardrails.py` (13 passed).
 - Verificación: guardrails 13 passed; memoria/API/MCP 28 passed; suite completa 183 passed, 5 skipped; compileall OK.
-- Pendientes: LLM real y servicios externos no disponibles; BRIEFING oficial Parte 2 no encontrado (se reutilizó Parte 1).
+- Pendientes: LLM real y servicios externos no disponibles.
