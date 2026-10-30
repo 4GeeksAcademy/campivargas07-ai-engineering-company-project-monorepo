@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.domains.agent.graph import InvalidQuestionError, execute_agent_query
-from app.domains.auth.dependencies import get_current_user, oauth2_scheme
+from app.domains.auth.dependencies import get_current_user
 from data.process.config import ConfigurationError, ProviderError, RagError
 
 router = APIRouter(
@@ -25,10 +25,9 @@ class AgentQueryResponse(BaseModel):
 @router.post("/query", response_model=AgentQueryResponse)
 def query_agent(
     body: AgentQueryRequest,
-    incident_token: str = Depends(oauth2_scheme),
 ) -> AgentQueryResponse:
     try:
-        result = execute_agent_query(body.question, incident_token=incident_token)
+        result = execute_agent_query(body.question)
         return AgentQueryResponse(answer=result["answer"])
     except InvalidQuestionError:
         raise HTTPException(422, "La pregunta no puede estar vacía.") from None
