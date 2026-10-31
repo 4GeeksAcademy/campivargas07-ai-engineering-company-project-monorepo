@@ -83,6 +83,16 @@ def init_db(bind_engine=None) -> None:
         IngredientEntry,
         IngredientExit,
     )
+    from app.domains.rfp.models import (  # noqa: F401
+        RfpClassification,
+        RfpDepartmentAspect,
+        RfpDepartmentContact,
+        RfpHandoff,
+        RfpMetadata,
+        RfpReadabilityMetrics,
+        RfpSynthesis,
+        RfpTicket,
+    )
 
     engine = bind_engine or get_db_engine()
     SQLModel.metadata.create_all(engine)
