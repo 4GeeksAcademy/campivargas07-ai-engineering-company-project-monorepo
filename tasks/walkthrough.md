@@ -1189,3 +1189,12 @@ Partiendo de `main` actualizado (`1a34b24707f6f7cc1ebece228ab59a12d0bb4f4a`, con
 - `uv run --directory services/api --extra dev pytest -q -rs`: **`156 passed, 5 skipped`** (`14` pruebas nuevas en `test_agent_api.py`).
 - `npm --prefix uis/backoffice run test`: **`107 passed`** en 18 suites.
 - `git diff --check`: limpio.
+
+## RFP Intake — Parte 1 de 3 (feature/rfp-intake)
+
+- Rama: `feature/rfp-intake`, base `origin/main` (`a1fe693`).
+- Alcance implementado: modelos SQLModel + migración via `init_db`, rutas `POST /rfp-requests` (202) y `GET /rfp-requests/{id}` (+ `/result`), procesamiento en segundo plano, conversión PDF→Markdown, métricas de legibilidad, grafo LangGraph dedicado `rfp_intake`, UI de recepción/consulta, pruebas.
+- Dependencias añadidas: `pypdf`, `py-readability-metrics` (con datos NLTK descargados localmente).
+- Pruebas: `services/api` 160 passed, 5 skipped; `test_rfp_intake.py` 4 passed; typecheck backoffice solo errores baseline preexistentes (auth context id, telemetry mock).
+- Bloqueos: falta BRIEFING oficial de RFPs y los 3 PDFs; clasificador, descomposición por departamento, worker y synthesizer quedan bloqueados (RfpBlockedError) hasta disponer de criterios/departamentos/contrato oficiales. No se inventaron departamentos ni criterios.
+- Handoff: tabla `rfp_handoff` preparada; payload disponible cuando el pipeline alcance `analisis_completo` (actualmente bloqueado por falta de BRIEFING).
