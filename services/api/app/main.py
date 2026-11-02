@@ -18,6 +18,7 @@ from app.domains.telemetry.router import router as telemetry_router
 from app.domains.users.router import router as users_router
 from app.domains.knowledge.router import router as knowledge_router
 from app.domains.agent.router import router as agent_router
+from app.domains.rfp.router import router as rfp_router
 from pydantic import BaseModel
 
 
@@ -73,6 +74,7 @@ app.include_router(inventory_router)
 app.include_router(telemetry_router)
 app.include_router(knowledge_router)
 app.include_router(agent_router)
+app.include_router(rfp_router)
 
 
 @app.get("/health", response_model=HealthResponse, tags=["health"])
