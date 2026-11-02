@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 from typing import Any
 
 from app.domains.analytics.incidents.analysis import VALID_LOCATION_IDS
@@ -31,6 +33,26 @@ def create_chat_session(user: dict, location_id: str) -> dict[str, Any]:
 
 def get_chat_session(session_id: str) -> dict[str, Any] | None:
     return get_session(session_id)
+
+
+
+def get_chat_checkpointer():
+    """Return a durable LangGraph checkpointer if configured, else None (in-memory)."""
+    url = os.getenv("CHAT_CHECKPOINT_DB_URL", "").strip()
+    if not url:
+        return None
+    if url.startswith("sqlite"):
+        from langgraph.checkpoint.sqlite import SqliteSaver
+
+        path = url.replace("sqlite:///", "").replace("sqlite://", "")
+        if not path:
+            path = "chat_checkpoints.sqlite"
+        return SqliteSaver.from_conn_string(path)
+    if url.startswith("postgres"):
+        from langgraph.checkpoint.postgres import PostgresSaver
+
+        return PostgresSaver.from_conn_string(url)
+    return None
 
 
 def user_can_access_location(user: dict, location_id: str) -> bool:

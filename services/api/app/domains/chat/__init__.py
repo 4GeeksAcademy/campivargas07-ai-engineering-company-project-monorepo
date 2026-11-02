@@ -6,6 +6,7 @@ from app.domains.chat.service import (
     append_chat_message,
     get_chat_messages,
     update_chat_message,
+    get_chat_checkpointer,
 )
 from app.domains.chat.pubsub import get_session_channel, SessionChannel
 
@@ -16,6 +17,7 @@ __all__ = [
     "append_chat_message",
     "get_chat_messages",
     "update_chat_message",
+    "get_chat_checkpointer",
     "get_session_channel",
     "SessionChannel",
 ]

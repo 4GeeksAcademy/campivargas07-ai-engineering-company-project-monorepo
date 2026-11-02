@@ -29,3 +29,4 @@ Envelope: `{"event": "...", "data": {...}}`
 - Cancelación propaga al stream HTTP del proveedor.
 - Pub/sub en memoria por proceso, un productor por sesión.
 - Reconexión con backoff y snapshot.
+- Checkpoint durable opcional mediante `CHAT_CHECKPOINT_DB_URL` (`get_chat_checkpointer`); si no se configura, se usa memoria. El flujo de chat persiste sesiones y mensajes en TinyDB independientemente.
