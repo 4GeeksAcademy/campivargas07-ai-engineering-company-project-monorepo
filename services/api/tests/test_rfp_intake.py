@@ -53,3 +53,11 @@ def test_get_rfp_result_endpoint(client: TestClient, auth_headers: dict):
 def test_get_unknown_ticket_404(client: TestClient, auth_headers: dict):
     res = client.get(f"/rfp-requests/{uuid.uuid4()}", headers=auth_headers)
     assert res.status_code == 404
+
+
+def test_idempotency_same_file_returns_same_ticket(client: TestClient, auth_headers: dict):
+    pdf = _make_pdf_bytes()
+    files = {"file": ("sample.pdf", pdf, "application/pdf")}
+    first = client.post("/rfp-requests", headers=auth_headers, files=files).json()
+    second = client.post("/rfp-requests", headers=auth_headers, files=files).json()
+    assert first["ticket_id"] == second["ticket_id"]
