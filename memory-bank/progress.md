@@ -586,3 +586,11 @@
 - Pruebas nuevas: `tests/test_agent_guardrails.py` (13 passed).
 - Verificación: guardrails 13 passed; memoria/API/MCP 28 passed; suite completa 183 passed, 5 skipped; compileall OK.
 - Pendientes: LLM real y servicios externos no disponibles.
+
+## Hito: Streaming de Chat por WebSocket — Parte 2 de 2
+
+- Rama: `feature/websocket-chat` desde `origin/main` (`7f794ba`).
+- No apilada sobre PR #38 (SSE RFP); solo reutiliza JWT y patrón de auth.
+- Implementado: sesiones de chat TinyDB, WebSocket autenticado, pub/sub en memoria, streaming real del proveedor, guardrails incremental/holdback, interrupción/cancelación, reconexión, UI backoffice, pruebas.
+- Verificación: `tests/test_chat_websocket.py` (5 passed) y `tests/test_agent_api.py` (passed) en aislamiento.
+- Pendiente: evidencia con proveedor real (sin credenciales en este entorno); frontend tests no ejecutados por entorno.

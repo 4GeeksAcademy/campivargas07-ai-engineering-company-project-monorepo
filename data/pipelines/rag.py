@@ -1,7 +1,7 @@
 """Retrieval and generation are independently reusable; query only composes them."""
 import json
 import math
-from typing import Any
+from typing import Any, AsyncIterator
 from data.process.config import COLLECTION, ProviderError, Settings, settings
 from data.process.embeddings import embed, post_json
 from data.process.store import check_collection, connection, owned_filter
@@ -103,3 +103,56 @@ def generate_answer_with_memory(question: str, context: list[dict], *, config: S
 def query(question: str) -> str:
     cfg = settings()
     return generate_answer(question, retrieve(question, min_score=cfg.min_score, config=cfg), config=cfg)
+
+
+async def stream_generate_answer(
+    question: str,
+    context: list[dict],
+    *,
+    config: Settings | None = None,
+    client=None,
+    memories: list[dict] | None = None,
+) -> AsyncIterator[str]:
+    """Stream text deltas from an OpenAI-compatible chat completion endpoint."""
+    import httpx
+
+    cfg = config or settings()
+    evidence = [{key: p[key] for key in ("source_document", "section", "text")} for p in context]
+    payload = {
+        "model": cfg.generation_model,
+        "stream": True,
+        "tool_choice": "none",
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": json.dumps({"question": question, "context": evidence, "memories": memories or []}, ensure_ascii=False)},
+        ],
+    }
+    headers = {"Authorization": f"Bearer {cfg.generation_key}"}
+    owns_client = client is None
+    session = client if client is not None else httpx.AsyncClient(timeout=cfg.timeout, follow_redirects=False)
+    try:
+        async with session.stream("POST", cfg.generation_url, headers=headers, json=payload, timeout=cfg.timeout) as response:
+            response.raise_for_status()
+            async for line in response.aiter_lines():
+                if not line:
+                    continue
+                if not line.startswith("data:"):
+                    continue
+                data = line[5:].strip()
+                if data == "[DONE]":
+                    break
+                try:
+                    obj = json.loads(data)
+                except json.JSONDecodeError:
+                    continue
+                choices = obj.get("choices") or []
+                if not choices:
+                    continue
+                delta = choices[0].get("delta", {}).get("content")
+                if isinstance(delta, str) and delta:
+                    yield delta
+    except httpx.HTTPError as exc:
+        raise ProviderError("El proveedor no devolvió una respuesta válida") from exc
+    finally:
+        if owns_client:
+            await session.aclose()

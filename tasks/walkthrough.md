@@ -2123,3 +2123,12 @@ Rama de trabajo: `feature/mcp-oauth-tools`, creada sobre `feature/langgraph-exte
 - Cambios: nuevo `guardrails.py`, integración en `graph.py`, ajustes en `state.py` y `memory.py`, pruebas `test_agent_guardrails.py`, documentación `docs/agent/agent-guardrails-part2.md`.
 - Validación: 13 pruebas de guardrails, 28 de memoria/API/MCP, 183 en suite completa (5 skipped), compileall OK.
 - Pendientes: LLM/servicios externos no disponibles.
+
+## Walkthrough — WebSocket Chat Streaming (Parte 2 de 2)
+
+- Rama: `feature/websocket-chat`
+- Backend: `services/api/app/domains/chat/*`, `services/api/app/domains/agent/streaming.py`, `data/pipelines/rag.py` (stream_generate_answer).
+- Frontend: `uis/backoffice/src/.../chat/*`.
+- Docs: `docs/chat/websocket-chat-contract.md`.
+- Pruebas: `services/api/tests/test_chat_websocket.py` (5 passed, mocks controlables).
+- Evidencia real de proveedor: pendiente por falta de credenciales; no se presentan mocks como prueba de cancelación real.

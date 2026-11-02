@@ -30,6 +30,7 @@ import app.domains.auth.router as auth_router
 import app.domains.auth.service as auth_service
 import app.domains.procurement.suppliers.service as suppliers_service
 import app.domains.agent.memory as agent_memory
+import app.domains.chat.repository as chat_repository
 import app.domains.profiles.service as profiles_service
 import app.domains.users.service as users_service
 from app.database import get_db, init_db
@@ -55,6 +56,8 @@ def test_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[TinyDB
     agent_proposals_tbl = isolated_db.table("agent_proposals")
     agent_audits_tbl = isolated_db.table("agent_audits")
     agent_conversations_tbl = isolated_db.table("agent_conversations")
+    chat_sessions_tbl = isolated_db.table("chat_sessions")
+    chat_messages_tbl = isolated_db.table("chat_messages")
 
     # Patch database module
     monkeypatch.setattr(database, "db", isolated_db)
@@ -76,6 +79,8 @@ def test_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[TinyDB
     monkeypatch.setattr(agent_memory, "proposals_table", agent_proposals_tbl)
     monkeypatch.setattr(agent_memory, "audits_table", agent_audits_tbl)
     monkeypatch.setattr(agent_memory, "conversations_table", agent_conversations_tbl)
+    monkeypatch.setattr(chat_repository, "sessions_table", chat_sessions_tbl)
+    monkeypatch.setattr(chat_repository, "messages_table", chat_messages_tbl)
 
     yield isolated_db
     isolated_db.close()
