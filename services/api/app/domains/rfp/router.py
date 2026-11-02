@@ -16,7 +16,12 @@ from app.domains.rfp.models import RfpTicket
 from app.domains.rfp.repository import RfpRepository
 from app.domains.rfp.schemas import (
     RfpCreateResponse,
+    RfpGenerateResponse,
+    RfpGenerationHandoffResponse,
+    RfpGenerationRunResponse,
     RfpResultResponse,
+    RfpSectionDraftResponse,
+    RfpSectionEvaluationResponse,
     RfpStatusResponse,
 )
 
@@ -60,6 +65,23 @@ async def create_rfp_request(
     return RfpCreateResponse(ticket_id=ticket.id, status=ticket.status)
 
 
+@router.post("/{ticket_id}/generate", status_code=202, response_model=RfpGenerateResponse)
+def generate_rfp_request(
+    ticket_id: uuid.UUID,
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    session: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    try:
+        ticket, run = rfp_service.start_rfp_generation(session, ticket_id)
+    except RfpNotFoundError:
+        raise HTTPException(status_code=404, detail="RFP ticket not found.")
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    background_tasks.add_task(rfp_service.process_rfp_generation, ticket.id)
+    return RfpGenerateResponse(ticket_id=ticket.id, status=ticket.status, run_id=run.id)
+
+
 @router.get("/{ticket_id}", response_model=RfpStatusResponse)
 def get_rfp_status(
     ticket_id: uuid.UUID,
@@ -70,6 +92,8 @@ def get_rfp_status(
         ticket = rfp_service.get_ticket(session, ticket_id)
     except RfpNotFoundError:
         raise HTTPException(status_code=404, detail="RFP ticket not found.")
+    repo = RfpRepository(session)
+    run = repo.get_generation_run(ticket_id)
     return RfpStatusResponse(
         ticket_id=ticket.id,
         status=ticket.status,
@@ -81,6 +105,10 @@ def get_rfp_status(
         processing_started_at=ticket.processing_started_at,
         processing_completed_at=ticket.processing_completed_at,
         retry_count=ticket.retry_count,
+        generation_status=run.status if run else None,
+        current_iteration=run.current_iteration if run else None,
+        all_sections_approved=run.all_sections_approved if run else None,
+        needs_human_review=run.needs_human_review if run else None,
     )
 
 
@@ -103,6 +131,10 @@ def get_rfp_result(
     contacts = repo.list_contacts(ticket_id)
     synthesis = repo.get_synthesis(ticket_id)
     handoff = repo.get_handoff(ticket_id)
+    generation_run = repo.get_generation_run(ticket_id)
+    drafts = repo.list_drafts(ticket_id)
+    evaluations = repo.list_evaluations(ticket_id)
+    generation_handoff = repo.get_generation_handoff(ticket_id)
 
     from app.domains.rfp.schemas import (
         RfpClassificationResponse,
@@ -168,5 +200,60 @@ def get_rfp_result(
             prepared_at=handoff.prepared_at,
         )
         if handoff
+        else None,
+        generation_run=RfpGenerationRunResponse(
+            id=generation_run.id,
+            status=generation_run.status,
+            active_departments=generation_run.active_departments,
+            max_iterations=generation_run.max_iterations,
+            current_iteration=generation_run.current_iteration,
+            all_sections_approved=generation_run.all_sections_approved,
+            needs_human_review=generation_run.needs_human_review,
+            needs_human_review_reason=generation_run.needs_human_review_reason,
+            error_code=generation_run.error_code,
+            error_detail=generation_run.error_detail,
+            global_compliance=generation_run.global_compliance,
+            completed_at=generation_run.completed_at,
+        )
+        if generation_run
+        else None,
+        drafts=[
+            RfpSectionDraftResponse(
+                id=d.id,
+                department_id=d.department_id,
+                version=d.version,
+                iteration=d.iteration,
+                content=d.content,
+                generator_id=d.generator_id,
+                model=d.model,
+                status=d.status,
+                created_at=d.created_at,
+            )
+            for d in drafts
+        ],
+        evaluations=[
+            RfpSectionEvaluationResponse(
+                id=e.id,
+                department_id=e.department_id,
+                draft_id=e.draft_id,
+                iteration=e.iteration,
+                readability=e.readability,
+                relevance=e.relevance,
+                compliance=e.compliance,
+                overall_pass=e.overall_pass,
+                feedback_for_generator=e.feedback_for_generator,
+                evaluated_at=e.evaluated_at,
+            )
+            for e in evaluations
+        ],
+        generation_handoff=RfpGenerationHandoffResponse(
+            ticket_id=generation_handoff.ticket_id,
+            sections=generation_handoff.sections,
+            global_compliance=generation_handoff.global_compliance,
+            open_questions=generation_handoff.open_questions,
+            requires_ceo_approval=generation_handoff.requires_ceo_approval,
+            prepared_at=generation_handoff.prepared_at,
+        )
+        if generation_handoff
         else None,
     )

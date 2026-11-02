@@ -87,9 +87,13 @@ def init_db(bind_engine=None) -> None:
         RfpClassification,
         RfpDepartmentAspect,
         RfpDepartmentContact,
+        RfpGenerationHandoff,
+        RfpGenerationRun,
         RfpHandoff,
         RfpMetadata,
         RfpReadabilityMetrics,
+        RfpSectionDraft,
+        RfpSectionEvaluation,
         RfpSynthesis,
         RfpTicket,
     )

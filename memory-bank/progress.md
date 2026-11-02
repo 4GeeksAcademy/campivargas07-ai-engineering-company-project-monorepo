@@ -586,3 +586,16 @@
 - Pruebas nuevas: `tests/test_agent_guardrails.py` (13 passed).
 - Verificación: guardrails 13 passed; memoria/API/MCP 28 passed; suite completa 183 passed, 5 skipped; compileall OK.
 - Pendientes: LLM real y servicios externos no disponibles.
+
+## Hito: RFP Response Generation (Parte 2 de 3) — feature/rfp-response-generation
+
+- Base: origin/main (7f794ba, PR #35).
+- Implementado:
+  - Modelos SQLModel: `RfpGenerationRun`, `RfpSectionDraft`, `RfpSectionEvaluation`, `RfpGenerationHandoff`.
+  - Endpoints: `POST /rfp-requests/{id}/generate` (202, idempotente) y extensión de `GET .../result`.
+  - Pipeline `data/pipelines/rfp_response_generation.py` con ciclo generador→evaluador y reintento solo de secciones fallidas.
+  - Generadores identificables por departamento y evaluadores de legibilidad, pertinencia y cumplimiento en paralelo.
+  - Reglas globales/por sección, incluyendo <10 días hábiles, monedas, pilares, validez 30 días y señal CEO >50k USD.
+  - UI mínima de progreso/resultados.
+- Pruebas: 11 pipelines + 2 API + 4 Parte 1 = 17 pasando en SQLite/PostgreSQL (integración real pendiente de entorno).
+- Configuración real pendiente: `RFP_GENERATION_*` (o fallback RAG), `DATABASE_URL`, tasa FX y denylist de competidores.
