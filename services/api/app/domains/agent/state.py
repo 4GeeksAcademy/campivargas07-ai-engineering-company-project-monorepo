@@ -11,12 +11,14 @@ RouteLiteral = Literal[
     "both",
     "clarification",
     "fallback",
+    "casual",
+    "blocked",
 ]
 SourceLiteral = Literal["rag", "incidents", "both", "clarification"]
 
 ALLOWED_ROUTES: frozenset[str] = frozenset({
     "valid", "empty_question", "grounded", "no_evidence", "incidents", "both",
-    "clarification", "fallback",
+    "clarification", "fallback", "casual", "blocked",
 })
 ALLOWED_SOURCES: frozenset[str] = frozenset({"rag", "incidents", "both", "clarification"})
 ALLOWED_STATE_KEYS: frozenset[str] = frozenset({
