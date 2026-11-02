@@ -2139,3 +2139,14 @@ Rama de trabajo: `feature/mcp-oauth-tools`, creada sobre `feature/langgraph-exte
 - Evidencia Supabase: schema `rfp_test` en el mismo proyecto; `tests/test_rfp_intake.py` y `tests/test_rfp_part2.py` pasando contra `TEST_DATABASE_URL` (16 passed). Proveedor real pendiente.
 
 - Evidencia real: generación de sección marketing aprobada con proveedor configurado; `requires_ceo_approval=true`. Conectividad Supabase normalizada a `postgresql+psycopg2://`.
+
+
+## RFP Approval and Completion — Parte 3 de 3 (feature/rfp-approval-completion)
+
+- Rama creada desde `origin/feature/rfp-response-generation` (`82cd7a3`), sin modificar PR #36.
+- Implementado grafo `data/pipelines/rfp_approval.py` (interrupts paralelos, arbitraje, correcciones, síntesis final).
+- Modelos y repositorio extendidos; endpoints y esquemas añadidos.
+- Checkpointer persistente Postgres/SQLite; no in-memory para evidencia.
+- Pruebas: `tests/pipelines/test_rfp_approval.py` 6 passed; `services/api/tests/test_rfp_part3.py` 2 passed.
+- Suite: 192 passed + 5 pruebas Postgres passed con TEST_DATABASE_URL; setup de PostgresSaver verificado.
+- Pendientes reales: integración con usuarios reales para mapeo de aprobadores (env `RFP_APPROVER_MAP`); métricas estructuradas para `cost-vs-feasibility` aún no extraídas de Parte 1/2.

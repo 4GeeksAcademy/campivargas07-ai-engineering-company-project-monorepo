@@ -434,3 +434,525 @@ def process_rfp_generation(ticket_id):
             ticket.failed_at = _now()
             repo.update_generation_run(run)
             repo.update_ticket(ticket)
+
+
+# ---------- Parte 3: aprobación humana ----------
+
+import json as _json
+import os as _os
+from pathlib import Path as _Path
+
+
+def get_rfp_checkpointer():
+    db_url = _os.getenv("DATABASE_URL", "").strip()
+    if db_url.startswith("postgres"):
+        from langgraph.checkpoint.postgres import PostgresSaver
+
+        serde = None
+        try:
+            from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
+
+            serde = JsonPlusSerializer().with_msgpack_allowlist([("data.process.rfp_generation", "RfpGenerationSettings")])
+        except Exception:  # noqa: BLE001
+            serde = None
+        # from_conn_string doesn't accept serde; open manually
+        import psycopg
+
+        conn = psycopg.connect(db_url, autocommit=True, prepare_threshold=0)
+        if serde is not None:
+            return PostgresSaver(conn, serde=serde)
+        return PostgresSaver(conn)
+    else:
+        from langgraph.checkpoint.sqlite import SqliteSaver
+
+        path = _os.getenv("RFP_CHECKPOINT_DB", str(_Path(__file__).resolve().parents[5] / "data" / "rfp_checkpoints.sqlite"))
+        _Path(path).parent.mkdir(parents=True, exist_ok=True)
+        import sqlite3
+
+        conn = sqlite3.connect(path, check_same_thread=False)
+        try:
+            from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
+
+            serde = JsonPlusSerializer().with_msgpack_allowlist([("data.process.rfp_generation", "RfpGenerationSettings")])
+        except Exception:  # noqa: BLE001
+            serde = None
+        if serde is not None:
+            return SqliteSaver(conn, serde=serde)
+        return SqliteSaver(conn)
+
+
+def _approver_map() -> dict[str, list[str]]:
+    raw = _os.getenv("RFP_APPROVER_MAP", "").strip()
+    if not raw:
+        return {}
+    try:
+        data = _json.loads(raw)
+        if isinstance(data, dict):
+            return {str(k): [str(x) for x in (v or [])] for k, v in data.items()}
+    except _json.JSONDecodeError:
+        pass
+    return {}
+
+
+def is_authorized_approver(current_user: dict, department_id: str, session=None) -> bool:
+    if str(current_user.get("role", "")).lower() == "admin":
+        return True
+    user_uuid = str(current_user.get("uuid", ""))
+    allowed = list(_approver_map().get(department_id, []))
+    if session is not None:
+        try:
+            repo = RfpRepository(session)
+            for row in repo.list_department_approvers(department_id):
+                allowed.append(str(row.user_uuid))
+        except Exception:  # noqa: BLE001
+            pass
+    return user_uuid in allowed
+
+
+def start_rfp_approval(session, ticket_id: uuid.UUID) -> tuple[RfpTicket, "RfpApprovalRun"]:
+    from app.domains.rfp.models import RfpApprovalRun, RfpGenerationHandoff
+
+    ticket = get_ticket(session, ticket_id)
+    repo = RfpRepository(session)
+    run = repo.get_approval_run(ticket_id)
+    handoff = repo.get_generation_handoff(ticket_id)
+    if handoff is None:
+        raise ValueError("Missing Parte 2 generation handoff.")
+
+    active = []
+    for s in (handoff.sections or []):
+        if isinstance(s, dict) and s.get("department_id"):
+            active.append(str(s.get("department_id")))
+    if not active:
+        raise ValueError("Generation handoff has no active departments.")
+
+    if run is None:
+        run = RfpApprovalRun(
+            ticket_id=ticket.id,
+            thread_id=f"rfp-{ticket.id}",
+            status="pendiente",
+            active_departments=active,
+            requires_ceo_approval=bool(handoff.requires_ceo_approval),
+            max_correction_cycles=3,
+        )
+        run = repo.create_approval_run(run)
+
+    if ticket.status in ("analisis_completo", "generando_borrador", "en_evaluación", "needs_human_review", "esperando_aprobación"):
+        ticket.status = "esperando_aprobación"
+        ticket.updated_at = _now()
+        repo.update_ticket(ticket)
+
+    return ticket, run
+
+
+def _load_approval_state(session, ticket_id: uuid.UUID):
+    repo = RfpRepository(session)
+    ticket = get_ticket(session, ticket_id)
+    handoff = repo.get_handoff(ticket_id)
+    gen_handoff = repo.get_generation_handoff(ticket_id)
+    metadata = {}
+    meta = repo.get_metadata(ticket_id)
+    if meta is not None:
+        metadata = meta.fields or {}
+    aspects_by_department = _group_aspects(session, ticket_id)
+    active = []
+    if gen_handoff is not None:
+        for s in (gen_handoff.sections or []):
+            if isinstance(s, dict) and s.get("department_id"):
+                active.append(str(s.get("department_id")))
+    run = repo.get_approval_run(ticket_id)
+    if run is not None and run.active_departments:
+        active = run.active_departments
+
+    # drafts/versiones/evaluaciones más recientes
+    drafts = {}
+    versions = {}
+    evaluations = {}
+    for d in active:
+        ds = [x for x in repo.list_drafts(ticket_id) if x.department_id == d]
+        if ds:
+            latest = max(ds, key=lambda x: x.version)
+            drafts[d] = latest.content
+            versions[d] = latest.version
+        evs = [x for x in repo.list_evaluations(ticket_id) if x.department_id == d]
+        if evs:
+            latest_ev = max(evs, key=lambda x: x.iteration)
+            evaluations[d] = {
+                "section_id": latest_ev.department_id,
+                "department_id": latest_ev.department_id,
+                "iteration": latest_ev.iteration,
+                "readability": latest_ev.readability,
+                "relevance": latest_ev.relevance,
+                "compliance": latest_ev.compliance,
+                "overall_pass": latest_ev.overall_pass,
+                "feedback_for_generator": latest_ev.feedback_for_generator,
+            }
+
+    requires_ceo = bool(gen_handoff.requires_ceo_approval) if gen_handoff is not None else False
+    global_compliance = gen_handoff.global_compliance if gen_handoff is not None else None
+    open_questions = list(gen_handoff.open_questions or []) if gen_handoff is not None else []
+
+    return ticket, run, active, metadata, aspects_by_department, drafts, versions, evaluations, requires_ceo, global_compliance, open_questions, gen_handoff
+
+
+def process_rfp_approval(ticket_id: uuid.UUID) -> None:
+    try:
+        engine = get_db_engine()
+    except RuntimeError:
+        return
+    with Session(engine) as session:
+        ticket, run, active, metadata, aspects, drafts, versions, evaluations, requires_ceo, global_compliance, open_questions, gen_handoff = _load_approval_state(session, ticket_id)
+        if ticket is None or run is None:
+            return
+        if run.status in ("completado", "failed"):
+            return
+
+        repo = RfpRepository(session)
+        run.status = "running"
+        run.error_code = None
+        run.error_detail = None
+        repo.update_approval_run(run)
+
+        ticket.status = "esperando_aprobación"
+        repo.update_ticket(ticket)
+
+        try:
+            import sys
+            from pathlib import Path
+
+            repo_root = Path(__file__).resolve().parents[5]
+            if str(repo_root) not in sys.path:
+                sys.path.insert(0, str(repo_root))
+
+            from data.pipelines.rfp_approval import run_rfp_approval
+            from data.process.rfp_generation import load_settings
+
+            settings = load_settings()
+            result, config = run_rfp_approval(
+                ticket_id=str(ticket.id),
+                active_departments=active,
+                metadata=metadata,
+                aspects_by_department=aspects,
+                drafts=drafts,
+                draft_versions=versions,
+                evaluations=evaluations,
+                requires_ceo_approval=requires_ceo,
+                global_compliance=global_compliance or {},
+                open_questions=open_questions,
+                max_correction_cycles=run.max_correction_cycles,
+                checkpointer=get_rfp_checkpointer(),
+            )
+
+            # persist approvals from state
+            approvals = result.get("approvals", {}) or {}
+            for dept, info in approvals.items():
+                if not isinstance(info, dict):
+                    continue
+                if info.get("decision") is None and info.get("status") == "pendiente":
+                    continue
+                # only persist decided approvals
+                if info.get("status") == "pendiente":
+                    continue
+                version = info.get("version")
+                if version is None and dept != "ceo":
+                    version = versions.get(dept, 1)
+                if dept == "ceo":
+                    continue
+                draft_id = None
+                d = repo.get_draft(ticket.id, dept, int(version)) if version is not None else None
+                if d is not None:
+                    draft_id = d.id
+                decision = info.get("decision") or ("approve" if info.get("status") == "aprobado" else "reject")
+                approval_row = RfpHumanApproval(
+                    ticket_id=ticket.id,
+                    department_id=dept,
+                    draft_id=draft_id,
+                    version=int(version) if version is not None else 1,
+                    decision=str(decision),
+                    comment=str(info.get("comment", "") or ""),
+                    approver_uuid=str(info.get("approver_uuid", "") or ""),
+                )
+                repo.save_human_approval(approval_row)
+
+            # conflicts persistence (best-effort, avoid duplicates by trigger+dept)
+            for c in (result.get("conflicts") or []):
+                existing = [x for x in repo.list_conflicts(ticket.id) if x.trigger_id == c.get("trigger_id") and x.departments == c.get("departments")]
+                if not existing:
+                    repo.save_conflict(
+                        RfpConflict(
+                            ticket_id=ticket.id,
+                            trigger_id=str(c.get("trigger_id")),
+                            departments=list(c.get("departments", [])),
+                            summary=str(c.get("summary", "")),
+                            arbiter=str(c.get("arbiter", "")),
+                            status=str(c.get("status", "open")),
+                        )
+                    )
+
+            run.correction_cycle = int(result.get("correction_cycle", run.correction_cycle))
+            run.conflicts = list(result.get("conflicts", []) or [])
+            run.sections_to_correct = list(result.get("sections_to_correct", []) or [])
+            run.requires_ceo_approval = requires_ceo
+            run.ceo_approved = bool((result.get("approvals", {}) or {}).get("ceo", {}).get("status") == "aprobado")
+
+            if "__interrupt__" in result:
+                run.status = "esperando_aprobación"
+                run.error_code = None
+                run.error_detail = None
+                repo.update_approval_run(run)
+                ticket.status = "esperando_aprobación"
+                repo.update_ticket(ticket)
+                return
+
+            outcome = result.get("outcome")
+            if outcome == "terminado":
+                # save final document
+                from app.domains.rfp.models import RfpFinalDocument
+
+                content = result.get("final_document_content", "")
+                sections = result.get("final_document_sections", [])
+                # idempotency: only if not exists
+                existing_doc = repo.get_final_document(ticket.id)
+                if existing_doc is None:
+                    doc = RfpFinalDocument(
+                        ticket_id=ticket.id,
+                        content=content,
+                        file_reference="",
+                        sections=sections,
+                        total_estimated_value=_estimate_value_from_metadata(metadata),
+                    )
+                    doc = repo.save_final_document(doc)
+                    run.final_document_id = doc.id
+                else:
+                    run.final_document_id = existing_doc.id
+
+                run.status = "completado"
+                run.completed_at = _now()
+                repo.update_approval_run(run)
+                ticket.status = "terminado"
+                ticket.processing_completed_at = _now()
+                repo.update_ticket(ticket)
+                return
+
+            if outcome in ("rechazado", "agotado"):
+                run.status = outcome
+                repo.update_approval_run(run)
+                ticket.status = "needs_human_review"
+                repo.update_ticket(ticket)
+                return
+
+            # default: still waiting
+            run.status = "esperando_aprobación"
+            repo.update_approval_run(run)
+            ticket.status = "esperando_aprobación"
+            repo.update_ticket(ticket)
+
+        except Exception as exc:  # noqa: BLE001
+            run.status = "failed"
+            run.error_code = "processing_failed"
+            run.error_detail = str(exc)[:1000]
+            ticket.error_code = "processing_failed"
+            ticket.error_detail = str(exc)[:1000]
+            ticket.failed_at = _now()
+            repo.update_approval_run(run)
+            repo.update_ticket(ticket)
+
+
+def _estimate_value_from_metadata(metadata: dict[str, Any]) -> Optional[float]:
+    from data.process.rfp_generation import estimate_value_usd
+
+    return estimate_value_usd(metadata or {})
+
+
+def _resume_approval_graph(ticket_id: uuid.UUID, decision_payload: dict[str, Any]) -> dict[str, Any]:
+    import sys
+    from pathlib import Path
+
+    repo_root = Path(__file__).resolve().parents[5]
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
+
+    from data.pipelines.rfp_approval import build_graph
+    from langgraph.types import Command
+
+    checkpointer = get_rfp_checkpointer()
+    with _checkpointer_context(checkpointer) as saver:
+        graph = build_graph(checkpointer=saver)
+        config = {"configurable": {"thread_id": f"rfp-{ticket_id}"}}
+        state = graph.get_state(config)
+        interrupt_ids = [i.id for t in state.tasks for i in t.interrupts]
+        # map by department: use the interrupt whose payload department matches
+        target_dept = decision_payload.get("department_id")
+        target_id = None
+        for t in state.tasks:
+            for iv in t.interrupts:
+                val = iv.value if hasattr(iv, "value") else {}
+                if isinstance(val, dict) and val.get("department_id") == target_dept:
+                    target_id = iv.id
+        if target_id is None and interrupt_ids:
+            target_id = interrupt_ids[0]
+        result = graph.invoke(Command(resume={target_id: decision_payload}), config)
+        return dict(result)
+
+
+def _checkpointer_context(saver):
+    # saver may already be a context manager or instance
+    class _Ctx:
+        def __enter__(self):
+            return saver
+        def __exit__(self, *args):
+            return False
+    # If saver has __enter__, use it
+    if hasattr(saver, "__enter__"):
+        return saver
+    return _Ctx()
+
+
+def submit_approval_decision(
+    session,
+    ticket_id: uuid.UUID,
+    department_id: str,
+    decision: str,
+    comment: str,
+    version: Optional[int],
+    current_user: dict,
+) -> dict[str, Any]:
+    import uuid as _uuid
+
+    from app.domains.rfp.errors import RfpNotFoundError, RfpValidationError
+
+    ticket = get_ticket(session, ticket_id)
+    repo = RfpRepository(session)
+    run = repo.get_approval_run(ticket_id)
+    if run is None:
+        raise RfpNotFoundError("Approval run not found.")
+    if department_id not in (run.active_departments or []) and department_id != "ceo":
+        raise RfpValidationError("Department not active for this ticket.")
+    if department_id == "ceo" and not run.requires_ceo_approval:
+        raise RfpValidationError("CEO approval not required.")
+
+    if not is_authorized_approver(current_user, department_id, session=session):
+        raise RfpValidationError("User not authorized to approve this department.")
+
+    decision_norm = str(decision).strip().lower()
+    if decision_norm not in ("approve", "reject", "request_changes"):
+        raise RfpValidationError("Invalid decision.")
+    if decision_norm in ("reject", "request_changes") and not (comment or "").strip():
+        raise RfpValidationError("Comment required for reject/request_changes.")
+
+    # version resolution
+    if department_id != "ceo":
+        drafts = [d for d in repo.list_drafts(ticket_id) if d.department_id == department_id]
+        if not drafts:
+            raise RfpValidationError("No draft for department.")
+        latest = max(drafts, key=lambda x: x.version)
+        if version is None:
+            version = latest.version
+        if int(version) != latest.version:
+            raise RfpValidationError("Stale version.")
+
+    # idempotency: if already decided with same version+decision, return
+    existing = repo.get_human_approval(ticket_id, department_id, int(version)) if (department_id != "ceo" and version is not None) else None
+    if existing is not None and existing.resumed_at is not None:
+        return {"ticket_id": ticket_id, "department_id": department_id, "decision": existing.decision, "version": existing.version, "status": "already_processed"}
+
+    # build decision payload for graph
+    decision_payload = {
+        "department_id": department_id,
+        "decision": decision_norm,
+        "comment": comment or "",
+        "approver_uuid": str(current_user.get("uuid", "")),
+        "version": version,
+    }
+
+    result = _resume_approval_graph(str(ticket.id), decision_payload)
+
+    # persist approval row
+    if department_id != "ceo":
+        from app.domains.rfp.models import RfpHumanApproval
+
+        draft = repo.get_draft(ticket.id, department_id, int(version))
+        approval_row = RfpHumanApproval(
+            ticket_id=ticket.id,
+            department_id=department_id,
+            draft_id=draft.id if draft else None,
+            version=int(version),
+            decision=decision_norm,
+            comment=comment or "",
+            approver_uuid=str(current_user.get("uuid", "")),
+            resumed_at=_now(),
+        )
+        saved = repo.save_human_approval(approval_row)
+        # mark resumed_at
+        saved.resumed_at = _now()
+        repo.session.add(saved)
+        repo.session.commit()
+
+    # update run/ticket based on result
+    run = repo.get_approval_run(ticket_id)
+    if run is not None:
+        run.correction_cycle = int(result.get("correction_cycle", run.correction_cycle))
+        run.conflicts = list(result.get("conflicts", run.conflicts) or [])
+        run.sections_to_correct = list(result.get("sections_to_correct", run.sections_to_correct) or [])
+        run.ceo_approved = bool((result.get("approvals", {}) or {}).get("ceo", {}).get("status") == "aprobado")
+
+        if "__interrupt__" in result:
+            run.status = "esperando_aprobación"
+            repo.update_approval_run(run)
+            ticket.status = "esperando_aprobación"
+            repo.update_ticket(ticket)
+        elif result.get("outcome") == "terminado":
+            from app.domains.rfp.models import RfpFinalDocument
+
+            content = result.get("final_document_content", "")
+            sections = result.get("final_document_sections", [])
+            existing_doc = repo.get_final_document(ticket.id)
+            if existing_doc is None:
+                doc = RfpFinalDocument(
+                    ticket_id=ticket.id,
+                    content=content,
+                    file_reference="",
+                    sections=sections,
+                    total_estimated_value=_estimate_value_from_metadata(metadata if False else (repo.get_metadata(ticket.id).fields if repo.get_metadata(ticket.id) else {})),
+                )
+                doc = repo.save_final_document(doc)
+                run.final_document_id = doc.id
+            else:
+                run.final_document_id = existing_doc.id
+            run.status = "completado"
+            run.completed_at = _now()
+            repo.update_approval_run(run)
+            ticket.status = "terminado"
+            ticket.processing_completed_at = _now()
+            repo.update_ticket(ticket)
+        elif result.get("outcome") in ("rechazado", "agotado"):
+            run.status = str(result.get("outcome"))
+            repo.update_approval_run(run)
+            ticket.status = "needs_human_review"
+            repo.update_ticket(ticket)
+        else:
+            run.status = "esperando_aprobación"
+            repo.update_approval_run(run)
+            ticket.status = "esperando_aprobación"
+            repo.update_ticket(ticket)
+
+    return {"ticket_id": ticket_id, "department_id": department_id, "decision": decision_norm, "version": version, "status": "processed"}
+
+
+def assign_department_approver(session, department_id: str, user_uuid: str, responsible_name: str, current_user: dict):
+    if str(current_user.get("role", "")).lower() != "admin":
+        raise ValueError("Only admins can assign approvers.")
+    from app.domains.rfp.models import RfpDepartmentApprover
+
+    repo = RfpRepository(session)
+    row = RfpDepartmentApprover(
+        department_id=department_id,
+        user_uuid=user_uuid,
+        responsible_name=responsible_name,
+    )
+    return repo.save_department_approver(row)
+
+
+def list_department_approvers(session, department_id: str):
+    repo = RfpRepository(session)
+    return repo.list_department_approvers(department_id)

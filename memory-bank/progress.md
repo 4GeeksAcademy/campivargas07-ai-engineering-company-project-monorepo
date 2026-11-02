@@ -603,3 +603,12 @@
 - Validación con mismo proyecto Supabase: schema `rfp_test` creado; `TEST_DATABASE_URL` con `search_path=rfp_test`; pruebas Parte 1 + Parte 2 pasando (16 passed). Proveedor real sigue pendiente (opción A: fallback RAG no configurado en este entorno).
 
 - Validación real con proveedor: generación marketing aprobada (`overall_pass=true`), `requires_ceo_approval=true` para presupuesto >50k USD. Base Supabase (schema `rfp_test`) conectada vía `postgresql+psycopg2://`.
+
+## Hito 9 Parte 3 — Aprobación y cierre de RFPs (feature/rfp-approval-completion)
+
+- Base: `origin/feature/rfp-response-generation` (`82cd7a3`); PR #36 permanece abierta y no se modificó.
+- Implementado: grafo `data/pipelines/rfp_approval.py` con interrupts paralelos por departamento, arbitraje estructurado, correcciones selectivas, síntesis final idempotente.
+- Persistencia: `RfpApprovalRun`, `RfpHumanApproval`, `RfpConflict`, `RfpFinalDocument` + checkpointer `PostgresSaver`/`SqliteSaver`.
+- API: endpoints de inicio, consulta, decisión por departamento/CEO y documento final.
+- Pruebas: `tests/pipelines/test_rfp_approval.py` (6 passed) y `services/api/tests/test_rfp_part3.py` (2 passed); suite completa 192 passed (5 postgres omitidos).
+- Dependencias añadidas: `langgraph-checkpoint-postgres`, `langgraph-checkpoint-sqlite`, `psycopg[binary]`.
