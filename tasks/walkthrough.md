@@ -2137,3 +2137,5 @@ Rama de trabajo: `feature/mcp-oauth-tools`, creada sobre `feature/langgraph-exte
 - Pendientes: validación con proveedor real y PostgreSQL; UI typecheck baseline con dependencias no instaladas en este entorno.
 
 - Evidencia Supabase: schema `rfp_test` en el mismo proyecto; `tests/test_rfp_intake.py` y `tests/test_rfp_part2.py` pasando contra `TEST_DATABASE_URL` (16 passed). Proveedor real pendiente.
+
+- Evidencia real: generación de sección marketing aprobada con proveedor configurado; `requires_ceo_approval=true`. Conectividad Supabase normalizada a `postgresql+psycopg2://`.

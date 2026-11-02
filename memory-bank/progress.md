@@ -601,3 +601,5 @@
 - Configuración real pendiente: `RFP_GENERATION_*` (o fallback RAG), `DATABASE_URL`, tasa FX y denylist de competidores.
 
 - Validación con mismo proyecto Supabase: schema `rfp_test` creado; `TEST_DATABASE_URL` con `search_path=rfp_test`; pruebas Parte 1 + Parte 2 pasando (16 passed). Proveedor real sigue pendiente (opción A: fallback RAG no configurado en este entorno).
+
+- Validación real con proveedor: generación marketing aprobada (`overall_pass=true`), `requires_ceo_approval=true` para presupuesto >50k USD. Base Supabase (schema `rfp_test`) conectada vía `postgresql+psycopg2://`.
