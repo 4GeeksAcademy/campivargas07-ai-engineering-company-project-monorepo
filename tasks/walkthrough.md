@@ -2135,3 +2135,5 @@ Rama de trabajo: `feature/mcp-oauth-tools`, creada sobre `feature/langgraph-exte
   - `pytest tests/test_rfp_intake.py tests/test_rfp_part2.py` → 6 passed.
   - API smoke: sección aprobada y sección fallida por promesa <10 días hábiles (cubierta en pipeline).
 - Pendientes: validación con proveedor real y PostgreSQL; UI typecheck baseline con dependencias no instaladas en este entorno.
+
+- Evidencia Supabase: schema `rfp_test` en el mismo proyecto; `tests/test_rfp_intake.py` y `tests/test_rfp_part2.py` pasando contra `TEST_DATABASE_URL` (16 passed). Proveedor real pendiente.
