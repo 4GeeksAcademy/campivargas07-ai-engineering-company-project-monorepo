@@ -41,7 +41,9 @@ def create_user(data: UserCreate) -> UserRegistrationResponse:
 def list_users(
     current_user: dict = Depends(get_current_user),
 ) -> UserListResponse:
-    """List all users. Requires authentication."""
+    """List all users. Requires admin role."""
+    if str(current_user.get("role", "")).lower() != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin role required")
     users = service.get_all_users()
     return UserListResponse(users=users, total=len(users))
 

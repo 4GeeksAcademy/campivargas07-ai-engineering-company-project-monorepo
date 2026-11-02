@@ -1,5 +1,7 @@
 import os
 import logging
+import time
+from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -84,6 +86,37 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 
+# Simple in-memory rate limiting for sensitive endpoints.
+_RATE_LIMITS: dict[str, deque[float]] = defaultdict(deque)
+
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if os.environ.get("BRASALAND_ENV", "").lower() in {"test"}:
+            return await call_next(request)
+        path = request.url.path
+        limit = None
+        window = 60.0
+        if path.endswith("/auth/login"):
+            limit = int(os.environ.get("RATE_LIMIT_LOGIN_PER_MINUTE", "10"))
+        elif path.startswith("/telemetry/events"):
+            limit = int(os.environ.get("RATE_LIMIT_TELEMETRY_PER_MINUTE", "60"))
+        if limit is not None:
+            client = request.client.host if request.client else "unknown"
+            key = f"{client}:{path}"
+            now = time.monotonic()
+            bucket = _RATE_LIMITS[key]
+            while bucket and now - bucket[0] > window:
+                bucket.popleft()
+            if len(bucket) >= limit:
+                from fastapi.responses import JSONResponse
+
+                return JSONResponse({"detail": "Too many requests"}, status_code=429)
+            bucket.append(now)
+        return await call_next(request)
+
+
+app.add_middleware(RateLimitMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 
 # Domain Routers

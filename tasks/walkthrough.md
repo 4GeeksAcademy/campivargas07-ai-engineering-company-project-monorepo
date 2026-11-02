@@ -3853,3 +3853,12 @@ Rama de trabajo: `feature/mcp-oauth-tools`, creada sobre `feature/langgraph-exte
 - Verification: backend 204 passed/5 skipped; MCP 54 passed; backoffice 107 passed; no new TS errors.
 - Report: `docs/security/owasp-top10-audit.md`.
 - Residuals: location allowlist, login rate limiting, telemetry auth, npm audit vulnerabilities, Git history secret scan.
+
+## Segunda pasada OWASP — 2 de noviembre de 2026
+
+- Añadido rate limiting en memoria para `/auth/login` y telemetría.
+- `GET /users` restringido a admin.
+- Pruebas de regresión de prompt injection: 3 nuevas, verdes.
+- Gitleaks: sin fugas actuales; 8 hallazgos históricos en `services/api/.env` (commits c2383f2e y fe587de7).
+- npm audit fix revertido por romper validaciones.
+- Verificación: backend 207 passed/5 skipped.

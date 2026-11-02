@@ -166,3 +166,33 @@ npm audit
 ## 9. Conclusión
 
 No se confirmaron vulnerabilidades críticas explotables en la base auditada. Se corrigieron hallazgos altos/medios acotados y se dejaron riesgos residuales documentados. El proyecto no se declara cerrado para producción hasta verificar controles de infraestructura externos y dependencias frontend.
+## 10. Segunda pasada sobre pendientes
+
+### Correcciones adicionales aplicadas
+
+| ID | Severidad | Categoría | Descripción | Archivo |
+|---|---|---|---|---|
+| F-10 | Medio | A07 | Rate limiting en memoria para `/auth/login` y telemetría (deshabilitado en tests). | `services/api/app/main.py` |
+| F-11 | Medio | A01 | Listado de usuarios restringido a rol admin. | `services/api/app/domains/users/router.py` |
+| F-12 | Bajo | A03 | Pruebas de regresión de prompt injection y sanitización. | `services/api/tests/test_security_prompt_injection.py` |
+
+### Escaneo de secretos en historial
+
+- Herramienta: `gitleaks 8.30.1`.
+- Archivos actuales: sin fugas.
+- Historial: 8 hallazgos, todos en commits antiguos:
+  - `services/api/.env` en commits `c2383f2e...` y `fe587de7...` (3 líneas cada uno, valores redactados).
+  - `services/api/tests/test_auth_change_password.py` líneas 174 y 184: falsos positivos (contraseñas de prueba).
+- El archivo `.env` ya no está rastreado. Se recomienda rotar cualquier valor real que haya estado en esos commits, pero no se rotó automáticamente por falta de autorización específica.
+
+### Dependencias frontend
+
+- Se intentó `npm audit fix --legacy-peer-deps`; redujo de 28 a 17 vulnerabilidades, pero rompió typecheck/tests, por lo que se revirtió.
+- Quedan 17 vulnerabilidades (14 moderate, 2 high, 1 critical) que requieren actualización mayor o PR dedicado.
+
+### Pendientes que siguen abiertos
+
+- Allowlist real por location (decisión de producto).
+- DAST con ZAP (no instalado/ejecutado).
+- Controles SSH/firewall/servidor gestionado (sin acceso verificado).
+- Vulnerabilidades frontend restantes.

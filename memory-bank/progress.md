@@ -630,3 +630,12 @@
 - Verificación posterior: backend 204 passed/5 skipped; MCP 54 passed; backoffice 107 passed; sin nuevos errores TypeScript.
 - Informe: `docs/security/owasp-top10-audit.md`.
 - Pendientes: allowlist por location, rate limiting, telemetría autenticada, vulnerabilidades npm, escaneo de historial Git, DAST.
+
+## Segunda pasada OWASP — 2 de noviembre de 2026
+
+- Rate limiting en memoria para login/telemetría (desactivado en tests).
+- Listado de usuarios restringido a admin.
+- Pruebas de regresión de prompt injection.
+- Gitleaks: sin fugas en archivos actuales; 8 hallazgos históricos en `services/api/.env` (commits c2383f2e y fe587de7), valores redactados.
+- npm audit fix intentado y revertido por romper validaciones; quedan 17 vulnerabilidades.
+- DAST y controles de infraestructura externa siguen pendientes.
