@@ -47,12 +47,25 @@ def _convert(state: RfpIntakeState) -> RfpIntakeState:
     return {"markdown": markdown}
 
 
+def _detect_language(markdown: str) -> str:
+    lowered = markdown.lower()
+    es_markers = (" el ", " la ", " los ", " las ", " de ", " que ", " para ", " y ")
+    en_markers = (" the ", " and ", " of ", " to ", " for ", " in ")
+    es_hits = sum(1 for m in es_markers if m in f" {lowered} ")
+    en_hits = sum(1 for m in en_markers if m in f" {lowered} ")
+    if es_hits >= 4 and es_hits >= en_hits:
+        return "es"
+    if en_hits >= 4:
+        return "en"
+    return "unknown"
+
+
 def _metadata(state: RfpIntakeState) -> RfpIntakeState:
     md = state["markdown"]
-    lang = state.get("language", "unknown")
+    lang = _detect_language(md)
     fields = extract_metadata(md)
     metrics = compute_readability(md, language=lang)
-    return {"metadata": fields, "readability": metrics}
+    return {"metadata": fields, "readability": metrics, "language": lang}
 
 
 def _classify(state: RfpIntakeState) -> RfpIntakeState:
