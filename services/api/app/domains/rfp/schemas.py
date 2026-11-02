@@ -24,6 +24,10 @@ class RfpStatusResponse(BaseModel):
     processing_started_at: Optional[datetime] = None
     processing_completed_at: Optional[datetime] = None
     retry_count: int = 0
+    generation_status: Optional[str] = None
+    current_iteration: Optional[int] = None
+    all_sections_approved: Optional[bool] = None
+    needs_human_review: Optional[bool] = None
 
 
 class RfpMetadataResponse(BaseModel):
@@ -74,6 +78,61 @@ class RfpHandoffResponse(BaseModel):
     prepared_at: datetime
 
 
+class RfpSectionDraftResponse(BaseModel):
+    id: UUID
+    department_id: str
+    version: int
+    iteration: int
+    content: str
+    generator_id: str
+    model: str
+    status: str
+    created_at: datetime
+
+
+class RfpSectionEvaluationResponse(BaseModel):
+    id: UUID
+    department_id: str
+    draft_id: Optional[UUID] = None
+    iteration: int
+    readability: dict[str, Any]
+    relevance: dict[str, Any]
+    compliance: dict[str, Any]
+    overall_pass: bool
+    feedback_for_generator: str
+    evaluated_at: datetime
+
+
+class RfpGenerationRunResponse(BaseModel):
+    id: UUID
+    status: str
+    active_departments: list[str]
+    max_iterations: int
+    current_iteration: int
+    all_sections_approved: bool
+    needs_human_review: bool
+    needs_human_review_reason: Optional[str] = None
+    error_code: Optional[str] = None
+    error_detail: Optional[str] = None
+    global_compliance: Optional[dict[str, Any]] = None
+    completed_at: Optional[datetime] = None
+
+
+class RfpGenerationHandoffResponse(BaseModel):
+    ticket_id: UUID
+    sections: list[dict[str, Any]]
+    global_compliance: Optional[dict[str, Any]] = None
+    open_questions: list[str] = Field(default_factory=list)
+    requires_ceo_approval: Optional[bool] = None
+    prepared_at: datetime
+
+
+class RfpGenerateResponse(BaseModel):
+    ticket_id: UUID
+    status: str
+    run_id: UUID
+
+
 class RfpResultResponse(BaseModel):
     ticket_id: UUID
     status: str
@@ -84,3 +143,7 @@ class RfpResultResponse(BaseModel):
     contacts: list[RfpDepartmentContactResponse] = Field(default_factory=list)
     synthesis: Optional[RfpSynthesisResponse] = None
     handoff: Optional[RfpHandoffResponse] = None
+    generation_run: Optional[RfpGenerationRunResponse] = None
+    drafts: list[RfpSectionDraftResponse] = Field(default_factory=list)
+    evaluations: list[RfpSectionEvaluationResponse] = Field(default_factory=list)
+    generation_handoff: Optional[RfpGenerationHandoffResponse] = None

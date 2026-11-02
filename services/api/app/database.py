@@ -61,6 +61,8 @@ def get_db_engine():
                 "DATABASE_URL environment variable is not configured. "
                 "Please configure DATABASE_URL in your environment."
             )
+        if db_url.startswith("postgresql://"):
+            db_url = "postgresql+psycopg2://" + db_url[len("postgresql://"):]
         _engine = create_engine(db_url, pool_pre_ping=True)
     return _engine
 
@@ -87,9 +89,13 @@ def init_db(bind_engine=None) -> None:
         RfpClassification,
         RfpDepartmentAspect,
         RfpDepartmentContact,
+        RfpGenerationHandoff,
+        RfpGenerationRun,
         RfpHandoff,
         RfpMetadata,
         RfpReadabilityMetrics,
+        RfpSectionDraft,
+        RfpSectionEvaluation,
         RfpSynthesis,
         RfpTicket,
     )

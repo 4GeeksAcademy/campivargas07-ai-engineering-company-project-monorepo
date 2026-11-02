@@ -2123,3 +2123,19 @@ Rama de trabajo: `feature/mcp-oauth-tools`, creada sobre `feature/langgraph-exte
 - Cambios: nuevo `guardrails.py`, integración en `graph.py`, ajustes en `state.py` y `memory.py`, pruebas `test_agent_guardrails.py`, documentación `docs/agent/agent-guardrails-part2.md`.
 - Validación: 13 pruebas de guardrails, 28 de memoria/API/MCP, 183 en suite completa (5 skipped), compileall OK.
 - Pendientes: LLM/servicios externos no disponibles.
+
+## RFP Response Generation — Parte 2 de 3 (feature/rfp-response-generation)
+
+- Rama: `feature/rfp-response-generation`, base `origin/main` (7f794ba).
+- Alcance implementado: generación y evaluación por departamento activo, ciclo generador-evaluador, persistencia, progreso, idempotencia y handoff a Parte 3.
+- Migraciones: nuevas tablas `rfp_generation_run`, `rfp_section_draft`, `rfp_section_evaluation`, `rfp_generation_handoff` via `init_db`.
+- Configuración: `services/api/.env.example` actualizado con `RFP_GENERATION_*`, `RFP_MAX_ITERATIONS`, `RFP_FX_RATE_USD_COP`, `RFP_COMPETITOR_NAMES`, `RFP_KNOWLEDGE_ENABLED`.
+- Pruebas:
+  - `pytest tests/pipelines/test_rfp_response_generation.py` → 11 passed.
+  - `pytest tests/test_rfp_intake.py tests/test_rfp_part2.py` → 6 passed.
+  - API smoke: sección aprobada y sección fallida por promesa <10 días hábiles (cubierta en pipeline).
+- Pendientes: validación con proveedor real y PostgreSQL; UI typecheck baseline con dependencias no instaladas en este entorno.
+
+- Evidencia Supabase: schema `rfp_test` en el mismo proyecto; `tests/test_rfp_intake.py` y `tests/test_rfp_part2.py` pasando contra `TEST_DATABASE_URL` (16 passed). Proveedor real pendiente.
+
+- Evidencia real: generación de sección marketing aprobada con proveedor configurado; `requires_ceo_approval=true`. Conectividad Supabase normalizada a `postgresql+psycopg2://`.
