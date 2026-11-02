@@ -297,3 +297,26 @@ class RfpRepository:
         self.session.commit()
         self.session.refresh(doc)
         return doc
+
+    # --- department approvers ---
+    def list_department_approvers(self, department_id: str) -> list["RfpDepartmentApprover"]:
+        from .models import RfpDepartmentApprover
+
+        stmt = select(RfpDepartmentApprover).where(RfpDepartmentApprover.department_id == department_id)
+        return list(self.session.exec(stmt).all())
+
+    def save_department_approver(self, approver: "RfpDepartmentApprover") -> "RfpDepartmentApprover":
+        from .models import RfpDepartmentApprover
+
+        existing = self.session.exec(
+            select(RfpDepartmentApprover).where(
+                RfpDepartmentApprover.department_id == approver.department_id,
+                RfpDepartmentApprover.user_uuid == approver.user_uuid,
+            )
+        ).first()
+        if existing is not None:
+            return existing
+        self.session.add(approver)
+        self.session.commit()
+        self.session.refresh(approver)
+        return approver

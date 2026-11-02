@@ -183,3 +183,15 @@ class RfpFinalDocumentResponse(BaseModel):
     sections: list[dict[str, Any]] = Field(default_factory=list)
     total_estimated_value: Optional[float] = None
     generated_at: datetime
+
+
+class RfpApproverAssignRequest(BaseModel):
+    department_id: str
+    user_uuid: str
+    responsible_name: str = ""
+
+
+class RfpApproverResponse(BaseModel):
+    department_id: str
+    user_uuid: str
+    responsible_name: str

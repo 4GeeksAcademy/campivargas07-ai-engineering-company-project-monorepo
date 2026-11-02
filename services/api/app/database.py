@@ -87,6 +87,7 @@ def init_db(bind_engine=None) -> None:
     )
     from app.domains.rfp.models import (  # noqa: F401
         RfpApprovalRun,
+        RfpDepartmentApprover,
         RfpClassification,
         RfpConflict,
         RfpDepartmentAspect,

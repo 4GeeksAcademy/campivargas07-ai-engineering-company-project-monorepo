@@ -16,6 +16,7 @@ from app.domains.rfp.models import RfpTicket
 from app.domains.rfp.repository import RfpRepository
 from app.domains.rfp.schemas import (
     RfpApprovalDecisionRequest,
+    RfpApproverAssignRequest,
     RfpCreateResponse,
     RfpGenerateResponse,
     RfpGenerationHandoffResponse,
@@ -426,3 +427,32 @@ def get_final_document(
         "total_estimated_value": doc.total_estimated_value,
         "generated_at": doc.generated_at,
     }
+
+
+@router.post("/approvers", status_code=201)
+def assign_approver(
+    payload: RfpApproverAssignRequest,
+    session: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    try:
+        row = rfp_service.assign_department_approver(
+            session=session,
+            department_id=payload.department_id,
+            user_uuid=payload.user_uuid,
+            responsible_name=payload.responsible_name,
+            current_user=current_user,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    return {"department_id": row.department_id, "user_uuid": row.user_uuid, "responsible_name": row.responsible_name}
+
+
+@router.get("/approvers/{department_id}")
+def list_approvers(
+    department_id: str,
+    session: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    rows = rfp_service.list_department_approvers(session, department_id)
+    return [{"department_id": r.department_id, "user_uuid": r.user_uuid, "responsible_name": r.responsible_name} for r in rows]

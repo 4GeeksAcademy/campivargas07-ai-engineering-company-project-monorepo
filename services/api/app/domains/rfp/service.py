@@ -494,11 +494,18 @@ def _approver_map() -> dict[str, list[str]]:
     return {}
 
 
-def is_authorized_approver(current_user: dict, department_id: str) -> bool:
+def is_authorized_approver(current_user: dict, department_id: str, session=None) -> bool:
     if str(current_user.get("role", "")).lower() == "admin":
         return True
     user_uuid = str(current_user.get("uuid", ""))
-    allowed = _approver_map().get(department_id, [])
+    allowed = list(_approver_map().get(department_id, []))
+    if session is not None:
+        try:
+            repo = RfpRepository(session)
+            for row in repo.list_department_approvers(department_id):
+                allowed.append(str(row.user_uuid))
+        except Exception:  # noqa: BLE001
+            pass
     return user_uuid in allowed
 
 
@@ -824,7 +831,7 @@ def submit_approval_decision(
     if department_id == "ceo" and not run.requires_ceo_approval:
         raise RfpValidationError("CEO approval not required.")
 
-    if not is_authorized_approver(current_user, department_id):
+    if not is_authorized_approver(current_user, department_id, session=session):
         raise RfpValidationError("User not authorized to approve this department.")
 
     decision_norm = str(decision).strip().lower()
@@ -930,3 +937,22 @@ def submit_approval_decision(
             repo.update_ticket(ticket)
 
     return {"ticket_id": ticket_id, "department_id": department_id, "decision": decision_norm, "version": version, "status": "processed"}
+
+
+def assign_department_approver(session, department_id: str, user_uuid: str, responsible_name: str, current_user: dict):
+    if str(current_user.get("role", "")).lower() != "admin":
+        raise ValueError("Only admins can assign approvers.")
+    from app.domains.rfp.models import RfpDepartmentApprover
+
+    repo = RfpRepository(session)
+    row = RfpDepartmentApprover(
+        department_id=department_id,
+        user_uuid=user_uuid,
+        responsible_name=responsible_name,
+    )
+    return repo.save_department_approver(row)
+
+
+def list_department_approvers(session, department_id: str):
+    repo = RfpRepository(session)
+    return repo.list_department_approvers(department_id)

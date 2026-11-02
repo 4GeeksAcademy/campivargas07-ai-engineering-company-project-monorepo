@@ -246,3 +246,13 @@ class RfpFinalDocument(SQLModel, table=True):
     sections: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON, nullable=False))
     total_estimated_value: Optional[float] = Field(default=None)
     generated_at: datetime = Field(default_factory=_now, nullable=False)
+
+
+class RfpDepartmentApprover(SQLModel, table=True):
+    __tablename__ = "rfp_department_approver"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
+    department_id: str = Field(nullable=False, index=True)
+    user_uuid: str = Field(nullable=False, index=True)
+    responsible_name: str = Field(default="", nullable=False)
+    created_at: datetime = Field(default_factory=_now, nullable=False)
