@@ -212,3 +212,47 @@ class RfpRepository:
         self.session.commit()
         self.session.refresh(handoff)
         return handoff
+    # --- SSE durable events (Parte 1 de 2) ---
+    def record_ticket_event(
+        self,
+        ticket_id: uuid.UUID,
+        event_type: str,
+        payload: dict[str, Any],
+        submitted_by_uuid: Optional[uuid.UUID] = None,
+    ) -> Optional["RfpTicketEvent"]:
+        from .models import RfpTicketEvent
+        from sqlalchemy.exc import IntegrityError
+
+        existing = self.session.exec(
+            select(RfpTicketEvent).where(
+                RfpTicketEvent.ticket_id == ticket_id,
+                RfpTicketEvent.event_type == event_type,
+            )
+        ).first()
+        if existing is not None:
+            return None
+        row = RfpTicketEvent(
+            ticket_id=ticket_id,
+            event_type=event_type,
+            payload=payload,
+            submitted_by_uuid=submitted_by_uuid,
+        )
+        self.session.add(row)
+        try:
+            self.session.commit()
+        except IntegrityError:
+            self.session.rollback()
+            return None
+        self.session.refresh(row)
+        return row
+
+    def list_ticket_events(self, after_id: int = 0, limit: int = 100) -> list["RfpTicketEvent"]:
+        from .models import RfpTicketEvent
+
+        stmt = (
+            select(RfpTicketEvent)
+            .where(RfpTicketEvent.id > after_id)
+            .order_by(RfpTicketEvent.id)
+            .limit(limit)
+        )
+        return list(self.session.exec(stmt).all())
