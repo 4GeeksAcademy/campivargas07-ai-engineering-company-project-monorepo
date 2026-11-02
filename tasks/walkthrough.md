@@ -2132,3 +2132,13 @@ Rama de trabajo: `feature/mcp-oauth-tools`, creada sobre `feature/langgraph-exte
 - Docs: `docs/chat/websocket-chat-contract.md`.
 - Pruebas: `services/api/tests/test_chat_websocket.py` (5 passed, mocks controlables).
 - Evidencia real de proveedor: pendiente por falta de credenciales; no se presentan mocks como prueba de cancelación real.
+
+## Evidencia real — Streaming y cancelación (WebSocket)
+
+- Proveedor real: Google Gemini OpenAI-compatible (`gemini-3.5-flash-lite`), collection Qdrant `brasaland_knowledge` (14 puntos).
+- Flujo observado:
+  - `session_snapshot` al conectar.
+  - `user_message`
+  - `token_chunk` progresivos antes de `generation_completed`.
+  - Tras `interrupt_requested`: `generation_interrupted`, mensaje parcial con `status=interrupted`, y respuesta redirigida con nuevos `token_chunk` hasta `generation_completed`.
+- Resultado: streaming real y cancelación efectiva verificados con proveedor real.
