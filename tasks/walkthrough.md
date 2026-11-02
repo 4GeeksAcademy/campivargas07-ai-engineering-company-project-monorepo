@@ -1,3 +1,53 @@
+# Seguimiento: auditoria y publicacion autorizadas - 30 de octubre de 2026
+
+- Alcance autorizado: modificar `mcps/` para completar auditoria y publicar por commit/push las correcciones y evidencia en la rama de #32; sin merge. No se incluyen cambios de datos ni egg-info.
+- Implementacion: wrapper del handler MCP validado para auditar `CallToolResult.isError` antes del ejecutor. Reutiliza el contexto de identidad OAuth; registra `validation_error` para rechazos de esquema y `tool_error` para otros rechazos MCP, sin argumentos ni mensajes de error. Devuelve intacto el resultado original y no duplica el registro de herramientas ejecutadas.
+- Se ampliaron pruebas existentes de argumentos extra y tools inexistentes para comprobar un solo log con cliente/tool/resultado, cero solicitudes al backend y ausencia de tokens/argumentos; la prueba de llamada normal exige tambien un solo registro.
+- Validacion: `uv run --project mcps/brasaland-mcp --no-sync pytest mcps/brasaland-mcp/tests -q`: 54 aprobadas. `uv run --project services/api --no-sync python -m pytest services/api/tests/test_agent_mcp_credentials.py -q`: 3 aprobadas. `uv run --project mcps/brasaland-mcp --no-sync python -m compileall -q mcps/brasaland-mcp/brasaland_mcp`: correcto. `git diff --check`: correcto.
+- Incidencia de validacion: el primer pytest sin ruta intento coleccionar otros servicios y fallo por dependencias ajenas; se corrigio la seleccion sin instalar paquetes. No fue un fallo de las pruebas MCP.
+- Limite Auth0: dos confirmaciones de reemplazo privado no cambiaron los scopes observados: el token de Playground aun contiene los tres. No se declara verificado un cliente exclusivo de lectura ni se interpreta la configuracion solicitada como evidencia.
+- Limite operativo: no se reinicio el servidor real, ni se exportaron logs nuevos; la correccion de auditoria se verifico con los servidores aislados de la suite. Las notas siguientes conservan la cronologia previa, cuyos pendientes de auditoria/publicacion quedan sustituidos por este seguimiento cuando se publique.
+
+# MCP Playground: ejecucion real - 30 de octubre de 2026
+
+## Evidencia nueva
+
+- Cliente: MCP Playground web, conectado a la URL HTTPS publica reenviada de Codespaces, puerto 9100, endpoint `/mcp`, con Authorization Bearer configurado privadamente por el usuario.
+- Discovery: servidor Brasaland MCP, seis herramientas; descripciones y esquemas visibles sin consultar el codigo.
+- Incidencias reales: crear -> consultar -> cambiar estado a `discarded` -> listar con filtros; cuatro resultados `success`. El listado confirmo la incidencia sintetica descartada. No se modificaron incidencias ajenas.
+- Inventario PostgreSQL: listado de MED-001 `success` con cero productos; UUID inexistente `not_found`. La base vacia impide acreditar lectura de un producto existente.
+- Validacion real: estado destino `invalid_status` rechazado con `validation_error`, mensaje especifico y `field=status`. Sin token, el endpoint publico devuelve HTTP 401.
+
+## Verificacion automatizada dirigida
+
+```bash
+uv run --project mcps/brasaland-mcp --no-sync pytest mcps/brasaland-mcp/tests/test_auth_transport.py mcps/brasaland-mcp/tests/test_inventory_tools.py mcps/brasaland-mcp/tests/test_incidents_tools.py -q
+```
+
+Resultado: 40 pruebas aprobadas; avisos de deprecacion de `streamablehttp_client`. Incluye bloqueo sin token, tokens invalidos, scopes insuficientes, inventario sin escritura y log de invocacion. Usa proveedor OIDC y backend simulados; no demuestra permisos del cliente Auth0 real.
+
+## Limites y pendientes
+
+- Entrega: se actualizo la descripcion de [PR #32](https://github.com/4GeeksAcademy/campivargas07-ai-engineering-company-project-monorepo/pull/32) y se verifico su persistencia mediante GitHub CLI. La cabeza remota permanece `c1b15c0`; no hubo commit, push ni merge. El checklist remoto distingue validacion local de codigo publicado y no declara cierre completo.
+- Seguimiento solicitado sin commit/push: aprobaron `test_backend_client.py` (8 pruebas, mismo runner MCP) y `services/api/tests/test_agent_mcp_credentials.py` (3 pruebas, `uv run --project services/api --no-sync python -m pytest services/api/tests/test_agent_mcp_credentials.py -q`). Sumadas a las 40 anteriores: 51 verificaciones dirigidas, no una suite completa nueva.
+- Se inspeccionaron solo los nombres de scopes del token configurado en Playground: `incidents:read`, `incidents:write`, `inventory:read`. Es el cliente de pruebas con escritura; no demuestra la configuracion privada del cliente del agente.
+- No se exportaron logs reales ni capturas; esta evidencia es un registro sanitizado de resultados observados. No contiene tokens ni cuerpos de incidencias.
+- Pendiente verificar el grant exclusivo `incidents:read` del cliente dedicado. Los resultados positivos de escritura no acreditan minimo privilegio del agente.
+- Los argumentos rechazados por validacion de esquema antes de `execute_tool` no pasan por el logger de auditoria centralizado; no se declara cobertura de cada intento.
+- La validacion Playground antes pendiente queda realizada. RAG no se ejecuto en esta corrida. Publicacion de correcciones/documentacion y fusion de PR siguen pendientes.
+
+# Correcciones y validacion MCP — 29 de octubre de 2026
+
+- Corregida la rama real de `query_incidents_via_mcp`: resuelve el proveedor OAuth inyectado o el configurado en entorno antes de obtener el token. Tres pruebas nuevas cubren ambos caminos y las credenciales ausentes.
+- Los esquemas MCP rechazan propiedades adicionales y el servidor valida argumentos antes de ejecutar una herramienta. Se reprodujo que FastMCP descartaba argumentos de escritura silenciosamente; la prueba ahora exige cero solicitudes al backend, incluso GET.
+- Verificacion automatizada: API/pipelines 239 passed, 5 skipped; MCP 54 passed. Los skipped de PostgreSQL no se cuentan como aprobados.
+- Integracion real local y publica con Auth0: initialize y listado de seis herramientas; crear/listar/consultar incidencias y actualizar a discarded: success. Las incidencias sinteticas de verificacion quedaron descartadas. Consulta del agente por HTTP: 200, con estado open confirmado durante la prueba. Inspector 2.13.0: Connected y list_incidents ejecutado correctamente.
+- Inventario inicialmente fallaba porque faltaba DATABASE_URL. Se inicio PostgreSQL local desde el Compose existente y se inicializaron las tablas del proyecto. Tras configurar el entorno y reiniciar API: listado success (base vacia); consulta de UUID inexistente not_found. No se afirma una consulta exitosa de producto existente.
+- Puerto MCP 9100 publicado con autorizacion del usuario; API 8000 y PostgreSQL 5432 permanecen privados. Credenciales solo en archivos .env ignorados, sin valores en esta evidencia.
+- RAG sigue respondiendo 503 por configuracion ausente. PR #31 contiene evidencia historica exitosa y la plantilla .env.example de su rama tiene endpoints/modelos, pero las claves estan vacias. PR #32 ya tiene esa rama como base. No se encontro una clave RAG en los archivos .env del proyecto ni en la terminal; no se hizo merge.
+- Pendiente de minimo privilegio en Auth0: aunque AGENT_MCP_SCOPES solicita incidents:read, el JWT real del cliente usado en las pruebas contiene los tres permisos concedidos. Para produccion, usar una M2M separada autorizada exclusivamente para incidents:read y verificar el JWT resultante. El adaptador del agente solo invoca herramientas de lectura.
+- MCP Playground y una corrida RAG nueva no se declaran validados por estos resultados.
+
 # Walkthrough: Agente LangGraph — Herramientas Fuera del RAG — 23 de octubre de 2026
 
 ## Cambios
@@ -1190,6 +1240,801 @@ Partiendo de `main` actualizado (`1a34b24707f6f7cc1ebece228ab59a12d0bb4f4a`, con
 - `npm --prefix uis/backoffice run test`: **`107 passed`** en 18 suites.
 - `git diff --check`: limpio.
 
+
+
+platform linux -- Python 3.12.1, pytest-8.4.2, pluggy-1.6.0
+rootdir: /workspaces/campivargas07-ai-engineering-company-project-monorepo/services/api
+configfile: pyproject.toml
+plugins: cov-7.1.0, anyio-4.14.2
+collected 65 items
+
+tests/test_auth_dependency.py ......                                     [  9%]
+tests/test_incidents_api.py ...                                          [ 13%]
+tests/test_inventory_domain.py ...............                           [ 36%]
+tests/test_inventory_postgres.py .....                                   [ 44%]
+tests/test_login.py ......                                               [ 53%]
+tests/test_me.py .........                                               [ 67%]
+tests/test_password_service.py .........                                 [ 81%]
+tests/test_register.py .....                                             [ 89%]
+tests/test_token_service.py .......                                      [100%]
+
+======================== 65 passed, 1 warning in 19.87s ========================
+```
+*Las 65 pruebas pasaron en su totalidad (0 pruebas omitidas / 0 skipped).*
+
+### 2.2 Frontend Vitest (`uis/backoffice`)
+Comando ejecutado:
+```bash
+npm --prefix uis/backoffice run test
+```
+Resultado obtenido:
+```text
+Test Files  8 passed (8)
+     Tests  39 passed (39)
+  Duration  15.22s
+```
+
+### 2.3 Chequeo de Tipos TypeScript (`uis/backoffice`)
+Comando: `npm --prefix uis/backoffice run typecheck`
+Resultado: Código de salida 0 (0 errores).
+
+### 2.4 Chequeo de Estilo ESLint (`uis/backoffice`)
+Comando: `npm --prefix uis/backoffice run lint`
+Resultado: Código de salida 0 (0 errores, 0 advertencias).
+
+### 2.5 Compilación de Producción Next.js
+Comando: `npm --prefix uis/backoffice run build`
+Resultado:
+```text
+▲ Next.js 16.2.10 (Turbopack)
+✓ Compiled successfully in 10.2s
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ○ /backoffice/inventory/orders
+├ ○ /backoffice/inventory/orders/inbound
+├ ○ /backoffice/inventory/orders/outbound
+├ ○ /backoffice/inventory/products
+├ ○ /incidents
+└ ○ /login
+
+○  (Static)  prerendered as static content (10/10)
+```
+
+### 2.6 Pruebas Globales de UIs en Monorepo
+Comando: `npm run test:uis`
+Resultado: 9 archivos de prueba pasados (8 en backoffice, 1 en website), 43 pruebas pasadas en total.
+
+---
+
+## 3. Estado de la Verificación Visual
+
+> [!WARNING]
+> **Verificación Visual en Navegador Real: PENDIENTE por parte del evaluador/usuario.**
+> En el entorno actual (contenedor Linux en GitHub Codespaces) no existen binarios instalados de navegadores web (`google-chrome`, `chromium`, `firefox` o browsers de `playwright`).
+> Las pruebas automatizadas vía Vitest validan el montaje y comportamiento del DOM virtual (`jsdom`), pero las siguientes validaciones en un navegador real no fueron ejecutadas de forma automatizada y quedan pendientes de validación por el usuario:
+> - Renderizado visual exacto en viewports de 1280 px y 375 px.
+> - Comportamiento de foco y navegación con teclado en el motor del navegador.
+> - Ausencia de mensajes en la consola del navegador del cliente durante la sesión interactiva.
+> - Transición visual y ausencia de destellos durante la redirección de rutas en el navegador.
+
+---
+
+## 4. Informe sobre el TRUNCATE ejecutado en la base local
+
+Durante la verificación se ejecutó nuevamente un TRUNCATE sobre las tablas `ingredient_exit`, `ingredient_entry` e `ingredient` de la base local `brasaland_db`.
+La operación eliminó los datos de inventario existentes y posteriormente el seed reconstruyó los siete ingredientes y diez movimientos canónicos.
+Los datos anteriores al TRUNCATE no son recuperables porque no existía respaldo.
+No se ejecutarán nuevas operaciones destructivas sin autorización.
+
+---
+
+## 5. Comparación Detallada entre Seed de Backend y `src/demo.ts`
+
+Se compararon los datos definidos en [`src/demo.ts`](file:///workspaces/campivargas07-ai-engineering-company-project-monorepo/src/demo.ts) y los sembrados por [`seed.py`](file:///workspaces/campivargas07-ai-engineering-company-project-monorepo/services/api/app/domains/operations/inventory/seed.py):
+
+| SKU | Nombre en `src/demo.ts` | Nombre en `seed.py` | Unidad | `stockMinimo` (`demo.ts`) | `minimum_stock` (`seed.py`) | Concordancia |
+| :--- | :--- | :--- | :--- | :---: | :---: | :---: |
+| **ING-001** | Carne de Res (kg) | Carne de Res (kg) | kg | 20 | 20.0 | **Idéntico** |
+| **ING-002** | Pollo Entero (kg) | Pollo Entero (kg) | kg | 15 | 15.0 | **Idéntico** |
+| **ING-003** | Tomate (kg) | Tomate (kg) | kg | 10 | 10.0 | **Idéntico** |
+| **ING-004** | Lechuga (unidad) | Lechuga (unidad) | unidades | 30 | 30.0 | **Idéntico** |
+| **ING-005** | Salsa Chimichurri (litros) | Salsa Chimichurri (litros) | litros | 5 | 5.0 | **Idéntico** |
+| **ING-006** | Gaseosa Cola (litros) | Gaseosa Cola (litros) | litros | 50 | 50.0 | **Idéntico** |
+| **ING-007** | Caja de Empaque | Caja de Empaque | unidades | 200 | 200.0 | **Idéntico** |
+
+*Aclaración*: Los nombres "Tomate Chonto" o "Bebida Gaseosa", así como valores mínimos erróneos reportados previamente (por ejemplo, mínimo 10 en lugar de 20 para `ING-001`, o 20 en lugar de 50 para `ING-006`), correspondían a inconsistencias en notas y mocks de pruebas (`test_inventory_domain.py`), y no al seed oficial del backend, el cual coincide con las definiciones de `src/demo.ts`.
+
+### Saldos Netos Iniciales Sembrados
+- **`MED-001` (Medellín)**:
+  - `ING-001`: Entradas 50.0 - Salidas 42.0 = **8.00 kg** ($8 \le 20 \implies$ *Stock bajo*)
+  - `ING-002`: Entradas 30.0 - Salidas 5.0 = **25.00 kg** ($25 > 15 \implies$ *Saludable*)
+  - `ING-003`: Entradas 10.0 - Salidas 7.0 = **3.00 kg** ($3 \le 10 \implies$ *Stock bajo*)
+  - Otros ingredientes: Saldo **0.00** (*Agotado*)
+- **`MIA-001` (Miami)**:
+  - `ING-001`: Entradas 60.0 - Salidas 15.0 = **45.00 kg** ($45 > 20 \implies$ *Saludable*)
+  - `ING-006`: Entradas 50.0 - Salidas 40.0 = **10.00 litros** ($10 \le 50 \implies$ *Stock bajo*)
+  - Otros ingredientes: Saldo **0.00** (*Agotado*)
+
+---
+
+## 6. Procedimiento Reproducible para Usuario Local y Seed
+
+Dado que `services/api/data/suppliers.json` se mantiene vacío en Git (0 bytes), el flujo reproducible para inicializar un usuario en un entorno nuevo es el siguiente:
+
+1. **Levantar los servicios**:
+   ```bash
+   npm run dev:all
+   ```
+2. **Crear usuario administrador mediante la API pública de autenticación**:
+   ```bash
+   curl -X POST http://localhost:8000/users \
+     -H "Content-Type: application/json" \
+     -d '{
+       "email": "admin@brasaland.com",
+       "password": "UnaPasswordSegura123!",
+       "role": "admin",
+       "name": "Admin Local"
+     }'
+   ```
+3. **Ejecutar el seed de inventario asociándolo al usuario creado**:
+   ```bash
+   cd services/api
+   DATABASE_URL="postgresql://postgres:postgres@localhost:5432/brasaland_db" uv run python -m app.domains.operations.inventory.seed --user admin@brasaland.com
+   cd ../..
+   ```
+4. **Iniciar sesión en la aplicación web**:
+   Abrir `http://localhost:3000/login` e ingresar las credenciales registradas.
+5. **Higiene de repositorio**:
+   No realizar commit de `services/api/data/suppliers.json` si este fue modificado localmente por el registro.
+
+---
+
+## 7. Puntos de Fricción y Estado de Integración con PR #8
+
+El hito no se considera completamente integrado con la base principal debido a las siguientes diferencias pendientes con la PR #8:
+
+1. **Firma del Cliente de Login ([`src/lib/auth/api.ts`](file:///workspaces/campivargas07-ai-engineering-company-project-monorepo/uis/backoffice/src/lib/auth/api.ts))**:
+   - En la rama actual, `authApi.login()` retorna la cadena del token string.
+   - En la PR #8, retorna un objeto estructurado `{ access_token, token_type }`.
+   - Requerirá unificación de contratos al momento de fusionar las ramas.
+2. **Página de Inicio de Sesión ([`src/app/login/page.tsx`](file:///workspaces/campivargas07-ai-engineering-company-project-monorepo/uis/backoffice/src/app/login/page.tsx))**:
+   - En esta rama se implementó la pantalla sin tarjetas de credenciales demo prellenadas.
+   - La PR #8 introduce su propia implementación. Durante el merge se deberá decidir cuál conservar para evitar colisiones.
+3. **Dependencia de integración**:
+   - La rama actual opera en su propio espacio de trabajo. La unificación con la rama de autenticación formal (PR #8) requerirá resolver estas discrepancias de integración.
+   - No se realizarán merges, cherry-picks ni rebases sin previa autorización.
+
+---
+
+# Walkthrough: Hito de Infraestructura — Dockerizar el Entorno Completo de Desarrollo
+
+Se ha completado la dockerización del entorno local de desarrollo para el monorepo Brasaland sobre la base de la PR #12 (`feature/backoffice-inventario`), permitiendo que un desarrollador ejecute `docker compose up --build` desde la raíz y obtenga Website, Backoffice y la API de FastAPI corriendo con hot reload, comunicación interna por red Docker y configuración desacoplada vía variables de entorno.
+
+## 1. Arquitectura y Componentes Implementados
+
+- **Servicio `interfaces` (`uis/Dockerfile`)**:
+  - Imagen: `brasaland-interfaces:dev` (basada en `node:22-alpine`, usuario `node:node`).
+  - Puerto `3000`: Website (`uis/website`).
+  - Puerto `3001`: Backoffice (`uis/backoffice`).
+  - Script supervisor `uis/start.sh`: levanta concurrentemente ambos servicios Next.js con soporte para dependencias externas monorepo (`--webpack`), captura señales `SIGTERM`/`SIGINT` y previene procesos huérfanos.
+  - Volúmenes anónimos `/app/website/node_modules`, `/app/website/.next`, `/app/backoffice/node_modules`, `/app/backoffice/.next` para aislar dependencias del contenedor de las del host.
+- **Servicio `backend` (`services/Dockerfile`)**:
+  - Imagen: `brasaland-backend:dev` (basada en `python:3.12-slim`, usuario `appuser:appuser`).
+  - Puerto `8000`: FastAPI Backend (`services/api`).
+  - Gestor de dependencias: `uv` oficial. Virtualenv aislado en `/opt/venv` para que el bind mount `./services:/app` no sobrescriba ni contamine las librerías instaladas.
+  - Healthcheck HTTP integrado: `curl -f http://localhost:8000/health || exit 1`.
+  - Preservación íntegra de TinyDB: `SUPPLIERS_DB_PATH=/app/api/data/suppliers.json`.
+- **Red Docker**:
+  - `brasaland-dev` (bridge), permitiendo resolución interna de nombres de servicio (`http://backend:8000`).
+
+## 2. Configuración y Proxies
+
+- **Proxy Rewrite en Backoffice (`uis/backoffice/next.config.ts`)**:
+  - Configurado para admitir la variable `INTERNAL_API_URL`, permitiendo que el navegador llame a `/api/*` en el mismo origen (`localhost:3001`) y el servidor Next.js lo reenvíe hacia el backend dentro de la red Docker (`http://backend:8000`).
+- **Variables de Entorno (`.env.example`)**:
+  - Se preservaron intactas todas las variables de PostgreSQL, MongoDB, pgAdmin y backend existentes, agregando únicamente las requeridas para Docker (`DATABASE_URL`, `SUPPLIERS_DB_PATH`, `INTERNAL_API_URL`).
+
+## 3. Evidencias de Validación Automatizada y Operativa
+
+- **Construcción de Imágenes Docker**:
+  - `docker build -f uis/Dockerfile -t brasaland-interfaces:dev uis`
+  - `docker build -f services/Dockerfile -t brasaland-backend:dev services`
+  - Contexto de `uis`: Reducido a <10 KB mediante exclusiones recursivas en `uis/.dockerignore` (`**/node_modules`, `**/.next`).
+- **Estado de Contenedores (`docker compose ps`)**:
+  - `interfaces`: Up (puertos 3000 y 3001).
+  - `backend`: Up (healthy, puerto 8000).
+- **Endpoints Verificados**:
+  - `http://localhost:8000/health` $\to$ `{"status":"ok"}` (200)
+  - `http://localhost:8000/docs` $\to$ 200 OK
+  - `http://localhost:3000` $\to$ 200 OK
+  - `http://localhost:3001` $\to$ 200 OK
+  - `http://localhost:3001/api/health` (vía rewrite Next.js) $\to$ `{"status":"ok"}` (200)
+- **Comunicación Inter-Contenedor**:
+  - `docker compose exec -T interfaces wget -qO- http://backend:8000/health` $\to$ `{"status":"ok"}`
+- **Hot Reload Verificado en Vivo**:
+  - Website (`uis/website/src/app/page.tsx`): Recompilación inmediata en 409ms detectada en logs.
+  - Backoffice (`uis/backoffice/src/app/page.tsx`): Recompilación inmediata en 654ms detectada en logs.
+  - Backend (`services/api/app/main.py`): StatReload de Uvicorn detectado y reiniciado limpiamente.
+  - Working tree Git completamente limpio tras revertir ediciones de prueba.
+- **Suites de Pruebas**:
+  - Frontend: `npm run test:uis` $\to$ 46/46 pruebas pasando (42 en backoffice, 4 en website), incluyendo `next-config-rewrites.test.ts`.
+  - Backend: `TEST_DATABASE_URL=... uv run --directory services/api pytest` $\to$ 65/65 pruebas pasando.
+  - Builds: Website (5/5 rutas estáticas) y Backoffice (10/10 rutas estáticas) compilan limpiamente.
+
+## 4. Flujo de Operación
+- **Arranque**: `docker compose up --build`
+- **Parada segura**: `docker compose down` (no destructivo, protege datos)
+
+---
+
+# Walkthrough: Remediación de Almacenamiento Crítico en GitHub Codespaces (<1% Libre)
+
+Se identificó y resolvió la saturación de almacenamiento en el entorno de GitHub Codespaces (alerta de sistema `<1% disk space remaining`), recuperando **~12.5 GB de almacenamiento libre** (reduciendo la ocupación de 100% a 59%) sin modificar ninguna Pull Request, rama de Git ni datos persistidos de bases de datos.
+
+## 1. Diagnóstico y Hallazgos
+- **Espacio Inicial**: 32 GB totales, 30 GB en uso (100%), solo 293 MB disponibles.
+- **Causas Principales**:
+  1. Docker BuildKit/Buildx: 3.54 GB de capas de compilación en caché.
+  2. Volúmenes anónimos huérfanos de Docker: 3.78 GB acumulados en 12 volúmenes tras ejecuciones previas de contenedores.
+  3. Contenedores y capas huérfanas: Contenedor `amazing_keller` e imagen no utilizada `brasaland-interfaces:dev` (3.65 GB).
+  4. Cachés globales de usuario: Playwright Chromium (`656 MB`), NPM (`~1.0 GB`), uv y pip (`~180 MB`).
+  5. Monorepo: `uis/*/.next` (~334 MB) y dependencias redundantes duplicadas en subdirectorios `uis/*/node_modules` en lugar de utilizar el árbol hoisted de npm workspaces.
+
+## 2. Acciones de Remediación Ejecutadas
+- **Docker**:
+  - `docker container prune -f` (eliminado contenedor huérfano `amazing_keller`).
+  - `docker volume prune -f` (recuperados 3.778 GB de volúmenes dangling; volúmenes con datos de MongoDB y Postgres intactos).
+  - `docker builder prune -a -f` (recuperados 3.542 GB de capas de construcción intermedias).
+  - `docker rmi brasaland-interfaces:dev` (recuperados 3.65 GB de imagen local huérfana).
+- **Cachés de Sistema / Entorno**:
+  - `npm cache clean --force`
+  - `rm -rf /home/codespace/.cache/ms-playwright`
+  - `uv cache clean && pip cache purge`
+  - `sudo apt-get clean`
+- **Monorepo**:
+  - `rm -rf uis/*/.next`
+  - Deduplicación limpia de `node_modules` en sub-apps de `uis/*` y ejecución de `npm install` en la raíz para vincular limpiamente las dependencias en npm workspaces.
+  - Limpieza de `.pytest_cache` y archivos temporales de Python.
+- **Automatización Preventiva**:
+  - Creación del script ejecutable `scripts/clean-env.sh` para mantenimiento preventivo en un solo paso.
+
+## 3. Garantía y Protección de Datos
+- **Pull Requests y Git**: Cero commits alterados, ramas intactas, archivos rastreados protegidos.
+- **Bases de Datos**: Contenedores `brasaland-postgres` y `brasaland-mongo` en ejecución y saludables; volúmenes `brasaland_brasaland_pgdata` y `brasaland_brasaland_mongodata` 100% conservados.
+- **Archivos de Configuración**: Todos los archivos `.env`, `.env.example` y TinyDB (`suppliers.json`) preservados sin alteración.
+
+## 4. Evidencias de Validación
+- **Almacenamiento Final (`df -h /workspaces`)**:
+  - Tamaño: 32 GB | Usado: 18 GB (59%) | **Disponible: 13 GB (~41% libre)**.
+- **Frontend Tests (`npm run test:uis`)**:
+  - 46/46 pruebas pasando al 100% (42 en Backoffice, 4 en Website).
+- **Typecheck (`npm run typecheck:uis`)**:
+  - 0 errores TypeScript en `website`, `backoffice`, `loyalty-app` y `operations-ui`.
+- **Ejecución del Script Preventivo (`./scripts/clean-env.sh`)**:
+  - Código de salida 0, confirmando reporte de 13 GB libres.
+
+---
+
+# Walkthrough: Corrección de Autenticación Previa en Backoffice
+
+Se corrigió el flujo inicial del backoffice a partir del feedback de revisión: la consola no debe mostrar información operativa antes de verificar autenticación. La aplicación ahora arranca en login y todas las vistas internas quedan bajo rutas protegidas.
+
+## 1. Cambios Implementados
+- **Entrada pública segura**: `uis/backoffice/src/app/page.tsx` dejó de renderizar el dashboard operativo y ahora redirige directamente a `/login`.
+- **Resumen interno protegido**: El contenido anterior del dashboard se movió a `uis/backoffice/src/app/backoffice/overview/page.tsx`, envuelto por `AuthGuard` antes de mostrar `BackofficeHeader`, KPIs, ventas, validaciones o alertas.
+- **Incidencias protegidas**: El analizador se movió a `uis/backoffice/src/app/backoffice/incidents/page.tsx`, también bajo `AuthGuard`. La ruta pública `/incidents` queda solo como redirección a `/backoffice/incidents`.
+- **Inventario sin destello parcial**: Las páginas `/backoffice/inventory/*` ahora envuelven header y contenido completo dentro de `AuthGuard`, evitando mostrar navegación interna a usuarios anónimos.
+- **Navegación interna coherente**: `BackofficeHeader` enlaza a `/backoffice/overview`, `/backoffice/inventory/products` y `/backoffice/incidents`.
+- **Login alineado al flujo**: Tras iniciar sesión correctamente, `uis/backoffice/src/app/login/page.tsx` redirige al resumen protegido. Si el usuario ya tiene sesión activa, se lo envía a `/backoffice/overview`.
+- **Lint de filtros corregido**: Se ajustaron `ProductsTable` y `OrdersLedger` para evitar `setState` síncrono dentro de `useEffect`, manteniendo tests y lint limpios.
+
+## 2. Cobertura Agregada
+- Nueva suite `uis/backoffice/src/test/backoffice-route-protection.test.tsx`:
+  - Verifica que `/` redirige a `/login` sin datos operativos.
+  - Verifica que `/incidents` redirige a `/backoffice/incidents` sin renderizar el analizador.
+  - Verifica que usuarios anónimos no ven Resumen, Incidencias, header interno ni navegación de Inventario.
+  - Verifica redirección de usuarios autenticados desde login al resumen.
+  - Verifica redirección post-login a `/backoffice/overview`.
+- `uis/backoffice/src/test/backoffice-header.test.tsx` ahora valida los `href` internos protegidos.
+
+## 3. Evidencias de Validación
+- `npm --prefix uis/backoffice run test` → 10 suites y 49 pruebas pasando.
+- `npm --prefix uis/backoffice run typecheck` → 0 errores.
+- `npm --prefix uis/backoffice run lint` → 0 errores.
+- `npm --prefix uis/backoffice run build` → build exitoso; rutas generadas incluyen `/`, `/login`, `/incidents` como redirección y las rutas protegidas bajo `/backoffice/*`.
+
+## 4. Nota Operativa
+El primer intento de build falló por permisos de un artefacto local `.next` propiedad de `root:root`. Se apartó ese directorio generado y Next.js creó un nuevo `.next` con permisos del usuario actual. No se modificaron datos ni archivos protegidos de infraestructura.
+
+---
+
+# Walkthrough: Auditoría de Rendimiento Frontend
+
+Se completó el ciclo medir → analizar → corregir → volver a medir sobre los dos
+frontends de Brasaland. Las mediciones se ejecutaron contra builds de producción
+con Lighthouse 13.4.1 y Chrome for Testing 153, usando una sesión autenticada
+temporal para el backoffice.
+
+## 1. Línea base y causa raíz
+
+- Se auditó Website `/` y `/careers`, más Backoffice
+  `/backoffice/overview`, en móvil y escritorio.
+- El principal cuello de botella fue el backoffice móvil: Performance 73, LCP
+  2,4 s, TBT 1.310 ms, 2,9 s de trabajo de hilo principal y React #418.
+- La causa fue un primer estado distinto de `AuthProvider`: SSR renderizaba como
+  no cargando y el navegador decidía sincrónicamente desde `localStorage` que sí
+  estaba cargando. React descartaba el HTML y reconstruía el árbol.
+- En Website se identificaron el hero como fondo CSS no descubrible, imágenes
+  remotas sin variantes responsivas, contraste 3,65:1 y saltos de encabezados.
+- El inventario repetía el selector de restaurante en productos y órdenes.
+
+## 2. Cambios implementados
+
+- Estado inicial `loading=true` común a servidor y cliente; autenticación
+  resuelta dentro del efecto posterior al montaje.
+- Pruebas para SSR, sesión anónima y sesión autenticada.
+- Hero, tarjetas de menú y collage migrados a `next/image`; imágenes WebP
+  servidas desde `uis/website/public/images`, `sizes` responsivos y hero eager
+  con `fetchPriority="high"`.
+- Token específico de CTA para texto blanco, color de botón explícito y niveles
+  de encabezado semánticos en Website y Backoffice.
+- `RestaurantSelect` reutilizable integrado en `ProductsTable` y
+  `OrdersLedger`, con pruebas de opciones y eventos.
+
+## 3. Iteración basada en evidencia
+
+La primera versión de imágenes usaba el optimizador de Next.js sobre URLs
+remotas. Una corrida fría produjo LCP 4,3 s y Performance 64 porque la
+transformación esperaba la descarga remota. Se sustituyeron las fuentes por WebP
+locales. La verificación de Careers también descubrió texto negro heredado en un
+botón sobre el nuevo rojo; se declaró texto blanco explícito y se repitió la
+matriz. Ambas regresiones quedaron resueltas antes de aceptar los resultados.
+
+## 4. Resultado final
+
+| Escenario | Performance | Accessibility | Best Practices | SEO |
+| --- | ---: | ---: | ---: | ---: |
+| Website `/` móvil | 98 | 100 | 100 | 100 |
+| Website `/` escritorio | 100 | 100 | 100 | 100 |
+| Website `/careers` móvil | 100 | 100 | 100 | 100 |
+| Website `/careers` escritorio | 100 | 100 | 100 | 100 |
+| Backoffice overview móvil | 85 | 100 | 100 | 100 |
+| Backoffice overview escritorio | 100 | 100 | 100 | 100 |
+
+El backoffice móvil redujo LCP de 2,4 s a 1,5 s y TBT de 1.310 ms a
+580 ms; React #418 desapareció. Website Home móvil terminó con LCP 1,1 s, TBT
+160 ms y CLS 0.
+
+## 5. Evidencia y validación
+
+- `AUDIT.md`: método, línea base, causa raíz y análisis de reutilización.
+- `REPORT.md`: comparación antes/después, correcciones, riesgos y siguiente
+  ciclo.
+- `audit/before/` y `audit/after/`: seis HTML, seis JSON y seis capturas por
+  etapa; se conserva además una corrida de calentamiento para transparentar la
+  variabilidad.
+- `npm run test:uis`: 58/58 pruebas verdes (54 Backoffice + 4 Website).
+- `npm run typecheck:uis`: cuatro workspaces sin errores.
+- Lint de Website y Backoffice: sin errores.
+- Builds de producción: Website 5 páginas y Backoffice 12 páginas generadas.
+- Navegación final: Home, Careers y overview autenticado cargan sin errores de
+  página ni overlay de Next.js.
+
+## 6. Riesgo residual
+
+Lighthouse es laboratorio; INP requiere interacciones reales y no se deriva de
+una navegación. Se usó TBT como señal. El siguiente ciclo debe instrumentar Web
+Vitals de campo y perfilar las cinco tareas largas restantes del backoffice
+móvil, sin convertir esta auditoría en una reestructuración arquitectónica.
+
+---
+
+# Walkthrough: Implementación de contratos de serialización
+
+## Resolución de conflictos al integrar `main`
+
+- Se conservaron los contratos y pruebas de serialización/seguridad junto con
+  las rutas de recuperación de contraseña y los dominios de incidencias que ya
+  estaban integrados en `main`.
+- `/health` conserva su `response_model=HealthResponse`; el cliente de auth
+  conserva sus métodos y tipos de recuperación/cambio de contraseña. El
+  registro público no admite `role`.
+- Se conservaron tanto la captura y sincronización del usuario de telemetría
+  (`telemetryService.setUserContext`) como la integración del receptor
+  (`telemetry_router`) en FastAPI.
+- Se quitaron los marcadores de conflicto en los dos documentos.
+- **Verificación de este merge:** API 104 passed, 5 skipped. El test suite del
+  backoffice se ejecutó, pero no quedó verde: no resuelve `@repo/shared-types`
+  bajo la instalación local y reporta dos fallos en las pruebas de perfil por
+  fixtures incompatibles con el contrato `{ user, profile }`. El typecheck
+  reporta errores en esos contratos, alias compartido y telemetría; lint no se
+  completó por el encadenamiento después del fallo de TypeScript. Debe revisarse
+  antes de declarar la integración validada.
+
+## Estado
+
+Implementación aplicada en la rama `feature/serialization-audit`. Este hito no
+reescribe el backend ni modifica `services/backend`; trabaja únicamente sobre
+el backend activo `services/api` y su consumidor de autenticación en el
+backoffice.
+
+## Cambios
+
+- `GET /health` ahora tiene el esquema explícito `HealthResponse`.
+- Las respuestas de `DELETE /users/{user_id}` y
+  `DELETE /api/suppliers/{supplier_id}` usan `DeleteResponse`, manteniendo el
+  código `200` y el cuerpo `{detail}` por compatibilidad.
+- Se alineó `AuthMeResponse` de TypeScript con el contrato backend anidado.
+- Se añadieron pruebas de contratos, OpenAPI y ausencia de contraseñas/hashes.
+- Se creó `docs/serialization-audit.md` con el inventario, diagnóstico inicial,
+  estado final, contratos CSV, riesgos y plan restante.
+
+## Seguridad y compatibilidad
+
+Las respuestas siguen sin incluir `password` ni `hashed_password`. El
+`access_token` de login se conserva porque forma parte del contrato del cliente.
+La exportación de incidencias continúa siendo CSV con `Content-Disposition`; no
+se transformó a JSON. `user_uuid` permanece en las órdenes porque el ledger lo
+usa para trazabilidad.
+
+## Validaciones pendientes
+
+En el momento de documentar este walkthrough todavía queda por ejecutar:
+
+```bash
+uv run --directory services/api pytest
+npm --prefix uis/backoffice run test
+npm --prefix uis/backoffice run typecheck
+npm --prefix uis/backoffice run lint
+```
+
+También debe verificarse manualmente `/docs` con al menos tres endpoints.
+
+# Walkthrough: Integración del Gestor de Incidentes (PR #10)
+
+Se resolvió la divergencia de la rama del gestor contra `main` conservando el
+análisis CSV existente y sumando el flujo operativo CRUD sin mezclar ambos
+dominios ni sobrescribir autenticación, proveedores o inventario.
+
+## 1. Resolución de conflictos
+
+- Se mantuvo `app.domains.analytics.incidents` para carga, análisis y
+  exportación CSV.
+- Se incorporó `app.domains.incidents` para crear, listar, consultar, resumir y
+  cambiar el estado de incidencias autenticadas.
+- `app/main.py` registra el router de análisis antes del router CRUD para que
+  `/analyze` y `/results/export` tengan precedencia sobre la ruta dinámica.
+- El manejador de validación personalizado devuelve 400 únicamente bajo
+  `/api/incidents`; el resto de FastAPI conserva su contrato 422.
+- Se preservaron íntegramente las implementaciones actuales de autenticación,
+  proveedores e inventario provenientes de `main`.
+
+## 2. Correcciones de seguridad e aislamiento
+
+- `IncidentRepository` distingue correctamente una tabla TinyDB vacía de la
+  ausencia de una dependencia inyectada.
+- La base por defecto se abre de forma diferida, evitando crear un JSON local al
+  importar el módulo.
+- La suite usa TinyDB temporal por prueba y elimina `DATABASE_URL` del entorno
+  de test para no contactar una base configurada por el desarrollador.
+- No se integraron `.env`, bases JSON locales, cachés Python, cobertura ni
+  metadatos de paquete presentes en la rama de trabajo.
+
+## 3. Integración frontend
+
+- El paquete `@repo/shared-types` exporta el contrato de incidencias desde su
+  punto de entrada.
+- El cliente web centraliza autenticación Bearer, filtros, altas, consultas,
+  resumen, cambios de estado y análisis CSV a través del proxy de Next.js.
+- El tablero protegido reúne listado, formulario, resumen y analizador; los
+  hooks evitan actualizaciones después del desmontaje y exponen errores de
+  mutación accesibles.
+
+## 4. Evidencias de validación
+
+- `uv run --directory services/api --extra dev pytest -q`: 77 pruebas pasando y
+  5 pruebas PostgreSQL omitidas al no definir `TEST_DATABASE_URL`.
+- `npm --prefix uis/backoffice test`: 65 pruebas pasando en 14 suites.
+- `npm --prefix uis/backoffice run typecheck`: sin errores.
+- `npm --prefix uis/backoffice run lint`: sin errores.
+- `npm --prefix uis/backoffice run build`: compilación exitosa y 16 rutas
+  estáticas generadas.
+
+## 5. Alcance protegido
+
+La integración no modificó ni fusionó las PR #15 y #16. Los archivos de
+infraestructura y la memoria arquitectónica protegida se conservaron desde
+`main`.
+
+---
+
+# Walkthrough: Integración de Recuperación de Contraseña (PR #9)
+
+Se integró el flujo de recuperación sobre la autenticación vigente de `main`,
+sin reemplazar los dominios ya fusionados desde otras ramas.
+
+## 1. Resolución de conflictos
+
+- Se conservaron desde `main` el gestor de incidentes, proveedor, inventario,
+  rutas protegidas, tipos compartidos y configuración de pruebas.
+- Se incorporaron únicamente el servicio de correo, endpoints, esquemas,
+  persistencia de tokens, pantallas y métodos del cliente relacionados con
+  contraseñas.
+- Los archivos de datos locales, `.env`, bytecode, cobertura y metadatos de
+  instalación de la rama se excluyeron del resultado.
+
+## 2. Seguridad y privacidad
+
+- Los tokens de recuperación están firmados con una clave distinta, contienen
+  propósito y `jti`, expiran y sólo pueden consumirse una vez.
+- Una nueva solicitud invalida los tokens activos anteriores del usuario.
+- La respuesta de `/auth/forgot-password` no indica si el correo existe ni si
+  el proveedor logró entregar el mensaje.
+- El enlace de depuración requiere `AUTH_DEBUG_RESET_LINKS=true`; el valor por
+  defecto es seguro incluso cuando `FRONTEND_URL` apunta a localhost.
+- El cambio autenticado comprueba la contraseña actual, rechaza reutilización y
+  aplica la política de contraseña nueva.
+
+## 3. Frontend
+
+- Login enlaza a `/forgot-password` y perfil a
+  `/account/change-password`.
+- `/reset-password` consume el token del query string, valida confirmación y
+  fortaleza, e informa estados de error y éxito de forma accesible.
+- El cliente usa `getBaseUrl()` en los tres métodos nuevos, manteniendo el proxy
+  `/api` en navegador y la URL directa durante SSR/pruebas.
+
+## 4. Evidencias
+
+- `uv run --directory services/api --extra dev pytest -q`: 84 pruebas pasando y
+  5 integraciones PostgreSQL omitidas sin `TEST_DATABASE_URL`.
+- `npm --prefix uis/backoffice test`: 67 pruebas pasando en 14 suites.
+- Typecheck y lint del backoffice: sin errores.
+- Build de producción: 19 rutas generadas, incluidas las tres rutas nuevas.
+
+## 5. Contexto histórico
+
+Las PR #15 y #16 permanecieron abiertas e intactas durante toda la
+integración.
+
+---
+
+# Walkthrough: Fase 2 — Captura de Eventos de Telemetría (Backoffice Brasaland)
+
+Se implementó la infraestructura completa de captura y recepción de telemetría de producto y observabilidad en `services/api` y `uis/backoffice`, bajo el contrato estricto aprobado en `docs/telemetry/telemetry-plan.md` y `docs/telemetry/event-schemas.json` (v1.0.0, Zero PII).
+
+## 1. Resumen de Cambios Implementados
+
+### 1.1 Backend FastAPI (`services/api`)
+- **Dominio de Telemetría (`app/domains/telemetry/`)**:
+  - `schemas.py`: Modelado Pydantic V2 de los 32 eventos con `model_config = ConfigDict(extra="forbid")`, uniones discriminadas por `event_type`, envelope canónico (`eventId`, `timestamp`, `sessionId`, `userId`, `event_type`, `entity_action`, `schemaVersion="1.0.0"`, `requestId`, `properties`) y modelo `TelemetryBatch` con validación de límite de lote (máximo 20 eventos).
+  - `router.py`: Endpoint `POST /telemetry/events` que valida el lote recibido, registra información segura de observabilidad (`count` y lista de `event_type` en logs) y devuelve HTTP 200 con `{"received": N}`. Lectura desacoplada de `TELEMETRY_ENDPOINT` desde el entorno.
+  - `__init__.py`: Exportación del router.
+- **Registro en `app/main.py`**: Integración de `app.include_router(telemetry_router)` sin afectar CORS, middlewares ni rutas existentes.
+- **Configuración (`services/api/.env.example`)**: Documentación de `TELEMETRY_ENDPOINT=http://localhost:8000/telemetry/events`.
+- **Suite Pytest (`tests/test_telemetry_stub.py`)**: 13 pruebas unitarias automatizadas cubriendo lotes válidos, lote vacío, rechazo por exceso de límite (>20), campos faltantes en envelope, campos no autorizados (`extra="forbid"`), propiedades fuera de la allowlist, tipos inválidos, ausencia de persistencia en disco o BD y validación de Zero PII en logs.
+
+### 1.2 Frontend Backoffice (`uis/backoffice`)
+- **Tipado Estricto de Contrato (`src/types/telemetry.ts`)**:
+  - Definición de interfaces TypeScript para los 32 eventos y sus propiedades permitidas.
+  - Mapeo inmutable `EVENT_ACTION_MAPPING` y allowlists `EVENT_ALLOWLISTS` para validación defensiva en desarrollo.
+- **Servicio Centralizado (`src/services/telemetry.ts`)**:
+  - Instancia singleton `telemetryService` con método público `track(eventType, properties)`.
+  - Autocompletado del envelope con UUIDs criptográficos, timestamp UTC ISO, sesión en `sessionStorage` (nunca JWT), `userId` seudonimizado y `schemaVersion="1.0.0"`.
+  - Cola en memoria con bufferización y doble disparador: 20 eventos o 10 segundos desde el primer evento pendiente.
+  - Reintentos con retroceso exponencial (backoff) y jitter hasta 3 reintentos conservando el `eventId` original para deduplicación idempotente.
+  - Vaciado confiable en cierre u ocultamiento (`visibilitychange` / `pagehide`) mediante `navigator.sendBeacon` (con Blob `application/json`) y fallback resiliente a `fetch(..., { keepalive: true })`.
+  - Protección estricta contra fallos en SSR (inicialización diferida de APIs del navegador).
+- **Integración Transversal Global**:
+  - `src/components/telemetry/web-vitals.tsx`: Captura de métricas Core Web Vitals (LCP, FID, CLS, INP, TTFB) mediante `useReportWebVitals` de Next.js 16, emitiendo `client_web_vitals_recorded`.
+  - `src/components/telemetry/telemetry-bootstrap.tsx`: Montado en `src/app/layout.tsx` para captura automática de cambios de ruta (`backoffice_page_viewed`) y captura global de excepciones no controladas (`system_exception_captured`).
+  - `src/lib/inventory.ts`: Medición de latencia de red monotónica con `performance.now()`, emitiendo `api_latency_recorded` sin incurrir en recursión sobre el endpoint de telemetría.
+  - `src/lib/auth/context.tsx`: Sincronización automática del `user_uuid` seudonimizado con `telemetryService.setUserContext(user.id)` y limpieza en logout.
+- **Instrumentación de Negocio en Vistas Reales**:
+  - `InboundOrderForm`: Emisión semántica de `inbound_order_created` tras confirmación de creación exitosa.
+  - `OutboundOrderForm`: Emisión semántica de `outbound_order_created` tras éxito, `outbound_insufficient_stock_attempted` tanto en guardia preventiva de cliente (`client_form_guard`) como ante error HTTP 400 (`backend_transaction_lock`), y `form_abandoned` ante abandono con datos sin guardar.
+  - `ProductsTable`: Emisión de `inventory_catalog_viewed` tras carga de productos con conteos de stock bajo y agotados, y `inventory_filter_applied` con debounce de 500 ms al cambiar de local.
+  - `LoginPage`: Emisión de `user_logged_in` tras login exitoso y `user_login_failed` con motivo controlado y contador de intentos ante fallo, con estricto Zero-PII (sin email ni contraseñas).
+- **Configuración (`uis/backoffice/.env.example`)**: Documentación de `NEXT_PUBLIC_TELEMETRY_ENDPOINT=http://localhost:8000/telemetry/events`.
+- **Suite Vitest (`src/test/telemetry-service.test.ts`)**: 11 pruebas unitarias con fake timers cubriendo generación de envelope, batching a 20 eventos, timer de 10s, drenaje tras 2xx, 3 reintentos conservando `eventId`, prevención de flushes concurrentes, `sendBeacon`, fallback a `keepalive: true`, rechazo de propiedades no autorizadas, seguridad SSR y ausencia de recursión ante errores.
+
+## 2. Eventos Instrumentados vs Bloqueados
+
+### 2.1 Eventos Instrumentados en Flujos Reales
+1. `inbound_order_created` (Obligatorio) -> `InboundOrderForm`
+2. `outbound_order_created` (Obligatorio) -> `OutboundOrderForm`
+3. `user_logged_in` (Oportunidad) -> `LoginPage` / `AuthProvider`
+4. `outbound_insufficient_stock_attempted` (Oportunidad) -> `OutboundOrderForm`
+5. `inventory_catalog_viewed` (Oportunidad) -> `ProductsTable`
+6. `inventory_filter_applied` (Oportunidad) -> `ProductsTable`
+7. `user_login_failed` (Oportunidad) -> `LoginPage`
+8. `api_latency_recorded` (Oportunidad) -> `InventoryApiClient.request`
+9. `client_web_vitals_recorded` (Oportunidad) -> `WebVitals` (`useReportWebVitals`)
+10. `system_exception_captured` (Oportunidad) -> `TelemetryBootstrap`
+11. `backoffice_page_viewed` (Oportunidad) -> `TelemetryBootstrap`
+12. `form_abandoned` (Oportunidad) -> `OutboundOrderForm`
+13. `stock_threshold_triggered` (Obligatorio) -> `OutboundOrderForm` al cruzar el mínimo tras una salida exitosa
+
+### 2.2 Eventos Bloqueados por Ausencia de Flujo en el Monorepo
+Los siguientes eventos del catálogo quedan formalmente documentados como bloqueados hasta la implementación de sus módulos respectivos:
+- `stock_threshold_triggered`: El formulario de salida emite el evento al cruzar el mínimo tras una respuesta exitosa; sigue pendiente un productor backend que observe cambios originados fuera del Backoffice.
+- `purchase_order_suggested`, `purchase_order_approved`, `purchase_order_dispatched`, `purchase_order_received`, `purchase_order_rejected`: Requieren la interfaz y módulo de compras/aprovisionamiento (Lucía Fernández / motor IA).
+- `supplier_price_variance_detected`, `consolidated_procurement_report_generated`: Requieren el módulo de conciliación de facturas de proveedores.
+- `daily_sales_recorded`, `pos_order_completed`, `location_zero_sales_alert_triggered`, `pos_heartbeat_recorded`: Pertenecen al software de punto de venta (TPV/POS) y monitoreo de cajas físicas en restaurantes.
+- `session_expired`, `permission_denied`, `password_reset_requested`: Bloqueados a nivel de frontend hasta contar con flujos de caducidad automática de tokens en UI y feedback de 403 en vistas.
+- `db_query_slow_detected`: Métrica de backend/DBA a nivel de engine SQLAlchemy/PostgreSQL.
+- `form_validation_failed`, `external_integration_failed`: Formularios de creación directa de insumos e integraciones externas aún no expuestas en el backoffice.
+
+## 3. Validación y Evidencias de Ejecución
+
+- **Backend Pytest**: `uv run --directory services/api pytest` -> 97 pruebas verdes (13 nuevas en `test_telemetry_stub.py`), 5 integraciones PostgreSQL omitidas sin `TEST_DATABASE_URL`. Cero fallos.
+- **Frontend Vitest**: `npm --prefix uis/backoffice run test` -> 78 pruebas verdes en 15 suites (11 nuevas en `telemetry-service.test.ts`). Cero fallos.
+- **Frontend Typecheck**: `npm --prefix uis/backoffice run typecheck` -> 0 errores TypeScript.
+- **Frontend Lint**: `npm --prefix uis/backoffice run lint` -> 0 errores, 0 advertencias ESLint.
+- **Frontend Build**: `npm --prefix uis/backoffice run build` -> Compilación de producción con Turbopack exitosa (19/19 páginas estáticas prerenderizadas).
+- **Prueba End-to-End**: Simulación de lote con 5 eventos heterogéneos (`backoffice_page_viewed`, `inventory_catalog_viewed`, `inbound_order_created`, `api_latency_recorded`, `client_web_vitals_recorded`) enviada al receptor FastAPI con respuesta HTTP 200 `{"received": 5}` y logs limpios de Zero-PII.
+
+## Contexto histórico
+
+Este walkthrough describe la integración histórica de recuperación de
+contraseña; la auditoría posterior de serialización y el feedback de PR #15
+se documentan en sus respectivas secciones anteriores.
+
+## Feedback docente PR #18: Cobertura de eventos obligatorios
+
+- `OutboundOrderForm` emite `stock_threshold_triggered` después de una salida aceptada cuando el saldo calculado cruza de encima del mínimo a dicho umbral o por debajo.
+- El evento usa la lista de ingredientes para obtener el mínimo y etiqueta como `critical_depletion` los saldos en cero; en los demás cruces usa `minimum_reached`.
+- La emisión está desacoplada mediante `TelemetryService.track()` y no bloquea la operación de inventario.
+- La prueba de regresión cubre un cruce de 25 a 19 con mínimo 20 y comprueba el payload emitido.
+- Validación enfocada: 8 pruebas del formulario pasaron y ESLint de los dos archivos modificados pasó. El typecheck general aún reporta 9 errores en otros archivos de la rama, ninguno en este cambio.
+- No se simulan eventos de compras, conciliación de precios, ventas ni POS: esos flujos y productores aún no existen en el monorepo. Su cobertura sigue pendiente de los módulos correspondientes.
+
+# Walkthrough: RAG y Base de Conocimiento — reinicio limpio
+
+## Alcance y arquitectura
+
+Se implementó desde `f18688e` una base de conocimiento independiente en `data/`,
+consumida por `services/api` como paquete local y expuesta al backoffice. El corpus
+oficial se conserva íntegro en `docs/company-knowledge-base`; el agrupamiento semántico
+produce 14 chunks con metadatos trazables. Qdrant se ejecuta como tercer servicio de
+Compose con almacenamiento persistente y puerto limitado a loopback.
+
+El flujo final es:
+
+1. `python -m data.process.rag` carga, fragmenta, embebe e indexa.
+2. `retrieve` embebe la pregunta y aplica top-k más `min_score`.
+3. `generate_answer` siempre redacta la respuesta, incluso sin contexto recuperado.
+4. `POST /knowledge/query` exige la autenticación existente y devuelve sólo `answer`.
+5. `/backoffice/knowledge` usa el proxy y token existentes, con carga, error y reintento.
+
+## Evidencias ejecutadas el 15 de octubre de 2026
+
+- Línea base reproducida antes de editar: API 129 passed/5 skipped; backoffice 89 passed;
+  tres errores TypeScript; build bloqueado al descargar Google Fonts.
+- Final Python: `185 passed, 5 skipped` (140 API + 45 pipeline). Las cinco omisiones
+  requieren `TEST_DATABASE_URL` para constraints y concurrencia real de inventario.
+- Final backoffice: 100 pruebas en 18 suites. ESLint dirigido de los archivos RAG: PASS.
+- Typecheck final: los mismos tres errores del baseline, ninguno en archivos RAG.
+- Lint global: dos errores preexistentes `no-explicit-any` en telemetría, archivo idéntico
+  a la base. Build: mismo fallo de descarga de Google Fonts.
+- `uv lock --check --offline`: PASS. `git diff --check`: PASS.
+- Compose: configuración válida con valores ficticios sólo para interpolación; Qdrant
+  respondió `healthz check passed`.
+- Imagen backend: build exitoso; `qdrant-client 1.16.2`, 14 chunks, router importable y
+  ningún archivo `.env` dentro de `/app`, `/data` o `/docs`.
+- Qdrant desechable con embeddings simulados: dos ejecuciones de setup conservaron
+  exactamente 14 puntos. Esta prueba sólo acredita contrato e idempotencia.
+- Navegador real con usuario, TinyDB, Qdrant y API aislados, y proveedor HTTP simulado:
+  redirección anónima, login, consulta 200 con única clave pública `answer`, fallo 502
+  sanitizado y reintento exitoso; sin errores de página. Inspección visual aprobada en
+  oscuro, claro y ancho móvil sin overflow horizontal.
+
+## Pendientes reales
+
+El usuario confirmó que consultará con el profesor el panel/API y los modelos habilitados
+por 4Geeks. Hasta entonces quedan pendientes embeddings y generación reales, dimensión,
+calibración de `min_score`, indexación real repetida, Recall@3 >= 13/16, revisión humana
+de fidelidad y una pregunta/respuesta real trazable. No se presentan mocks como métricas.
+
+## Borrador de PR (no publicado)
+
+Título: `feat: rag knowledge base`
+
+> Añade la base de conocimiento de Brasaland desde la base limpia de `main`: cuatro
+> manuales oficiales con chunking semántico, indexación idempotente en Qdrant, pipeline
+> separado de recuperación/generación, endpoint autenticado y pantalla protegida del
+> backoffice. Incluye adaptadores configurables sin proveedor asumido, pruebas offline,
+> 16 casos de retrieval y documentación reproducible. La validación con modelos de
+> estudiante, Recall@3 y fidelidad queda explícitamente pendiente de confirmar el acceso
+> de 4Geeks; no se publica evidencia simulada como resultado real.
+# Walkthrough: Correcciones de revisión del profesor — PR #17 (plan de telemetría)
+
+## Hallazgos atendidos
+- Se restringieron `rejection_reason`, `field_name`, `error_rule`, `exception_class` y `error_code` a allowlists; las mismas enumeraciones están documentadas en el catálogo Markdown y aplicadas en JSON Schema. La política indica descartar eventos con valores no normalizables, sin copiar mensajes de usuario, excepción o proveedor.
+- Se renombró la métrica a `METRIC_AVERAGE_SPEND_PER_COVER` y el campo a `average_spend_per_cover`, haciendo explícito `total_sales_amount / total_covers`; se aclara que no es un ticket promedio por transacción.
+- Se verificó el conteo solicitado: 32 eventos, 10 `mandatory`, 22 `opportunity`; `user_logged_in` está en `opportunity`.
+- Se corrigió la referencia a `authenticate_user()` (inexistente) y la guía ubica ambos eventos de login en `login()`; sólo emite códigos normalizados para fallo, sin email, contraseña ni mensaje de excepción.
+
+## Validación
+- `jsonschema.Draft202012Validator.check_schema`: PASS.
+- 32 ramas `oneOf`; 32 IDs del catálogo coinciden con los 32 IDs del schema.
+- Cada evento tiene el mismo conjunto de propiedades y campos requeridos; conteo 10/22 verificado por script.
+- `git diff --check`: PASS.
+
+## Aislamiento y estado
+El trabajo se hizo en el worktree aislado `/tmp/campivargas-pr17` sobre la rama de PR #17. No se tocaron el checkout, merge ni cambios staged de PR #16.
+
+---
+
+# Walkthrough: Feedback docente PR #29 — Integración real con Google Gemini y validación E2E del RAG
+
+## 1. Contexto y objetivo
+En la revisión de la PR #29 (`feature/rag-knowledge-base-restart`), el profesor indicó:
+> *"Carlos, todavía quedan pendientes partes clave del RAG, como la integración real del modelo y la validación E2E."*
+
+Se completó la integración real extremo a extremo utilizando los endpoints compatibles con OpenAI de **Google Gemini**, la reindexación idempotente de los 4 manuales en Qdrant, la calibración experimental de `RAG_MIN_SCORE`, la evaluación completa de `Recall@3` + fidelidad y la validación E2E multicapa desde el Backoffice autenticado.
+
+## 2. Cambios técnicos aplicados
+- **Soporte de API Key única (`data/process/config.py`)**: dado que Google Gemini provee una única clave para embeddings y generación, `settings()` ahora acepta una sola clave definida en `RAG_EMBEDDING_API_KEY` (o `RAG_API_KEY` / `GEMINI_API_KEY`) y la aplica automáticamente a ambos servicios si no se especifica una segunda clave distinta.
+- **Compatibilidad de respuesta de embeddings Gemini (`data/process/embeddings.py`)**: el endpoint OpenAI-compatible de Gemini omite el campo `"index"` cuando se solicita un solo vector; se ajustó la validación a `item.get("index", 0) != 0` manteniendo el rechazo ante índices distintos de cero.
+- **Separación de `Recall@3` y contexto de generación `k=5` (`data/eval/run.py`)**: cuando se ejecuta con `--generate`, el evaluador ahora recupera `k=5` para `generation_context` (idéntico al pipeline productivo `data.pipelines.rag.query`) y evalúa `Recall@3` sobre `all_retrieved[:3]`. Se añadió además `--delay` para ejecuciones respetuosas con límites de cuota.
+- **Corrección de acceso local a Qdrant (`docker-compose.yml`)**: se eliminó `QDRANT__SERVICE__API_KEY=${QDRANT_API_KEY:-}` en el servicio `qdrant`, ya que pasar una cadena vacía activaba el requisito de API key en Qdrant v1.16.3 y provocaba `401 Unauthorized` en conexiones locales sin clave.
+- **Plantilla no secreta (`services/api/.env.example`)**: actualizada con la configuración real de Gemini (`gemini-embedding-001`, `768`, `float`, `gemini-3.5-flash-lite`, `RAG_MIN_SCORE=0.60`) sin incluir claves secretas.
+
+## 3. Evidencias con modelos reales y validación E2E
+1. **Smoke test (`data.process.smoke`)**:
+   - `{"embedding_dimensions": 768, "answer": "La base de conocimiento no tiene información suficiente para responder a esta pregunta."}`
+2. **Indexación e idempotencia (`data.process.rag` x2 sobre Qdrant v1.16.3)**:
+   - Corrida 1 y Corrida 2: `{"collection": "brasaland_knowledge", "indexed": 14, "removed": 0, "vector_name": "embedding_c874deab2e0c764cb87fb252"}`.
+3. **Calibración y Evaluación (`data/eval/rag-evaluation-01.json`)**:
+   - Rango de similitud coseno en las 16 preguntas del corpus: `0.6170` (`in-06`) a `0.7751` (`in-13`).
+   - Máximo fuera del corpus en el set de prueba: `0.5378` (`out-01`) y `0.5637` (`out-02`).
+   - Con `RAG_MIN_SCORE=0.60`: **`Recall@3 = 16/16 (100.0%)`** (objetivo $\ge 13/16$).
+   - **Revisión humana de fidelidad (`19/19` aprobados)**: documentada caso por caso en `docs/rag/rag-evaluation-report.md` (16 en corpus conservando COP/USD, condiciones y advertencias de alérgenos/BBQ; 2 abstenciones limpias fuera de corpus; 1 rechazo de prompt injection hostil en contexto).
+4. **Recorrido E2E multicapa (`Backoffice :3001 → Proxy /api/knowledge/query → FastAPI :8000 → Qdrant :6333 → Gemini`)**:
+   - Registro y login real obteniendo JWT Bearer, seguido de consultas vía proxy de Next.js con respuestas `HTTP 200 OK` y payload público `{ "answer": "..." }` para lealtad, alérgenos de Costilla BBQ y abstención fuera de alcance (ventas de ayer en Miami).
+5. **Suites de regresión**:
+   - Python: `191 passed, 5 skipped` (`49` en `tests/pipelines/test_rag.py` + `142` en `services/api/tests`).
+   - Backoffice Vitest: `107 passed` en 18 suites.
+
+---
+
+# Walkthrough: Agente de Soporte con LangGraph — Parte 1: Migración y Flujo del Agente
+
+## 1. Alcance y arquitectura implementada
+Partiendo de `main` actualizado (`1a34b24707f6f7cc1ebece228ab59a12d0bb4f4a`, con la PR #29 ya integrada), se implementó en la rama `feature/langgraph-agent-base` la **Parte 1 del Agente de Soporte con LangGraph** dentro del backend activo (`services/api/app/domains/agent/`), manteniendo intactos los módulos de `data/process/`, `data/pipelines/rag.py` y el endpoint `POST /knowledge/query`.
+
+### Componentes creados y modificados
+1. **Estado mínimo y validación (`services/api/app/domains/agent/state.py`)**:
+   - `AgentState(TypedDict, total=False)` con `run_id`, `question`, `retrieved_context`, `answer`, `route` y `error_code`.
+   - `validate_agent_state()` verifica tipos e invariantes en cada transición y prohíbe historiales completos (`messages`, `history`), credenciales (`api_key`, `token`, `authorization`) y clientes HTTP/almacén (`client`, `store`).
+2. **Grafo compilado, nodos y aristas condicionales (`services/api/app/domains/agent/graph.py`)**:
+   - Nodos con responsabilidad única:
+     - `receive_question`: limpia y valida longitud (`1..2000`).
+     - `reject_invalid_question`: ruta condicional (`route == "empty_question"`) hacia `END` sin consultar Qdrant ni el LLM.
+     - `retrieve_context`: importa y llama directamente a `retrieve()` de `data.pipelines.rag`.
+     - `generate_grounded_answer`: ruta condicional (`route == "grounded"`, $\ge 1$ chunk) que llama a `generate_answer(question, state["retrieved_context"])`.
+     - `abstain_without_evidence`: ruta condicional (`route == "no_evidence"`, $0$ chunks sobre `RAG_MIN_SCORE=0.60`) que garantiza una abstención honesta sin inventar datos.
+   - Compilación explícita (`COMPILED_AGENT_GRAPH = build_agent_graph(checkpointer=DEFAULT_CHECKPOINTER)`) usando `InMemorySaver` de `langgraph.checkpoint.memory`. En ningún nodo se invoca `rag.query()`.
+3. **Checkpointing y Traces consultables (`services/api/app/domains/agent/traces.py`)**:
+   - Cada corrida recibe un `run_id` / `thread_id` propio y persiste un archivo JSON consultable en `services/api/data/agent_traces/<run_id>.json` (o `AGENT_TRACES_DIR`).
+   - Funciones `get_run_state(thread_id)` y `get_run_checkpoints(thread_id)` para inspeccionar el estado y las transiciones (`checkpoint_id`, `step`, `source`, `next`).
+   - Corrida real contra Qdrant (`127.0.0.1:6333`) + Google Gemini (`gemini-embedding-001` y `gemini-3.5-flash-lite`) exportada en `data/eval/langgraph-agent-trace-01.json`.
+4. **Endpoint autenticado (`services/api/app/domains/agent/router.py` y `services/api/app/main.py`)**:
+   - `POST /agent/query` autenticado con `Depends(get_current_user)`, conviviendo con `POST /knowledge/query`, devolviendo `{"answer": "..."}` y sanitizando cualquier error interno (422/502/503/500).
+5. **Evals y pruebas (`tests/pipelines/test_agent_evals.py`, `tests/pipelines/fixtures/agent_traces.json`, `services/api/tests/test_agent_api.py`)**:
+   - **Eval 1 (`test_eval_01_nominal_flow_and_node_order_from_saved_traces`)**: valida en fixtures y en el trace real exportado el orden `["receive_question", "retrieve_context", "generate_grounded_answer"]` y sus checkpoints.
+   - **Eval 2 (`test_eval_02_conditional_alternative_routes_from_saved_traces`)**: valida las rutas condicionales alternativas (`reject_invalid_question` sin tocar Qdrant y `abstain_without_evidence` ante contexto vacío).
+   - **Eval 3 (`test_eval_03_brasaland_grounding_on_saved_and_real_traces`)**: valida el anclaje tanto en `retrieved_context` como en `answer` para políticas reales de Brasaland (Nivel Oro `50+ puntos` y `15%` de descuento permanente en `loyalty-program`; `Costilla BBQ`, `soya`, `sin gluten` y `contaminación cruzada` en `menu-allergens`).
+
+## 2. Evidencias de validación ejecutadas
+- `uv lock --project services/api --check`: PASS (`80 packages`).
+- `uv run --project services/api --extra dev python -m pytest tests/pipelines/test_rag.py tests/pipelines/test_agent_evals.py -v`: **`67 passed`** (`49` tests RAG existentes + `18` evals y pruebas estructurales de LangGraph).
+- `uv run --directory services/api --extra dev pytest -q -rs`: **`156 passed, 5 skipped`** (`14` pruebas nuevas en `test_agent_api.py`).
+- `npm --prefix uis/backoffice run test`: **`107 passed`** en 18 suites.
+- `git diff --check`: limpio.
+
 ## RFP Intake — Parte 1 de 3 (feature/rfp-intake)
 
 - Rama: `feature/rfp-intake`, base `origin/main` (`a1fe693`).
@@ -1198,3 +2043,83 @@ Partiendo de `main` actualizado (`1a34b24707f6f7cc1ebece228ab59a12d0bb4f4a`, con
 - Pruebas: `services/api` 160 passed, 5 skipped; `test_rfp_intake.py` 4 passed; typecheck backoffice solo errores baseline preexistentes (auth context id, telemetry mock).
 - Bloqueos: falta BRIEFING oficial de RFPs y los 3 PDFs; clasificador, descomposición por departamento, worker y synthesizer quedan bloqueados (RfpBlockedError) hasta disponer de criterios/departamentos/contrato oficiales. No se inventaron departamentos ni criterios.
 - Handoff: tabla `rfp_handoff` preparada; payload disponible cuando el pipeline alcance `analisis_completo` (actualmente bloqueado por falta de BRIEFING).
+---
+
+# Walkthrough: Servidor MCP — Conectando tu Agente con las Herramientas de la Empresa
+
+## 1. Alcance y arquitectura implementada
+Rama de trabajo: `feature/mcp-oauth-tools`, creada sobre `feature/langgraph-external-tools` (PR #31, HEAD `95fc772`), para disponer del código de la Parte 2 del agente (herramienta de incidencias) que este hito migra. No se fusionó ni modificó la PR #31.
+
+### Servidor MCP (`mcps/brasaland-mcp/`)
+- **Transporte**: Streamable HTTP (FastMCP `stateless_http=True` montado en Starlette). Justificado por clientes remotos, OAuth (RFC 9728/8414) y compatibilidad con MCP Playground y `langchain-mcp-adapters`.
+- **OAuth con `mcpauth`** (resource server, sin la auth integrada de FastMCP): `MCPAuth(protected_resources=[...])`, `fetch_server_config`, `bearer_auth_middleware('jwt', audience=resource_id, resource=resource_id)` y `resource_metadata_router()`. Verifica firma (JWKS), issuer, audience, expiración y scopes. Sin token válido: 401 con `WWW-Authenticate` para `initialize`/`tools/list`/`tools/call`. La metadata OAuth es pública; el discovery de tools no.
+- **Scopes por operación** (mínimo privilegio): `incidents:read`, `incidents:write`, `inventory:read`. Enforce por tool con `MCPAuthBearerAuthException(MISSING_REQUIRED_SCOPES)` → 403 distinguible del 401.
+- **Herramientas reales** (llaman a `services/api` vía `httpx`, timeout 5 s, URL por env `BRASALAND_API_URL`, sin datos hardcodeados):
+  - Incidencias: `get_incident`, `list_incidents`, `create_incident`, `update_incident_status` (exclusivamente `PATCH /api/incidents/{id}/status`; transiciones del backend, sin PATCH genérico).
+  - Inventario: `list_inventory_products`, `get_inventory_product` (sólo lectura; `local_id` obligatorio y distinto del `branch` de incidencias). Escritura rechazada en tres capas: sin tool de escritura, inputs tipados estrictos, y política local `_check_policy` que bloquea no-GET sobre `/inventory/*` antes de red (`write_not_supported`).
+- **Auditoría**: una línea JSON por invocación (`correlation_id`, `client_id`, `subject`, `tool`, `status`, `duration_ms`) en el logger `brasaland_mcp.audit`, sin tokens ni contenido sensible.
+- **Configuración**: `Settings` fail-fast desde entorno (ver `.env.example`); issuer, resource id, backend URL y credenciales de servicio son obligatorios y no tienen defaults inventados. Puerto único `9100` (sólo el MCP se publica; el backend no).
+
+### Migración del agente (`services/api/app/domains/agent/`)
+- Nuevo `mcp_client.py` con `langchain-mcp-adapters` (`MultiServerMCPClient`, `transport="streamable_http"`), modelos `IncidentToolInput`/`IncidentToolResult`/`IncidentToolStatus`/`IncidentRecord` trasladados aquí, y `query_incidents_via_mcp` (síncrona, con timeout y mapeo de errores). Token OAuth por client credentials (`incidents:read` únicamente; sin ampliar permisos ni activar mutaciones por lenguaje natural).
+- `graph.py`: el nodo `query_incidents` invoca `query_incidents_via_mcp` en lugar de HTTP directo; `execute_agent_query` ya no recibe `incident_token`.
+- `router.py`: `POST /agent/query` sigue protegido con `Depends(get_current_user)`; se eliminó la dependencia de `oauth2_scheme` para la llamada a incidencias.
+- `incident_tool.py` **retirado**: no queda ningún camino directo al Incidents Manager. Si el MCP falla, el agente responde `unavailable`/`timeout` de forma explícita (sin consultar RAG para aparentar confirmación).
+- Se conservan: rutas RAG/incidencias/mixtas/aclaraciones, contrato autenticado, checkpoints (`InMemorySaver`), trazas sanitizadas, fallbacks, RAG y configuración de modelos.
+
+### Dependencias
+- `mcps/brasaland-mcp`: `mcp>=1.24,<2`, `mcpauth==0.2.0b1`, `httpx`, `pydantic`, `uvicorn` (+ `pytest` en dev). `uv.lock` propio.
+- `services/api`: `langchain-mcp-adapters` añadido con `uv add` (actualiza `uv.lock`).
+
+## 2. Evidencias de validación ejecutadas
+- Servidor MCP: `uv run pytest` → **54 passed** (config, backend/policy, auth/transport, incidencias, inventario). Incluye validación real de firma/issuer/audience/expiración/scopes con un proveedor OIDC mock local (JWKS real, tokens RS256 reales) y verificación de que los intentos de escritura sobre inventario nunca alcanzan el backend.
+- Agente: `uv run --project services/api --extra dev python -m pytest tests/pipelines/test_agent_evals.py services/api/tests/test_agent_api.py` → **45 passed**. Suite completa `services/api/tests` → **156 passed, 5 skipped** (PostgreSQL sin `TEST_DATABASE_URL`). `tests/pipelines/` → **80 passed**.
+- `git diff --check`: limpio.
+
+## 3. Validación pendiente (no declarada como completada)
+- **MCP Playground** con la URL HTTPS pública reenviada del puerto 9100 del Codespace (no localhost): pendiente de ejecución real con un proveedor OAuth configurado por el usuario. El servidor ya publica metadata OAuth y rechaza sin token; falta adjuntar capturas/evidencia sanitizada.
+- **Proveedor OAuth real** para boundary 1: la implementación es env-driven (`MCP_AUTH_ISSUER`); falta que el usuario cree el tenant/proveedor y los clients/scopes. No se inventó configuración.
+- **Cuenta de servicio del MCP en Brasaland**: crear el usuario `mcp-service` en el backend (vía flujo de registro/admin) y configurar `MCP_BACKEND_SERVICE_EMAIL/PASSWORD`.
+- **Agente en vivo**: configurar `AGENT_MCP_SERVER_URL/TOKEN_URL/CLIENT_ID/CLIENT_SECRET` (client credentials con scope `incidents:read`) y ejecutar `POST /agent/query` contra el MCP real para adjuntar trazas sanitizadas.
+
+## 4. Decisiones aplicadas (según plan aprobado)
+- Alcance `mcps/` aprobado explícitamente (AGENTS.md protege esta zona).
+- Base apilada sobre la rama de la PR #31 (sin merge ni push).
+- OAuth env-driven + mocks ahora; proveedor real pendiente de datos del usuario.
+- `incident_tool.py` retirado (no deprecado).
+- Scope único `incidents:write` para crear + cambiar estado.
+- Frontera MCP→backend por cuenta de servicio dedicada (sin token exchange en el backend; ampliar alcance sólo si se decide después).
+
+## MEM-092 — Memoria y Auto-mejora de Agentes (Parte 1) — walkthrough local
+
+### Cambios principales
+- `services/api/app/domains/agent/memory.py`: repositorio y servicio de memoria (TinyDB), política, propuestas, resolución, consolidación, auditoría, limpieza, clasificación.
+- `services/api/app/domains/agent/state.py`: nuevas claves permitidas y validaciones.
+- `services/api/app/domains/agent/graph.py`: integración de memoria, `conversation_id`, propuestas, ack de confirmación.
+- `services/api/app/domains/agent/router.py`: extensión de contrato HTTP y usuario autenticado.
+- `services/api/tests/conftest.py`: aislamiento de tablas de memoria.
+- `services/api/tests/test_agent_memory.py`: 11 pruebas aisladas.
+- `data/pipelines/rag.py`: `generate_answer_with_memory`.
+- `services/api/.env.example`, `pyproject.toml` (pythonpath).
+- `docs/agent/agent-memory-part1.md`, `memory-bank/progress.md`.
+
+### Verificación
+- `uv run python -m pytest` (services/api): `170 passed, 5 skipped`
+- `uv run python -m pytest tests/test_agent_memory.py`: `11 passed`
+- `uv run python -m compileall app/domains/agent`: OK
+
+### Evidencia simulada
+- Ciclo 1 (aprobado): propuesta → consolidación → memoria recuperada en turno posterior.
+- Ciclo 2 (rechazado): propuesta → rechazo → memoria no recuperada.
+
+### Pendientes
+- BRIEFING oficial de memoria.
+- Integración real con proveedor RAG.
+- No se realizó commit, push ni PR.
+
+# Hito 8 Parte 2 — Aseguramiento de Agentes (implementación local)
+
+- Rama: `feature/agent-guardrails`, base `de615e8`.
+- Cambios: nuevo `guardrails.py`, integración en `graph.py`, ajustes en `state.py` y `memory.py`, pruebas `test_agent_guardrails.py`, documentación `docs/agent/agent-guardrails-part2.md`.
+- Validación: 13 pruebas de guardrails, 28 de memoria/API/MCP, 183 en suite completa (5 skipped), compileall OK.
+- Pendientes: LLM/servicios externos no disponibles.
