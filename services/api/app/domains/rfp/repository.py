@@ -112,3 +112,147 @@ class RfpRepository:
     def get_handoff(self, ticket_id: uuid.UUID) -> Optional[RfpHandoff]:
         stmt = select(RfpHandoff).where(RfpHandoff.ticket_id == ticket_id)
         return self.session.exec(stmt).first()
+
+    def update_handoff(self, handoff: RfpHandoff) -> RfpHandoff:
+        self.session.add(handoff)
+        self.session.commit()
+        self.session.refresh(handoff)
+        return handoff
+
+    # --- Parte 2: generation run ---
+    def get_generation_run(self, ticket_id: uuid.UUID) -> Optional["RfpGenerationRun"]:
+        from .models import RfpGenerationRun
+
+        stmt = select(RfpGenerationRun).where(RfpGenerationRun.ticket_id == ticket_id)
+        return self.session.exec(stmt).first()
+
+    def create_generation_run(self, run: "RfpGenerationRun") -> "RfpGenerationRun":
+        from .models import RfpGenerationRun
+
+        self.session.add(run)
+        self.session.commit()
+        self.session.refresh(run)
+        return run
+
+    def update_generation_run(self, run: "RfpGenerationRun") -> "RfpGenerationRun":
+        from .models import RfpGenerationRun
+
+        run.updated_at = datetime.now(timezone.utc)
+        self.session.add(run)
+        self.session.commit()
+        self.session.refresh(run)
+        return run
+
+    # --- drafts ---
+    def get_draft(self, ticket_id: uuid.UUID, department_id: str, version: int) -> Optional["RfpSectionDraft"]:
+        from .models import RfpSectionDraft
+
+        stmt = select(RfpSectionDraft).where(
+            RfpSectionDraft.ticket_id == ticket_id,
+            RfpSectionDraft.department_id == department_id,
+            RfpSectionDraft.version == version,
+        )
+        return self.session.exec(stmt).first()
+
+    def list_drafts(self, ticket_id: uuid.UUID) -> list["RfpSectionDraft"]:
+        from .models import RfpSectionDraft
+
+        stmt = select(RfpSectionDraft).where(RfpSectionDraft.ticket_id == ticket_id)
+        return list(self.session.exec(stmt).all())
+
+    def save_draft(self, draft: "RfpSectionDraft") -> "RfpSectionDraft":
+        from .models import RfpSectionDraft
+
+        existing = self.get_draft(draft.ticket_id, draft.department_id, draft.version)
+        if existing is not None:
+            return existing
+        self.session.add(draft)
+        self.session.commit()
+        self.session.refresh(draft)
+        return draft
+
+    # --- evaluations ---
+    def list_evaluations(self, ticket_id: uuid.UUID) -> list["RfpSectionEvaluation"]:
+        from .models import RfpSectionEvaluation
+
+        stmt = select(RfpSectionEvaluation).where(RfpSectionEvaluation.ticket_id == ticket_id)
+        return list(self.session.exec(stmt).all())
+
+    def save_evaluation(self, evaluation: "RfpSectionEvaluation") -> "RfpSectionEvaluation":
+        from .models import RfpSectionEvaluation
+
+        self.session.add(evaluation)
+        self.session.commit()
+        self.session.refresh(evaluation)
+        return evaluation
+
+    # --- generation handoff ---
+    def get_generation_handoff(self, ticket_id: uuid.UUID) -> Optional["RfpGenerationHandoff"]:
+        from .models import RfpGenerationHandoff
+
+        stmt = select(RfpGenerationHandoff).where(RfpGenerationHandoff.ticket_id == ticket_id)
+        return self.session.exec(stmt).first()
+
+    def save_generation_handoff(self, handoff: "RfpGenerationHandoff") -> "RfpGenerationHandoff":
+        from .models import RfpGenerationHandoff
+
+        existing = self.get_generation_handoff(handoff.ticket_id)
+        if existing is not None:
+            existing.sections = handoff.sections
+            existing.global_compliance = handoff.global_compliance
+            existing.open_questions = handoff.open_questions
+            existing.requires_ceo_approval = handoff.requires_ceo_approval
+            existing.consumed_at = handoff.consumed_at
+            existing.consumed_by = handoff.consumed_by
+            self.session.add(existing)
+            self.session.commit()
+            self.session.refresh(existing)
+            return existing
+        self.session.add(handoff)
+        self.session.commit()
+        self.session.refresh(handoff)
+        return handoff
+    # --- SSE durable events (Parte 1 de 2) ---
+    def record_ticket_event(
+        self,
+        ticket_id: uuid.UUID,
+        event_type: str,
+        payload: dict[str, Any],
+        submitted_by_uuid: Optional[uuid.UUID] = None,
+    ) -> Optional["RfpTicketEvent"]:
+        from .models import RfpTicketEvent
+        from sqlalchemy.exc import IntegrityError
+
+        existing = self.session.exec(
+            select(RfpTicketEvent).where(
+                RfpTicketEvent.ticket_id == ticket_id,
+                RfpTicketEvent.event_type == event_type,
+            )
+        ).first()
+        if existing is not None:
+            return None
+        row = RfpTicketEvent(
+            ticket_id=ticket_id,
+            event_type=event_type,
+            payload=payload,
+            submitted_by_uuid=submitted_by_uuid,
+        )
+        self.session.add(row)
+        try:
+            self.session.commit()
+        except IntegrityError:
+            self.session.rollback()
+            return None
+        self.session.refresh(row)
+        return row
+
+    def list_ticket_events(self, after_id: int = 0, limit: int = 100) -> list["RfpTicketEvent"]:
+        from .models import RfpTicketEvent
+
+        stmt = (
+            select(RfpTicketEvent)
+            .where(RfpTicketEvent.id > after_id)
+            .order_by(RfpTicketEvent.id)
+            .limit(limit)
+        )
+        return list(self.session.exec(stmt).all())

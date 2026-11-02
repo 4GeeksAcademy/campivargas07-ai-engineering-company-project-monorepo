@@ -373,6 +373,17 @@
 - **Estado:** implementación funcional aplicada; pruebas completas, typecheck,
   lint y verificación manual mediante `/docs` quedan pendientes de ejecución.
 
+## Hito: Notificaciones SSE para nuevas RFP (Parte 1 de 2) — `feature/sse-notifications`
+
+- **Rama:** `feature/sse-notifications`, creada desde `origin/main` (PR #35 integrado). No depende de #36 ni #37.
+- **Contrato:** evento `rfp_ticket_created`, payload plano con `ticket_id`, `client_name`, `location`, `service_type`, `status=analyzing`, `created_at`, `departments_needed`. No se inventa `rfp_id` (mapea a `ticket_id`). No se renombran estados internos; mapeo documentado.
+- **Publicación:** en `process_rfp_ticket`, tras persistir metadata y clasificación y solo si `is_rfp == True`; antes de persistir resultados posteriores. RFP descartada no notifica.
+- **Distribución:** tabla durable `rfp_ticket_event` con constraint único `(ticket_id, event_type)`; stream SSE por polling de cursor, compatible multi-proceso sin Redis.
+- **Recuperación:** `Last-Event-ID` con replay persistente + reconciliación `GET /rfp-requests`; dedupe por `ticket_id`; cursor vencido manejado.
+- **Frontend:** cliente SSE con fetch + ReadableStream, parser robusto, backoff con jitter, cancelación al desmontar, estado de conexión y lista visual de RFPs entrantes. Se conserva el polling de progreso del ticket subido.
+- **Pruebas:** 8 nuevas pruebas SSE (cabeceras, auth, formato, dos clientes, descartada, duplicados, replay, limpieza); regresión backend 196 passed, 5 skipped; backoffice 107 passed.
+- **Documentación:** `docs/rfp/rfp_sse_contract.md` creado.
+
 ## Revisión de comentarios PR #15: contratos de registro y CSV
 - **Autorregistro seguro:** `UserCreate` ya no admite `role` y rechaza campos extra; el servicio fija `user` desde servidor. Las cuentas privilegiadas deben asignarse desde una ruta autenticada con autorización administrativa.
 - **Minimización de datos:** `POST /users` devuelve `UserRegistrationResponse` (`detail`, `id`) sin email ni rol. Backoffice ya no envía ni tipa un rol al registrar y posteriormente inicia sesión con las credenciales del formulario.
@@ -587,10 +598,26 @@
 - Verificación: guardrails 13 passed; memoria/API/MCP 28 passed; suite completa 183 passed, 5 skipped; compileall OK.
 - Pendientes: LLM real y servicios externos no disponibles.
 
-## Hito: Streaming de Chat por WebSocket — Parte 2 de 2
+## Hito: RFP Response Generation (Parte 2 de 3) — feature/rfp-response-generation
 
-- Rama: `feature/websocket-chat` desde `origin/main` (`7f794ba`).
-- No apilada sobre PR #38 (SSE RFP); solo reutiliza JWT y patrón de auth.
-- Implementado: sesiones de chat TinyDB, WebSocket autenticado, pub/sub en memoria, streaming real del proveedor, guardrails incremental/holdback, interrupción/cancelación, reconexión, UI backoffice, pruebas.
-- Verificación: `tests/test_chat_websocket.py` (5 passed) y `tests/test_agent_api.py` (passed) en aislamiento.
-- Pendiente: evidencia con proveedor real (sin credenciales en este entorno); frontend tests no ejecutados por entorno.
+- Base: origin/main (7f794ba, PR #35).
+- Implementado:
+  - Modelos SQLModel: `RfpGenerationRun`, `RfpSectionDraft`, `RfpSectionEvaluation`, `RfpGenerationHandoff`.
+  - Endpoints: `POST /rfp-requests/{id}/generate` (202, idempotente) y extensión de `GET .../result`.
+  - Pipeline `data/pipelines/rfp_response_generation.py` con ciclo generador→evaluador y reintento solo de secciones fallidas.
+  - Generadores identificables por departamento y evaluadores de legibilidad, pertinencia y cumplimiento en paralelo.
+  - Reglas globales/por sección, incluyendo <10 días hábiles, monedas, pilares, validez 30 días y señal CEO >50k USD.
+  - UI mínima de progreso/resultados.
+- Pruebas: 11 pipelines + 2 API + 4 Parte 1 = 17 pasando en SQLite/PostgreSQL (integración real pendiente de entorno).
+- Configuración real pendiente: `RFP_GENERATION_*` (o fallback RAG), `DATABASE_URL`, tasa FX y denylist de competidores.
+
+- Validación con mismo proyecto Supabase: schema `rfp_test` creado; `TEST_DATABASE_URL` con `search_path=rfp_test`; pruebas Parte 1 + Parte 2 pasando (16 passed). Proveedor real sigue pendiente (opción A: fallback RAG no configurado en este entorno).
+
+- Validación real con proveedor: generación marketing aprobada (`overall_pass=true`), `requires_ceo_approval=true` para presupuesto >50k USD. Base Supabase (schema `rfp_test`) conectada vía `postgresql+psycopg2://`.
+
+## Hito: Streaming de Chat por WebSocket — Parte 2 de 2 (merge con main actualizado)
+
+- Rama: `feature/websocket-chat`, ahora basada en `main` actualizado (incluye PR #38 SSE RFP).
+- Implementado: sesiones TinyDB, WebSocket autenticado, pub/sub en memoria, streaming real, guardrails, interrupción/cancelación, reconexión, UI, checkpoint helper.
+- Verificación real: Google Gemini OpenAI-compatible + Qdrant `brasaland_knowledge` (14 puntos); `token_chunk` progresivos y cancelación efectiva verificados.
+- Pruebas: `test_chat_websocket.py` (5 passed), `test_chat_multi_subscriber.py` (1 passed), `test_agent_api.py` passed.
