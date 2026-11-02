@@ -5,11 +5,13 @@ import hashlib
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, UploadFile, File
+from fastapi.responses import StreamingResponse
 from sqlmodel import Session
 
 from app.database import get_db
 from app.domains.auth.dependencies import get_current_user
+from app.domains.rfp import events as rfp_events
 from app.domains.rfp import service as rfp_service
 from app.domains.rfp.errors import RfpNotFoundError
 from app.domains.rfp.models import RfpTicket
@@ -26,6 +28,46 @@ from app.domains.rfp.schemas import (
 )
 
 router = APIRouter(prefix="/rfp-requests", tags=["rfp"])
+
+
+@router.get("/events")
+async def stream_rfp_events(
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+):
+    last_event_id = request.headers.get("last-event-id") or request.query_params.get("last_event_id")
+    return StreamingResponse(
+        rfp_events.rfp_ticket_event_stream(request, current_user, last_event_id),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
+
+@router.get("")
+def list_rfp_requests(
+    session: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    from sqlmodel import select
+
+    from app.domains.rfp.models import RfpTicket
+
+    stmt = select(RfpTicket).order_by(RfpTicket.created_at.desc()).limit(50)
+    tickets = list(session.exec(stmt).all())
+    return [
+        {
+            "ticket_id": str(t.id),
+            "status": t.status,
+            "created_at": t.created_at.isoformat(),
+            "updated_at": t.updated_at.isoformat(),
+            "original_filename": t.original_filename,
+        }
+        for t in tickets
+    ]
 
 
 def _current_user_uuid(current_user: dict) -> Optional[uuid.UUID]:

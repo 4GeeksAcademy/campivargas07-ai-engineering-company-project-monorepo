@@ -373,6 +373,17 @@
 - **Estado:** implementación funcional aplicada; pruebas completas, typecheck,
   lint y verificación manual mediante `/docs` quedan pendientes de ejecución.
 
+## Hito: Notificaciones SSE para nuevas RFP (Parte 1 de 2) — `feature/sse-notifications`
+
+- **Rama:** `feature/sse-notifications`, creada desde `origin/main` (PR #35 integrado). No depende de #36 ni #37.
+- **Contrato:** evento `rfp_ticket_created`, payload plano con `ticket_id`, `client_name`, `location`, `service_type`, `status=analyzing`, `created_at`, `departments_needed`. No se inventa `rfp_id` (mapea a `ticket_id`). No se renombran estados internos; mapeo documentado.
+- **Publicación:** en `process_rfp_ticket`, tras persistir metadata y clasificación y solo si `is_rfp == True`; antes de persistir resultados posteriores. RFP descartada no notifica.
+- **Distribución:** tabla durable `rfp_ticket_event` con constraint único `(ticket_id, event_type)`; stream SSE por polling de cursor, compatible multi-proceso sin Redis.
+- **Recuperación:** `Last-Event-ID` con replay persistente + reconciliación `GET /rfp-requests`; dedupe por `ticket_id`; cursor vencido manejado.
+- **Frontend:** cliente SSE con fetch + ReadableStream, parser robusto, backoff con jitter, cancelación al desmontar, estado de conexión y lista visual de RFPs entrantes. Se conserva el polling de progreso del ticket subido.
+- **Pruebas:** 8 nuevas pruebas SSE (cabeceras, auth, formato, dos clientes, descartada, duplicados, replay, limpieza); regresión backend 196 passed, 5 skipped; backoffice 107 passed.
+- **Documentación:** `docs/rfp/rfp_sse_contract.md` creado.
+
 ## Revisión de comentarios PR #15: contratos de registro y CSV
 - **Autorregistro seguro:** `UserCreate` ya no admite `role` y rechaza campos extra; el servicio fija `user` desde servidor. Las cuentas privilegiadas deben asignarse desde una ruta autenticada con autorización administrativa.
 - **Minimización de datos:** `POST /users` devuelve `UserRegistrationResponse` (`detail`, `id`) sin email ni rol. Backoffice ya no envía ni tipa un rol al registrar y posteriormente inicia sesión con las credenciales del formulario.

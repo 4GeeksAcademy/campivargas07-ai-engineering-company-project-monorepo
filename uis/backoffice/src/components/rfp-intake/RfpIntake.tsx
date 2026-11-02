@@ -1,6 +1,7 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { uploadRfp, getRfpStatus, startRfpGeneration, getRfpResult, RfpStatusResponse } from '@/lib/rfp';
+import { subscribeRfpTicketEvents, RfpTicketCreatedEvent } from '@/lib/rfp-events';
 
 export function RfpIntake() {
   const [file, setFile] = useState<File | null>(null);
@@ -9,6 +10,8 @@ export function RfpIntake() {
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [connection, setConnection] = useState<'connecting' | 'connected' | 'reconnecting' | 'error' | 'closed'>('connecting');
+  const [incoming, setIncoming] = useState<RfpTicketCreatedEvent[]>([]);
 
   const processingStatuses = ['analizando', 'generando_borrador', 'en_evaluación'];
 
@@ -53,9 +56,28 @@ export function RfpIntake() {
     }
   }
 
+  useEffect(() => {
+    const controller = new AbortController();
+    const unsubscribe = subscribeRfpTicketEvents({
+      signal: controller.signal,
+      onStatus: setConnection,
+      onEvent: (event) => {
+        setIncoming((prev) => {
+          if (prev.some((e) => e.ticket_id === event.ticket_id)) return prev;
+          return [event, ...prev];
+        });
+      },
+    });
+    return () => {
+      unsubscribe();
+      controller.abort();
+    };
+  }, []);
+
   return (
     <section>
       <h1>Recepcion de RFP</h1>
+      <p style={{ fontSize: 12, color: '#666' }}>Notificaciones SSE: {connection}</p>
       <input type="file" accept="application/pdf" onChange={(e) => setFile(e.target.files?.[0] || null)} />
       <button onClick={handleUpload} disabled={!file || loading}>{loading ? 'Subiendo...' : 'Subir PDF'}</button>
       {error && <p style={{ color: 'red' }}>{error}</p>}
@@ -92,6 +114,19 @@ export function RfpIntake() {
           {result.generation_handoff?.requires_ceo_approval && (
             <p>Requiere aprobacion adicional de CEO (Mariana Restrepo).</p>
           )}
+        </div>
+      )}
+      {incoming.length > 0 && (
+        <div style={{ marginTop: 16, padding: 12, border: '2px solid #2563eb', background: '#eff6ff', borderRadius: 8 }}>
+          <h2 style={{ marginTop: 0 }}>Nuevas RFP recibidas</h2>
+          {incoming.map((item) => (
+            <div key={item.ticket_id} style={{ padding: 8, marginBottom: 8, background: '#fff', borderRadius: 4 }}>
+              <strong>{item.client_name || 'RFP sin nombre'}</strong> — {item.location} — {item.service_type}
+              <div style={{ fontSize: 12, color: '#555' }}>
+                Ticket: {item.ticket_id} · Estado: {item.status} · {item.created_at}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </section>

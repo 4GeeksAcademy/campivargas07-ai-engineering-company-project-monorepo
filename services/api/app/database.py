@@ -98,6 +98,7 @@ def init_db(bind_engine=None) -> None:
         RfpSectionEvaluation,
         RfpSynthesis,
         RfpTicket,
+        RfpTicketEvent,
     )
 
     engine = bind_engine or get_db_engine()

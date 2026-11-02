@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from sqlalchemy import Column, JSON
+from sqlalchemy import Column, JSON, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -181,3 +181,18 @@ class RfpGenerationHandoff(SQLModel, table=True):
     prepared_at: datetime = Field(default_factory=_now, nullable=False)
     consumed_at: Optional[datetime] = Field(default=None)
     consumed_by: Optional[str] = Field(default=None)
+
+class RfpTicketEvent(SQLModel, table=True):
+    """Durable SSE event log for RFP ticket arrivals (Parte 1 de 2)."""
+
+    __tablename__ = "rfp_ticket_event"
+    __table_args__ = (UniqueConstraint("ticket_id", "event_type", name="uq_rfp_ticket_event_ticket_type"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    ticket_id: uuid.UUID = Field(foreign_key="rfp_ticket.id", index=True, nullable=False)
+    event_type: str = Field(default="rfp_ticket_created", nullable=False, index=True)
+    payload: dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
+    submitted_by_uuid: Optional[uuid.UUID] = Field(default=None, index=True)
+    created_at: datetime = Field(default_factory=_now, nullable=False)
+
+

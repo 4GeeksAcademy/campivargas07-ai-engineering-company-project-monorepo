@@ -136,6 +136,25 @@ def process_rfp_ticket(ticket_id: uuid.UUID) -> None:
                     )
                 )
 
+                # SSE notification (Parte 1): solo RFPs válidas, después de persistir
+                # metadata+clasificación y antes del trabajo posterior.
+                if bool(classification_result.get("is_rfp", False)):
+                    payload = {
+                        "ticket_id": str(ticket.id),
+                        "client_name": str(metadata_fields.get("client_name", "")),
+                        "location": str(metadata_fields.get("location", "")),
+                        "service_type": str(metadata_fields.get("service_type", "")),
+                        "status": "analyzing",
+                        "created_at": ticket.created_at.isoformat(),
+                        "departments_needed": list(metadata_fields.get("departments_needed", []) or []),
+                    }
+                    repo.record_ticket_event(
+                        ticket_id=ticket.id,
+                        event_type="rfp_ticket_created",
+                        payload=payload,
+                        submitted_by_uuid=ticket.submitted_by_uuid,
+                    )
+
             outcome = result.get("outcome")
             if outcome == "descartado":
                 ticket.status = "descartado"
