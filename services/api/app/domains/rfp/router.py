@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import uuid
 from typing import Optional
 
@@ -47,6 +48,17 @@ async def stream_rfp_events(
     )
 
 
+def _can_access_rfp_ticket(current_user: dict, ticket) -> bool:
+    if str(current_user.get("role", "")).lower() == "admin":
+        return True
+    if ticket.submitted_by_uuid is None:
+        return True
+    try:
+        return str(ticket.submitted_by_uuid) == str(current_user.get("uuid"))
+    except Exception:
+        return False
+
+
 @router.get("")
 def list_rfp_requests(
     session: Session = Depends(get_db),
@@ -58,6 +70,8 @@ def list_rfp_requests(
 
     stmt = select(RfpTicket).order_by(RfpTicket.created_at.desc()).limit(50)
     tickets = list(session.exec(stmt).all())
+    if str(current_user.get("role", "")).lower() != "admin":
+        tickets = [t for t in tickets if _can_access_rfp_ticket(current_user, t)]
     return [
         {
             "ticket_id": str(t.id),
@@ -91,6 +105,9 @@ async def create_rfp_request(
     content = await file.read()
     if not content:
         raise HTTPException(status_code=400, detail="Empty file.")
+    max_bytes = int(os.environ.get("RFP_MAX_UPLOAD_BYTES", str(10 * 1024 * 1024)))
+    if len(content) > max_bytes:
+        raise HTTPException(status_code=413, detail="File too large.")
 
     idempotency_key = hashlib.sha256(content).hexdigest() + ":" + str(_current_user_uuid(current_user))
 
@@ -115,6 +132,12 @@ def generate_rfp_request(
     current_user: dict = Depends(get_current_user),
 ):
     try:
+        ticket = rfp_service.get_ticket(session, ticket_id)
+    except RfpNotFoundError:
+        raise HTTPException(status_code=404, detail="RFP ticket not found.")
+    if not _can_access_rfp_ticket(current_user, ticket):
+        raise HTTPException(status_code=404, detail="RFP ticket not found.")
+    try:
         ticket, run = rfp_service.start_rfp_generation(session, ticket_id)
     except RfpNotFoundError:
         raise HTTPException(status_code=404, detail="RFP ticket not found.")
@@ -133,6 +156,8 @@ def get_rfp_status(
     try:
         ticket = rfp_service.get_ticket(session, ticket_id)
     except RfpNotFoundError:
+        raise HTTPException(status_code=404, detail="RFP ticket not found.")
+    if not _can_access_rfp_ticket(current_user, ticket):
         raise HTTPException(status_code=404, detail="RFP ticket not found.")
     repo = RfpRepository(session)
     run = repo.get_generation_run(ticket_id)
@@ -163,6 +188,8 @@ def get_rfp_result(
     try:
         ticket = rfp_service.get_ticket(session, ticket_id)
     except RfpNotFoundError:
+        raise HTTPException(status_code=404, detail="RFP ticket not found.")
+    if not _can_access_rfp_ticket(current_user, ticket):
         raise HTTPException(status_code=404, detail="RFP ticket not found.")
 
     repo = RfpRepository(session)

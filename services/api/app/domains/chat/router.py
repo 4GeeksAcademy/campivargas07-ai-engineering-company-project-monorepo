@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
@@ -94,9 +95,22 @@ def _user_from_token(token: str) -> dict[str, Any] | None:
     return user_doc
 
 
+def _allowed_websocket_origins() -> set[str]:
+    raw = os.environ.get(
+        "WS_ALLOWED_ORIGINS",
+        "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001",
+    )
+    return {item.strip() for item in raw.split(",") if item.strip()}
+
+
 @router.websocket("/ws")
 async def websocket_chat(websocket: WebSocket):
     await websocket.accept()
+    origin = websocket.headers.get("origin")
+    if origin is not None and origin not in _allowed_websocket_origins():
+        await websocket.send_json({"event": "error", "data": {"code": "forbidden_origin", "message": "Origen no permitido"}})
+        await websocket.close(code=4403)
+        return
     user, session_id = await _authenticate_websocket(websocket)
     if user is None:
         await websocket.send_json({"event": "error", "data": {"code": "unauthorized", "message": "Autenticación requerida"}})
@@ -139,6 +153,9 @@ async def websocket_chat(websocket: WebSocket):
 async def _receive_loop(websocket: WebSocket, session_id: str, user: dict, channel) -> None:
     while True:
         text = await websocket.receive_text()
+        if len(text) > 8192:
+            await channel.publish({"event": "error", "data": {"session_id": session_id, "code": "frame_too_large", "message": "Frame demasiado grande"}})
+            continue
         try:
             frame = json.loads(text)
         except json.JSONDecodeError:

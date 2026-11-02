@@ -621,3 +621,12 @@
 - Implementado: sesiones TinyDB, WebSocket autenticado, pub/sub en memoria, streaming real, guardrails, interrupción/cancelación, reconexión, UI, checkpoint helper.
 - Verificación real: Google Gemini OpenAI-compatible + Qdrant `brasaland_knowledge` (14 puntos); `token_chunk` progresivos y cancelación efectiva verificados.
 - Pruebas: `test_chat_websocket.py` (5 passed), `test_chat_multi_subscriber.py` (1 passed), `test_agent_api.py` passed.
+
+## Auditoría OWASP Top 10 — 2 de noviembre de 2026
+
+- Rama: `feature/owasp-top10-audit`, base `origin/feature/websocket-chat @ 7eff737582fbb9c952b3f985e640d5d66c885db5`. PR #39 no modificada.
+- Baseline: backend 204 passed/5 skipped; MCP 54 passed; backoffice 107 passed.
+- Correcciones aplicadas: secreto JWT obligatorio, CORS explícito, headers de seguridad, Origin WebSocket, límite de carga RFP, ownership RFP, bind localhost en infra Compose, límite de frame chat, autenticación primer frame en frontend.
+- Verificación posterior: backend 204 passed/5 skipped; MCP 54 passed; backoffice 107 passed; sin nuevos errores TypeScript.
+- Informe: `docs/security/owasp-top10-audit.md`.
+- Pendientes: allowlist por location, rate limiting, telemetría autenticada, vulnerabilidades npm, escaneo de historial Git, DAST.

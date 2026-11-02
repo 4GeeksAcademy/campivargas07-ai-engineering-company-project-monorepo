@@ -3844,3 +3844,12 @@ Rama de trabajo: `feature/mcp-oauth-tools`, creada sobre `feature/langgraph-exte
 - Rama: `feature/websocket-chat` (base actualizada con PR #38).
 - Evidencia real de streaming/cancelación registrada.
 - Captura: `docs/pr-assets/chat/chat-streaming.png`.
+
+## OWASP Top 10 audit and hardening — 2026-11-02
+
+- Branch: `feature/owasp-top10-audit` from `origin/feature/websocket-chat @ 7eff737582fbb9c952b3f985e640d5d66c885db5` (PR #39 untouched).
+- Baseline: backend 204 passed/5 skipped; MCP 54 passed; backoffice 107 passed.
+- Corrections: JWT required secret, CORS allowlist, security headers, WebSocket Origin, RFP upload limit and ownership, infra DB bind to localhost, chat frame limit, frontend first-frame auth.
+- Verification: backend 204 passed/5 skipped; MCP 54 passed; backoffice 107 passed; no new TS errors.
+- Report: `docs/security/owasp-top10-audit.md`.
+- Residuals: location allowlist, login rate limiting, telemetry auth, npm audit vulnerabilities, Git history secret scan.
