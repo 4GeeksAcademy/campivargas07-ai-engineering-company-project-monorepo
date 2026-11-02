@@ -8,6 +8,7 @@ from app.domains.agent.graph import (
 )
 from app.domains.agent.state import AgentState, StateValidationError, validate_agent_state
 from app.domains.agent.traces import load_trace, save_trace
+from app.domains.agent import memory as agent_memory
 
 __all__ = [
     "AgentState",

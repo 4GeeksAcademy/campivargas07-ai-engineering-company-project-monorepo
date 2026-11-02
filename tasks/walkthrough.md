@@ -1,3 +1,53 @@
+# Seguimiento: auditoria y publicacion autorizadas - 30 de octubre de 2026
+
+- Alcance autorizado: modificar `mcps/` para completar auditoria y publicar por commit/push las correcciones y evidencia en la rama de #32; sin merge. No se incluyen cambios de datos ni egg-info.
+- Implementacion: wrapper del handler MCP validado para auditar `CallToolResult.isError` antes del ejecutor. Reutiliza el contexto de identidad OAuth; registra `validation_error` para rechazos de esquema y `tool_error` para otros rechazos MCP, sin argumentos ni mensajes de error. Devuelve intacto el resultado original y no duplica el registro de herramientas ejecutadas.
+- Se ampliaron pruebas existentes de argumentos extra y tools inexistentes para comprobar un solo log con cliente/tool/resultado, cero solicitudes al backend y ausencia de tokens/argumentos; la prueba de llamada normal exige tambien un solo registro.
+- Validacion: `uv run --project mcps/brasaland-mcp --no-sync pytest mcps/brasaland-mcp/tests -q`: 54 aprobadas. `uv run --project services/api --no-sync python -m pytest services/api/tests/test_agent_mcp_credentials.py -q`: 3 aprobadas. `uv run --project mcps/brasaland-mcp --no-sync python -m compileall -q mcps/brasaland-mcp/brasaland_mcp`: correcto. `git diff --check`: correcto.
+- Incidencia de validacion: el primer pytest sin ruta intento coleccionar otros servicios y fallo por dependencias ajenas; se corrigio la seleccion sin instalar paquetes. No fue un fallo de las pruebas MCP.
+- Limite Auth0: dos confirmaciones de reemplazo privado no cambiaron los scopes observados: el token de Playground aun contiene los tres. No se declara verificado un cliente exclusivo de lectura ni se interpreta la configuracion solicitada como evidencia.
+- Limite operativo: no se reinicio el servidor real, ni se exportaron logs nuevos; la correccion de auditoria se verifico con los servidores aislados de la suite. Las notas siguientes conservan la cronologia previa, cuyos pendientes de auditoria/publicacion quedan sustituidos por este seguimiento cuando se publique.
+
+# MCP Playground: ejecucion real - 30 de octubre de 2026
+
+## Evidencia nueva
+
+- Cliente: MCP Playground web, conectado a la URL HTTPS publica reenviada de Codespaces, puerto 9100, endpoint `/mcp`, con Authorization Bearer configurado privadamente por el usuario.
+- Discovery: servidor Brasaland MCP, seis herramientas; descripciones y esquemas visibles sin consultar el codigo.
+- Incidencias reales: crear -> consultar -> cambiar estado a `discarded` -> listar con filtros; cuatro resultados `success`. El listado confirmo la incidencia sintetica descartada. No se modificaron incidencias ajenas.
+- Inventario PostgreSQL: listado de MED-001 `success` con cero productos; UUID inexistente `not_found`. La base vacia impide acreditar lectura de un producto existente.
+- Validacion real: estado destino `invalid_status` rechazado con `validation_error`, mensaje especifico y `field=status`. Sin token, el endpoint publico devuelve HTTP 401.
+
+## Verificacion automatizada dirigida
+
+```bash
+uv run --project mcps/brasaland-mcp --no-sync pytest mcps/brasaland-mcp/tests/test_auth_transport.py mcps/brasaland-mcp/tests/test_inventory_tools.py mcps/brasaland-mcp/tests/test_incidents_tools.py -q
+```
+
+Resultado: 40 pruebas aprobadas; avisos de deprecacion de `streamablehttp_client`. Incluye bloqueo sin token, tokens invalidos, scopes insuficientes, inventario sin escritura y log de invocacion. Usa proveedor OIDC y backend simulados; no demuestra permisos del cliente Auth0 real.
+
+## Limites y pendientes
+
+- Entrega: se actualizo la descripcion de [PR #32](https://github.com/4GeeksAcademy/campivargas07-ai-engineering-company-project-monorepo/pull/32) y se verifico su persistencia mediante GitHub CLI. La cabeza remota permanece `c1b15c0`; no hubo commit, push ni merge. El checklist remoto distingue validacion local de codigo publicado y no declara cierre completo.
+- Seguimiento solicitado sin commit/push: aprobaron `test_backend_client.py` (8 pruebas, mismo runner MCP) y `services/api/tests/test_agent_mcp_credentials.py` (3 pruebas, `uv run --project services/api --no-sync python -m pytest services/api/tests/test_agent_mcp_credentials.py -q`). Sumadas a las 40 anteriores: 51 verificaciones dirigidas, no una suite completa nueva.
+- Se inspeccionaron solo los nombres de scopes del token configurado en Playground: `incidents:read`, `incidents:write`, `inventory:read`. Es el cliente de pruebas con escritura; no demuestra la configuracion privada del cliente del agente.
+- No se exportaron logs reales ni capturas; esta evidencia es un registro sanitizado de resultados observados. No contiene tokens ni cuerpos de incidencias.
+- Pendiente verificar el grant exclusivo `incidents:read` del cliente dedicado. Los resultados positivos de escritura no acreditan minimo privilegio del agente.
+- Los argumentos rechazados por validacion de esquema antes de `execute_tool` no pasan por el logger de auditoria centralizado; no se declara cobertura de cada intento.
+- La validacion Playground antes pendiente queda realizada. RAG no se ejecuto en esta corrida. Publicacion de correcciones/documentacion y fusion de PR siguen pendientes.
+
+# Correcciones y validacion MCP — 29 de octubre de 2026
+
+- Corregida la rama real de `query_incidents_via_mcp`: resuelve el proveedor OAuth inyectado o el configurado en entorno antes de obtener el token. Tres pruebas nuevas cubren ambos caminos y las credenciales ausentes.
+- Los esquemas MCP rechazan propiedades adicionales y el servidor valida argumentos antes de ejecutar una herramienta. Se reprodujo que FastMCP descartaba argumentos de escritura silenciosamente; la prueba ahora exige cero solicitudes al backend, incluso GET.
+- Verificacion automatizada: API/pipelines 239 passed, 5 skipped; MCP 54 passed. Los skipped de PostgreSQL no se cuentan como aprobados.
+- Integracion real local y publica con Auth0: initialize y listado de seis herramientas; crear/listar/consultar incidencias y actualizar a discarded: success. Las incidencias sinteticas de verificacion quedaron descartadas. Consulta del agente por HTTP: 200, con estado open confirmado durante la prueba. Inspector 2.13.0: Connected y list_incidents ejecutado correctamente.
+- Inventario inicialmente fallaba porque faltaba DATABASE_URL. Se inicio PostgreSQL local desde el Compose existente y se inicializaron las tablas del proyecto. Tras configurar el entorno y reiniciar API: listado success (base vacia); consulta de UUID inexistente not_found. No se afirma una consulta exitosa de producto existente.
+- Puerto MCP 9100 publicado con autorizacion del usuario; API 8000 y PostgreSQL 5432 permanecen privados. Credenciales solo en archivos .env ignorados, sin valores en esta evidencia.
+- RAG sigue respondiendo 503 por configuracion ausente. PR #31 contiene evidencia historica exitosa y la plantilla .env.example de su rama tiene endpoints/modelos, pero las claves estan vacias. PR #32 ya tiene esa rama como base. No se encontro una clave RAG en los archivos .env del proyecto ni en la terminal; no se hizo merge.
+- Pendiente de minimo privilegio en Auth0: aunque AGENT_MCP_SCOPES solicita incidents:read, el JWT real del cliente usado en las pruebas contiene los tres permisos concedidos. Para produccion, usar una M2M separada autorizada exclusivamente para incidents:read y verificar el JWT resultante. El adaptador del agente solo invoca herramientas de lectura.
+- MCP Playground y una corrida RAG nueva no se declaran validados por estos resultados.
+
 # Walkthrough: Agente LangGraph — Herramientas Fuera del RAG — 23 de octubre de 2026
 
 ## Cambios
@@ -1189,3 +1239,77 @@ Partiendo de `main` actualizado (`1a34b24707f6f7cc1ebece228ab59a12d0bb4f4a`, con
 - `uv run --directory services/api --extra dev pytest -q -rs`: **`156 passed, 5 skipped`** (`14` pruebas nuevas en `test_agent_api.py`).
 - `npm --prefix uis/backoffice run test`: **`107 passed`** en 18 suites.
 - `git diff --check`: limpio.
+
+---
+
+# Walkthrough: Servidor MCP — Conectando tu Agente con las Herramientas de la Empresa
+
+## 1. Alcance y arquitectura implementada
+Rama de trabajo: `feature/mcp-oauth-tools`, creada sobre `feature/langgraph-external-tools` (PR #31, HEAD `95fc772`), para disponer del código de la Parte 2 del agente (herramienta de incidencias) que este hito migra. No se fusionó ni modificó la PR #31.
+
+### Servidor MCP (`mcps/brasaland-mcp/`)
+- **Transporte**: Streamable HTTP (FastMCP `stateless_http=True` montado en Starlette). Justificado por clientes remotos, OAuth (RFC 9728/8414) y compatibilidad con MCP Playground y `langchain-mcp-adapters`.
+- **OAuth con `mcpauth`** (resource server, sin la auth integrada de FastMCP): `MCPAuth(protected_resources=[...])`, `fetch_server_config`, `bearer_auth_middleware('jwt', audience=resource_id, resource=resource_id)` y `resource_metadata_router()`. Verifica firma (JWKS), issuer, audience, expiración y scopes. Sin token válido: 401 con `WWW-Authenticate` para `initialize`/`tools/list`/`tools/call`. La metadata OAuth es pública; el discovery de tools no.
+- **Scopes por operación** (mínimo privilegio): `incidents:read`, `incidents:write`, `inventory:read`. Enforce por tool con `MCPAuthBearerAuthException(MISSING_REQUIRED_SCOPES)` → 403 distinguible del 401.
+- **Herramientas reales** (llaman a `services/api` vía `httpx`, timeout 5 s, URL por env `BRASALAND_API_URL`, sin datos hardcodeados):
+  - Incidencias: `get_incident`, `list_incidents`, `create_incident`, `update_incident_status` (exclusivamente `PATCH /api/incidents/{id}/status`; transiciones del backend, sin PATCH genérico).
+  - Inventario: `list_inventory_products`, `get_inventory_product` (sólo lectura; `local_id` obligatorio y distinto del `branch` de incidencias). Escritura rechazada en tres capas: sin tool de escritura, inputs tipados estrictos, y política local `_check_policy` que bloquea no-GET sobre `/inventory/*` antes de red (`write_not_supported`).
+- **Auditoría**: una línea JSON por invocación (`correlation_id`, `client_id`, `subject`, `tool`, `status`, `duration_ms`) en el logger `brasaland_mcp.audit`, sin tokens ni contenido sensible.
+- **Configuración**: `Settings` fail-fast desde entorno (ver `.env.example`); issuer, resource id, backend URL y credenciales de servicio son obligatorios y no tienen defaults inventados. Puerto único `9100` (sólo el MCP se publica; el backend no).
+
+### Migración del agente (`services/api/app/domains/agent/`)
+- Nuevo `mcp_client.py` con `langchain-mcp-adapters` (`MultiServerMCPClient`, `transport="streamable_http"`), modelos `IncidentToolInput`/`IncidentToolResult`/`IncidentToolStatus`/`IncidentRecord` trasladados aquí, y `query_incidents_via_mcp` (síncrona, con timeout y mapeo de errores). Token OAuth por client credentials (`incidents:read` únicamente; sin ampliar permisos ni activar mutaciones por lenguaje natural).
+- `graph.py`: el nodo `query_incidents` invoca `query_incidents_via_mcp` en lugar de HTTP directo; `execute_agent_query` ya no recibe `incident_token`.
+- `router.py`: `POST /agent/query` sigue protegido con `Depends(get_current_user)`; se eliminó la dependencia de `oauth2_scheme` para la llamada a incidencias.
+- `incident_tool.py` **retirado**: no queda ningún camino directo al Incidents Manager. Si el MCP falla, el agente responde `unavailable`/`timeout` de forma explícita (sin consultar RAG para aparentar confirmación).
+- Se conservan: rutas RAG/incidencias/mixtas/aclaraciones, contrato autenticado, checkpoints (`InMemorySaver`), trazas sanitizadas, fallbacks, RAG y configuración de modelos.
+
+### Dependencias
+- `mcps/brasaland-mcp`: `mcp>=1.24,<2`, `mcpauth==0.2.0b1`, `httpx`, `pydantic`, `uvicorn` (+ `pytest` en dev). `uv.lock` propio.
+- `services/api`: `langchain-mcp-adapters` añadido con `uv add` (actualiza `uv.lock`).
+
+## 2. Evidencias de validación ejecutadas
+- Servidor MCP: `uv run pytest` → **54 passed** (config, backend/policy, auth/transport, incidencias, inventario). Incluye validación real de firma/issuer/audience/expiración/scopes con un proveedor OIDC mock local (JWKS real, tokens RS256 reales) y verificación de que los intentos de escritura sobre inventario nunca alcanzan el backend.
+- Agente: `uv run --project services/api --extra dev python -m pytest tests/pipelines/test_agent_evals.py services/api/tests/test_agent_api.py` → **45 passed**. Suite completa `services/api/tests` → **156 passed, 5 skipped** (PostgreSQL sin `TEST_DATABASE_URL`). `tests/pipelines/` → **80 passed**.
+- `git diff --check`: limpio.
+
+## 3. Validación pendiente (no declarada como completada)
+- **MCP Playground** con la URL HTTPS pública reenviada del puerto 9100 del Codespace (no localhost): pendiente de ejecución real con un proveedor OAuth configurado por el usuario. El servidor ya publica metadata OAuth y rechaza sin token; falta adjuntar capturas/evidencia sanitizada.
+- **Proveedor OAuth real** para boundary 1: la implementación es env-driven (`MCP_AUTH_ISSUER`); falta que el usuario cree el tenant/proveedor y los clients/scopes. No se inventó configuración.
+- **Cuenta de servicio del MCP en Brasaland**: crear el usuario `mcp-service` en el backend (vía flujo de registro/admin) y configurar `MCP_BACKEND_SERVICE_EMAIL/PASSWORD`.
+- **Agente en vivo**: configurar `AGENT_MCP_SERVER_URL/TOKEN_URL/CLIENT_ID/CLIENT_SECRET` (client credentials con scope `incidents:read`) y ejecutar `POST /agent/query` contra el MCP real para adjuntar trazas sanitizadas.
+
+## 4. Decisiones aplicadas (según plan aprobado)
+- Alcance `mcps/` aprobado explícitamente (AGENTS.md protege esta zona).
+- Base apilada sobre la rama de la PR #31 (sin merge ni push).
+- OAuth env-driven + mocks ahora; proveedor real pendiente de datos del usuario.
+- `incident_tool.py` retirado (no deprecado).
+- Scope único `incidents:write` para crear + cambiar estado.
+- Frontera MCP→backend por cuenta de servicio dedicada (sin token exchange en el backend; ampliar alcance sólo si se decide después).
+
+## MEM-092 — Memoria y Auto-mejora de Agentes (Parte 1) — walkthrough local
+
+### Cambios principales
+- `services/api/app/domains/agent/memory.py`: repositorio y servicio de memoria (TinyDB), política, propuestas, resolución, consolidación, auditoría, limpieza, clasificación.
+- `services/api/app/domains/agent/state.py`: nuevas claves permitidas y validaciones.
+- `services/api/app/domains/agent/graph.py`: integración de memoria, `conversation_id`, propuestas, ack de confirmación.
+- `services/api/app/domains/agent/router.py`: extensión de contrato HTTP y usuario autenticado.
+- `services/api/tests/conftest.py`: aislamiento de tablas de memoria.
+- `services/api/tests/test_agent_memory.py`: 11 pruebas aisladas.
+- `data/pipelines/rag.py`: `generate_answer_with_memory`.
+- `services/api/.env.example`, `pyproject.toml` (pythonpath).
+- `docs/agent/agent-memory-part1.md`, `memory-bank/progress.md`.
+
+### Verificación
+- `uv run python -m pytest` (services/api): `170 passed, 5 skipped`
+- `uv run python -m pytest tests/test_agent_memory.py`: `11 passed`
+- `uv run python -m compileall app/domains/agent`: OK
+
+### Evidencia simulada
+- Ciclo 1 (aprobado): propuesta → consolidación → memoria recuperada en turno posterior.
+- Ciclo 2 (rechazado): propuesta → rechazo → memoria no recuperada.
+
+### Pendientes
+- BRIEFING oficial de memoria.
+- Integración real con proveedor RAG.
+- No se realizó commit, push ni PR.

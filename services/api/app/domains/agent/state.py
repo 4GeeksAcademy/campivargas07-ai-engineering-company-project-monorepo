@@ -32,6 +32,11 @@ ALLOWED_STATE_KEYS: frozenset[str] = frozenset({
     "incident_clarification",
     "fallback",
     "rag_answer",
+    "conversation_id",
+    "memory_context",
+    "memory_candidate",
+    "memory_proposal",
+    "pending_proposal_id",
 })
 FORBIDDEN_STATE_KEYS: frozenset[str] = frozenset({
     "messages",
@@ -81,7 +86,11 @@ class AgentState(TypedDict, total=False):
     incident_clarification: bool
     fallback: bool
     rag_answer: str
-
+    conversation_id: str
+    memory_context: list[dict[str, Any]]
+    memory_candidate: dict[str, Any] | None
+    memory_proposal: dict[str, Any] | None
+    pending_proposal_id: str | None
 
 def validate_agent_state(state: Mapping[str, Any]) -> AgentState:
     """Validate structural and type invariants that LangGraph compile() alone does not enforce."""
@@ -159,5 +168,31 @@ def validate_agent_state(state: Mapping[str, Any]) -> AgentState:
 
     if "rag_answer" in state and not isinstance(state["rag_answer"], str):
         raise StateValidationError("rag_answer debe ser de tipo str.")
+
+    if "conversation_id" in state and state["conversation_id"] is not None:
+        if not isinstance(state["conversation_id"], str) or not state["conversation_id"].strip():
+            raise StateValidationError("conversation_id debe ser un string no vacío o None.")
+
+    if "memory_context" in state:
+        ctx = state["memory_context"]
+        if not isinstance(ctx, list):
+            raise StateValidationError("memory_context debe ser una lista.")
+        for idx, item in enumerate(ctx):
+            if not isinstance(item, Mapping):
+                raise StateValidationError(f"Recuerdo en posición {idx} debe ser un diccionario.")
+            if "fact" in item and (not isinstance(item["fact"], str) or not item["fact"].strip()):
+                raise StateValidationError(f"El campo 'fact' del recuerdo {idx} debe ser texto no vacío.")
+
+    if "memory_candidate" in state and state["memory_candidate"] is not None:
+        if not isinstance(state["memory_candidate"], Mapping):
+            raise StateValidationError("memory_candidate debe ser un mapeo o None.")
+
+    if "memory_proposal" in state and state["memory_proposal"] is not None:
+        if not isinstance(state["memory_proposal"], Mapping):
+            raise StateValidationError("memory_proposal debe ser un mapeo o None.")
+
+    if "pending_proposal_id" in state and state["pending_proposal_id"] is not None:
+        if not isinstance(state["pending_proposal_id"], str) or not state["pending_proposal_id"].strip():
+            raise StateValidationError("pending_proposal_id debe ser un string no vacío o None.")
 
     return dict(state)  # type: ignore[return-value]
