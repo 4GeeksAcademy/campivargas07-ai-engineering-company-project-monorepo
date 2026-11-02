@@ -86,12 +86,16 @@ def init_db(bind_engine=None) -> None:
         IngredientExit,
     )
     from app.domains.rfp.models import (  # noqa: F401
+        RfpApprovalRun,
         RfpClassification,
+        RfpConflict,
         RfpDepartmentAspect,
         RfpDepartmentContact,
+        RfpFinalDocument,
         RfpGenerationHandoff,
         RfpGenerationRun,
         RfpHandoff,
+        RfpHumanApproval,
         RfpMetadata,
         RfpReadabilityMetrics,
         RfpSectionDraft,

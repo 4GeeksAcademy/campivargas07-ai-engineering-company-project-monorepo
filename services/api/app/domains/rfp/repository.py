@@ -212,3 +212,88 @@ class RfpRepository:
         self.session.commit()
         self.session.refresh(handoff)
         return handoff
+
+    # --- Parte 3: approval run ---
+    def get_approval_run(self, ticket_id: uuid.UUID) -> Optional["RfpApprovalRun"]:
+        from .models import RfpApprovalRun
+
+        stmt = select(RfpApprovalRun).where(RfpApprovalRun.ticket_id == ticket_id)
+        return self.session.exec(stmt).first()
+
+    def create_approval_run(self, run: "RfpApprovalRun") -> "RfpApprovalRun":
+        from .models import RfpApprovalRun
+
+        self.session.add(run)
+        self.session.commit()
+        self.session.refresh(run)
+        return run
+
+    def update_approval_run(self, run: "RfpApprovalRun") -> "RfpApprovalRun":
+        from .models import RfpApprovalRun
+
+        run.updated_at = datetime.now(timezone.utc)
+        self.session.add(run)
+        self.session.commit()
+        self.session.refresh(run)
+        return run
+
+    # --- human approvals ---
+    def list_human_approvals(self, ticket_id: uuid.UUID) -> list["RfpHumanApproval"]:
+        from .models import RfpHumanApproval
+
+        stmt = select(RfpHumanApproval).where(RfpHumanApproval.ticket_id == ticket_id)
+        return list(self.session.exec(stmt).all())
+
+    def get_human_approval(self, ticket_id: uuid.UUID, department_id: str, version: int) -> Optional["RfpHumanApproval"]:
+        from .models import RfpHumanApproval
+
+        stmt = select(RfpHumanApproval).where(
+            RfpHumanApproval.ticket_id == ticket_id,
+            RfpHumanApproval.department_id == department_id,
+            RfpHumanApproval.version == version,
+        )
+        return self.session.exec(stmt).first()
+
+    def save_human_approval(self, approval: "RfpHumanApproval") -> "RfpHumanApproval":
+        from .models import RfpHumanApproval
+
+        existing = self.get_human_approval(approval.ticket_id, approval.department_id, approval.version)
+        if existing is not None:
+            return existing
+        self.session.add(approval)
+        self.session.commit()
+        self.session.refresh(approval)
+        return approval
+
+    # --- conflicts ---
+    def list_conflicts(self, ticket_id: uuid.UUID) -> list["RfpConflict"]:
+        from .models import RfpConflict
+
+        stmt = select(RfpConflict).where(RfpConflict.ticket_id == ticket_id)
+        return list(self.session.exec(stmt).all())
+
+    def save_conflict(self, conflict: "RfpConflict") -> "RfpConflict":
+        from .models import RfpConflict
+
+        self.session.add(conflict)
+        self.session.commit()
+        self.session.refresh(conflict)
+        return conflict
+
+    # --- final document ---
+    def get_final_document(self, ticket_id: uuid.UUID) -> Optional["RfpFinalDocument"]:
+        from .models import RfpFinalDocument
+
+        stmt = select(RfpFinalDocument).where(RfpFinalDocument.ticket_id == ticket_id)
+        return self.session.exec(stmt).first()
+
+    def save_final_document(self, doc: "RfpFinalDocument") -> "RfpFinalDocument":
+        from .models import RfpFinalDocument
+
+        existing = self.get_final_document(doc.ticket_id)
+        if existing is not None:
+            return existing
+        self.session.add(doc)
+        self.session.commit()
+        self.session.refresh(doc)
+        return doc

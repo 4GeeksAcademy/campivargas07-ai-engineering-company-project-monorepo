@@ -181,3 +181,68 @@ class RfpGenerationHandoff(SQLModel, table=True):
     prepared_at: datetime = Field(default_factory=_now, nullable=False)
     consumed_at: Optional[datetime] = Field(default=None)
     consumed_by: Optional[str] = Field(default=None)
+
+
+class RfpApprovalRun(SQLModel, table=True):
+    __tablename__ = "rfp_approval_run"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
+    ticket_id: uuid.UUID = Field(foreign_key="rfp_ticket.id", index=True, nullable=False, unique=True)
+    thread_id: str = Field(nullable=False)
+    status: str = Field(default="pendiente", index=True)  # pendiente | running | esperando_aprobación | completado | failed | agotado | rechazado
+    active_departments: list[str] = Field(default_factory=list, sa_column=Column(JSON, nullable=False))
+    requires_ceo_approval: bool = Field(default=False, nullable=False)
+    ceo_approved: bool = Field(default=False, nullable=False)
+    correction_cycle: int = Field(default=0, nullable=False)
+    max_correction_cycles: int = Field(default=3, nullable=False)
+    conflicts: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON, nullable=False))
+    sections_to_correct: list[str] = Field(default_factory=list, sa_column=Column(JSON, nullable=False))
+    final_document_id: Optional[uuid.UUID] = Field(default=None, foreign_key="rfp_final_document.id")
+    error_code: Optional[str] = Field(default=None)
+    error_detail: Optional[str] = Field(default=None)
+    created_at: datetime = Field(default_factory=_now, nullable=False)
+    updated_at: datetime = Field(default_factory=_now, nullable=False)
+    completed_at: Optional[datetime] = Field(default=None)
+
+
+class RfpHumanApproval(SQLModel, table=True):
+    __tablename__ = "rfp_human_approval"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
+    ticket_id: uuid.UUID = Field(foreign_key="rfp_ticket.id", index=True, nullable=False)
+    department_id: str = Field(nullable=False, index=True)
+    draft_id: Optional[uuid.UUID] = Field(default=None, foreign_key="rfp_section_draft.id")
+    version: int = Field(nullable=False)
+    decision: str = Field(nullable=False)  # approve | reject | request_changes
+    comment: str = Field(default="", nullable=False)
+    approver_uuid: str = Field(nullable=False, index=True)
+    interrupt_id: Optional[str] = Field(default=None)
+    resumed_at: Optional[datetime] = Field(default=None)
+    decided_at: datetime = Field(default_factory=_now, nullable=False)
+
+
+class RfpConflict(SQLModel, table=True):
+    __tablename__ = "rfp_conflict"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
+    ticket_id: uuid.UUID = Field(foreign_key="rfp_ticket.id", index=True, nullable=False)
+    trigger_id: str = Field(nullable=False, index=True)
+    departments: list[str] = Field(default_factory=list, sa_column=Column(JSON, nullable=False))
+    summary: str = Field(default="", nullable=False)
+    arbiter: str = Field(default="", nullable=False)
+    status: str = Field(default="open", index=True)  # open | resolved
+    resolution: str = Field(default="", nullable=False)
+    created_at: datetime = Field(default_factory=_now, nullable=False)
+    resolved_at: Optional[datetime] = Field(default=None)
+
+
+class RfpFinalDocument(SQLModel, table=True):
+    __tablename__ = "rfp_final_document"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, index=True)
+    ticket_id: uuid.UUID = Field(foreign_key="rfp_ticket.id", index=True, nullable=False, unique=True)
+    content: str = Field(nullable=False)
+    file_reference: str = Field(default="", nullable=False)
+    sections: list[dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON, nullable=False))
+    total_estimated_value: Optional[float] = Field(default=None)
+    generated_at: datetime = Field(default_factory=_now, nullable=False)

@@ -147,3 +147,39 @@ class RfpResultResponse(BaseModel):
     drafts: list[RfpSectionDraftResponse] = Field(default_factory=list)
     evaluations: list[RfpSectionEvaluationResponse] = Field(default_factory=list)
     generation_handoff: Optional[RfpGenerationHandoffResponse] = None
+
+
+class RfpApprovalDecisionRequest(BaseModel):
+    decision: str = Field(..., description="approve | reject | request_changes")
+    comment: str = Field(default="", description="Obligatorio para reject/request_changes")
+    version: Optional[int] = Field(default=None, description="Versión exacta del borrador")
+
+
+class RfpApprovalResponse(BaseModel):
+    ticket_id: UUID
+    department_id: str
+    decision: str
+    version: Optional[int] = None
+    status: str
+
+
+class RfpApprovalSummaryResponse(BaseModel):
+    ticket_id: UUID
+    status: str
+    approvals: list[dict[str, Any]] = Field(default_factory=list)
+    conflicts: list[dict[str, Any]] = Field(default_factory=list)
+    requires_ceo_approval: bool = False
+    ceo_approved: bool = False
+    correction_cycle: int = 0
+    final_document_id: Optional[UUID] = None
+    final_document_reference: Optional[str] = None
+
+
+class RfpFinalDocumentResponse(BaseModel):
+    ticket_id: UUID
+    id: UUID
+    content: str
+    file_reference: str
+    sections: list[dict[str, Any]] = Field(default_factory=list)
+    total_estimated_value: Optional[float] = None
+    generated_at: datetime
