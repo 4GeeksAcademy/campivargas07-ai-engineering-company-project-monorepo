@@ -119,4 +119,4 @@
 ## Secretos y credenciales
 - Configuración vía `.env` / `.env.example` (raíz y `services/api`).
 - No se imprimen valores en este inventario ni en logs/traces.
-- Secretos históricos detectados por gitleaks (8 hallazgos en commits antiguos de `services/api/.env` y falsos positivos en tests). Rotación no realizada; requiere autorización específica con acción, objetivo y rollback.
+- Secretos históricos detectados por gitleaks (8 hallazgos en commits antiguos de `services/api/.env` y falsos positivos en tests). Decisión autorizada: opción (a) — rotar valores en el proveedor y actualizar `.env` local, sin reescribir historial. Código actual sin credenciales hardcodeadas.

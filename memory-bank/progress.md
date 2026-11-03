@@ -655,3 +655,5 @@
 - Brechas pendientes documentadas en el informe NIST (minimo privilegio MCP, allowlist location, telemetría pública, deps frontend, secretos históricos, infra, DAST, confirmación humana proveedores, concurrencia multi-proceso).
 
 - Confirmación humana implementada para cambio/baja de proveedores: flujo de confirmación de un solo uso con expiración, anti-reutilización, validación de parámetros/actor y auditoría. Pruebas actualizadas.
+
+- Secretos históricos: decisión autorizada opción (a) — rotación en proveedor + .env local, sin reescribir historial. Código actual sin credenciales hardcodeadas.
