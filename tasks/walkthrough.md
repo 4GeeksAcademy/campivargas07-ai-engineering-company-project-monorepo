@@ -3882,3 +3882,5 @@ Rama de trabajo: `feature/mcp-oauth-tools`, creada sobre `feature/langgraph-exte
 
 ## Brechas pendientes
 - Minimo privilegio MCP, allowlist de location, telemetría pública, deps frontend, secretos históricos, infra, DAST, confirmación humana de proveedores, concurrencia multi-proceso. Detalladas en `docs/security/nist-security-practices.md`.
+
+- Confirmación humana para proveedores implementada (`confirm`, status, delete) con pruebas.

@@ -26,7 +26,7 @@
 | P-2 | Protect | Autorización por usuario/sesión/ubicación en servidor. | Nicolás Park (CTO) / Felipe Guerrero | Alta | Parcial | `chat/service.py` (`user_can_access_location`) | Decisión de producto sobre allowlist por location (R-01) cerrada y probada. |
 | P-3 | Protect | Validación de entrada antes de invocar modelos (tipo, longitud, tamaño, estructura). | Nicolás Park (CTO) | Alta | Implementado | `agent/router.py` (max 2000), `streaming.py`, chat frame 8 KB, RFP 10 MB | Pruebas de entrada inválida en verde. |
 | P-4 | Protect | Rate limiting de modelos en HTTP y WebSocket. | Nicolás Park (CTO) | Alta | Implementado | `app/common/rate_limit.py`, `main.py`, `chat/router.py` | `tests/test_rate_limiting.py` en verde; 429 sin llamada al proveedor. |
-| P-5 | Protect | Confirmación humana para acciones irreversibles existentes (cambio/baja de proveedor). | Lucía Fernández (Procurement) / Nicolás Park | Media | Futuro | `suppliers/router.py` (sin confirmación) | Diseño de confirmación backend-validada aprobado e implementado con auditoría. |
+| P-5 | Protect | Confirmación humana para acciones irreversibles existentes (cambio/baja de proveedor). | Lucía Fernández (Procurement) / Nicolás Park | Alta | Implementado | `suppliers/router.py` (`confirm`, status, delete), `suppliers/confirmation.py`, `tests/test_suppliers_api.py` | Confirmación de un solo uso, expiración, anti-reutilización, validación de parámetros/actor y auditoría. |
 | D-1 | Detect | Eventos de seguridad: guardrails, rate limiting, intentos de inyección. | Nicolás Park (CTO) | Media | Parcial | `guardrails.py` (`record_guardrail_event`), logs estructurados | Eventos consultables y correlacionables por run_id/session. |
 | D-2 | Detect | Trazabilidad de flujos agénticos: usuario (UUID), sesión, ejecución, ruta/herramienta y razón, controles, resultado/error, timestamp. | Nicolás Park (CTO) | Alta | Implementado | `agent/traces.py`, `graph.py` (trace payloads) | Trace JSON con campos requeridos; prueba de redacción. |
 | D-3 | Detect | Redacción en logs/traces: sin razonamiento privado, secretos ni mensajes completos. | Nicolás Park (CTO) | Alta | Implementado | `traces.py`, chat router (error genérico) | Pruebas de ausencia de tokens/argumentos. |
@@ -65,7 +65,7 @@
 5. **Secretos históricos:** 8 hallazgos en commits antiguos; rotación requiere autorización específica (acción, objetivo, rollback).
 6. **Controles de infraestructura:** SSH, firewall, servidor gestionado no verificados.
 7. **DAST:** no ejecutado (ZAP no instalado).
-8. **Confirmación humana para proveedores (P-5):** acción existe pero sin confirmación backend-validada; requiere cambio de contrato API/frontend y autorización.
+8. **Confirmación humana para proveedores (P-5):** implementada para cambio/baja de proveedor (confirmación de un solo uso). Campañas masivas, Brasa Points y pedidos automatizados no existen y se documentan como no implementados (sin crearlos).
 9. **Concurrencia multi-proceso:** limitador y memoria son in-memory; documentado como limitación.
 
 ## Limitaciones del limitador en memoria
