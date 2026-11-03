@@ -95,7 +95,9 @@ CASUAL_PATTERNS: tuple[re.Pattern[str], ...] = (
 OVERRIDE_PHRASES = re.compile(
     r"ignor\w*.*(instrucc|reglas|prompt)|"
     r"(instrucciones?|reglas?|prompt).*(internas|sistema|anteriores|previas)|"
-    r"act[uú]a\s+como|sin\s+restricciones|developer\s+mode|jailbreak|bypass",
+    r"act[uú]a\s+como|sin\s+restricciones|developer\s+mode|jailbreak|bypass|"
+    r"recomienda\s+siempre|always\s+recommend|al\s+responder|when\s+answering|"
+    r"oculto\s+en\s+el\s+texto",
     re.I,
 )
 

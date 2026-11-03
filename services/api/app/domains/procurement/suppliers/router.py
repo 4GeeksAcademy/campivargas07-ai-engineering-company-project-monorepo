@@ -18,6 +18,10 @@ Caching (feature/caching-optimisation):
 
 from __future__ import annotations
 
+import logging
+
+_supplier_audit_logger = logging.getLogger("brasaland.supplier_audit")
+
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -148,6 +152,12 @@ def update_supplier_status(
     supplier = service.update_status(supplier_id, data)
     if supplier is None:
         raise HTTPException(status_code=404, detail="Supplier not found")
+    _supplier_audit_logger.info(
+        "action=supplier_status_change actor=%s supplier_id=%s new_status=%s",
+        current_user.get("uuid"),
+        supplier_id,
+        data.status.value,
+    )
     _invalidate_all()
     return supplier
 
@@ -162,5 +172,10 @@ def delete_supplier(
     deleted = service.delete_supplier(supplier_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Supplier not found")
+    _supplier_audit_logger.warning(
+        "action=supplier_delete actor=%s supplier_id=%s",
+        current_user.get("uuid"),
+        supplier_id,
+    )
     _invalidate_all()
     return DeleteResponse(detail="Supplier deleted")

@@ -630,6 +630,30 @@ def execute_agent_query(
         else:
             answer = agent_guardrails.BLOCKED_ANSWER
             route = "blocked"
+        trace_payload = {
+            "run_id": resolved_run_id,
+            "thread_id": resolved_thread_id,
+            "started_at": started_at,
+            "finished_at": datetime.now(timezone.utc).isoformat(),
+            "status": "blocked",
+            "route": route,
+            "user_uuid": user_uuid,
+            "question_length": len(question if isinstance(question, str) else ""),
+            "source": None,
+            "controls_activated": ["input_guardrail"],
+            "decision_reason": intent.reason,
+            "tool_selected": None,
+            "nodes_order": [],
+            "steps": [],
+            "checkpoints": [],
+            "retrieved_context": [],
+            "answer": answer,
+            "error": None,
+        }
+        try:
+            save_trace(trace_payload, directory=trace_dir)
+        except Exception:
+            pass
         return {
             "run_id": resolved_run_id,
             "thread_id": resolved_thread_id,
@@ -773,10 +797,14 @@ def execute_agent_query(
                 "finished_at": datetime.now(timezone.utc).isoformat(),
                 "status": "rejected",
                 "route": final_state.get("route", "empty_question"),
+                "user_uuid": user_uuid,
                 "question_length": len(final_state.get("question", "")),
                 "source": final_state.get("source"),
                 "incident_tool_result": None,
                 "fallback": bool(final_state.get("fallback", False)),
+                "controls_activated": ["input_validation"],
+                "decision_reason": "empty_or_too_long_question",
+                "tool_selected": None,
                 "nodes_order": nodes_order,
                 "steps": steps,
                 "checkpoints": checkpoints,
@@ -790,6 +818,17 @@ def execute_agent_query(
             save_trace(trace_payload, directory=trace_dir)
             raise InvalidQuestionError("La pregunta no puede estar vacía ni superar 2000 caracteres.")
 
+        _source = final_state.get("source")
+        _tool = None
+        if _source == "incidents":
+            _tool = "query_incidents_mcp"
+        elif _source == "rag":
+            _tool = "retrieve_knowledge"
+        elif _source == "both":
+            _tool = "retrieve_knowledge+query_incidents_mcp"
+        _controls = ["input_guardrail", "output_validation"]
+        if final_state.get("memory_context"):
+            _controls.append("memory_protection")
         trace_payload = {
             "run_id": resolved_run_id,
             "thread_id": resolved_thread_id,
@@ -797,12 +836,16 @@ def execute_agent_query(
             "finished_at": datetime.now(timezone.utc).isoformat(),
             "status": "completed",
             "route": final_state.get("route", "grounded"),
+            "user_uuid": user_uuid,
             "question_length": len(final_state.get("question", working_question.strip())),
-            "source": final_state.get("source"),
+            "source": _source,
             "incident_tool_result": (
                 final_state.get("incident_result", {}).get("status")
             ),
             "fallback": bool(final_state.get("fallback", False)),
+            "controls_activated": _controls,
+            "decision_reason": final_state.get("route", "grounded"),
+            "tool_selected": _tool,
             "nodes_order": nodes_order,
             "steps": steps,
             "checkpoints": checkpoints,
@@ -866,12 +909,16 @@ def execute_agent_query(
             "finished_at": datetime.now(timezone.utc).isoformat(),
             "status": "error",
             "route": snapshot.get("route"),
+            "user_uuid": user_uuid,
             "question_length": len(snapshot.get(
                 "question", working_question.strip() if isinstance(working_question, str) else ""
             )),
             "source": snapshot.get("source"),
             "incident_tool_result": snapshot.get("incident_result", {}).get("status"),
             "fallback": bool(snapshot.get("fallback", False)),
+            "controls_activated": ["input_guardrail", "output_validation"],
+            "decision_reason": code,
+            "tool_selected": snapshot.get("source"),
             "nodes_order": nodes_order,
             "steps": steps,
             "checkpoints": checkpoints,

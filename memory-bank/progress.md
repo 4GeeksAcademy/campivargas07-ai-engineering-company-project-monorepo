@@ -639,3 +639,17 @@
 - Gitleaks: sin fugas en archivos actuales; 8 hallazgos históricos en `services/api/.env` (commits c2383f2e y fe587de7), valores redactados.
 - npm audit fix intentado y revertido por romper validaciones; quedan 17 vulnerabilidades.
 - DAST y controles de infraestructura externa siguen pendientes.
+
+## Hito: Prácticas Seguras en la Integración de IA (NIST CSF 2.0) — feature/nist-security-practices
+
+- Base: `origin/feature/owasp-top10-audit @ f377183` (PR #40 abierta/draft). Rama nueva `feature/nist-security-practices`.
+- Implementado:
+  - Rate limiting compartido para `/agent/query`, `/knowledge/query` (HTTP) y `user_message` (WebSocket), con identidad por usuario y límites configurables.
+  - Sanitización de mensajes de error en chat (sin `str(exc)`).
+  - Neutralización de inyección indirecta en chunks RAG (patrones de recomendación manipulada).
+  - Trazas LangGraph enriquecidas: `user_uuid`, `controls_activated`, `decision_reason`, `tool_selected`.
+  - Auditoría estructurada de cambios/bajas de proveedores.
+  - Pruebas: `test_security_prompt_injection.py` (inyección bloqueada + consulta legítima), `test_rate_limiting.py`.
+- Documentación nueva: `docs/security/ai-component-inventory.md`, `docs/security/nist-security-practices.md`.
+- Verificación: 211 passed, 5 skipped (backend). MCP no re-ejecutado en esta sesión.
+- Brechas pendientes documentadas en el informe NIST (minimo privilegio MCP, allowlist location, telemetría pública, deps frontend, secretos históricos, infra, DAST, confirmación humana proveedores, concurrencia multi-proceso).
