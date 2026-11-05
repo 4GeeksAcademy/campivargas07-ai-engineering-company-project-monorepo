@@ -2,7 +2,12 @@ import type { NextConfig } from "next";
 
 const internalApiUrl = (process.env.INTERNAL_API_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
 
+import path from 'path';
+
 const nextConfig: NextConfig = {
+  turbopack: {
+    root: path.resolve(__dirname, '../..'),
+  },
   experimental: {
     externalDir: true,
   },

@@ -614,3 +614,10 @@
 - Validación con mismo proyecto Supabase: schema `rfp_test` creado; `TEST_DATABASE_URL` con `search_path=rfp_test`; pruebas Parte 1 + Parte 2 pasando (16 passed). Proveedor real sigue pendiente (opción A: fallback RAG no configurado en este entorno).
 
 - Validación real con proveedor: generación marketing aprobada (`overall_pass=true`), `requires_ceo_approval=true` para presupuesto >50k USD. Base Supabase (schema `rfp_test`) conectada vía `postgresql+psycopg2://`.
+
+## Hito: Streaming de Chat por WebSocket — Parte 2 de 2 (merge con main actualizado)
+
+- Rama: `feature/websocket-chat`, ahora basada en `main` actualizado (incluye PR #38 SSE RFP).
+- Implementado: sesiones TinyDB, WebSocket autenticado, pub/sub en memoria, streaming real, guardrails, interrupción/cancelación, reconexión, UI, checkpoint helper.
+- Verificación real: Google Gemini OpenAI-compatible + Qdrant `brasaland_knowledge` (14 puntos); `token_chunk` progresivos y cancelación efectiva verificados.
+- Pruebas: `test_chat_websocket.py` (5 passed), `test_chat_multi_subscriber.py` (1 passed), `test_agent_api.py` passed.

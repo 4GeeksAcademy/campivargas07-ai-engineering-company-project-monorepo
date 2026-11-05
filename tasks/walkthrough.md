@@ -3838,3 +3838,9 @@ Rama de trabajo: `feature/mcp-oauth-tools`, creada sobre `feature/langgraph-exte
 3. Cortar conexión de A, subir otra RFP desde B.
 4. Reconectar A → recupera la segunda sin duplicados.
 
+
+## Walkthrough — WebSocket Chat (actualizado con main)
+
+- Rama: `feature/websocket-chat` (base actualizada con PR #38).
+- Evidencia real de streaming/cancelación registrada.
+- Captura: `docs/pr-assets/chat/chat-streaming.png`.
