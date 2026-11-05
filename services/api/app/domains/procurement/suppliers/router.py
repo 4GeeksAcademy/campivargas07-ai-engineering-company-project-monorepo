@@ -18,6 +18,10 @@ Caching (feature/caching-optimisation):
 
 from __future__ import annotations
 
+import logging
+
+_supplier_audit_logger = logging.getLogger("brasaland.supplier_audit")
+
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -27,12 +31,15 @@ from app.domains.auth.dependencies import get_current_user
 
 from .schemas import (
     DeleteResponse,
+    SupplierConfirmationRequest,
+    SupplierConfirmationResponse,
     SupplierCreate,
     SupplierListResponse,
     SupplierRateUpdate,
     SupplierResponse,
     SupplierStatusUpdate,
 )
+from . import confirmation
 from . import service
 
 router = APIRouter(prefix="/api/suppliers", tags=["suppliers"])
@@ -137,6 +144,42 @@ def update_supplier_rate(
     return supplier
 
 
+# ── POST /api/suppliers/{id}/confirm ─────────────────────────
+@router.post("/{supplier_id}/confirm", response_model=SupplierConfirmationResponse)
+def confirm_supplier_action(
+    supplier_id: str,
+    body: SupplierConfirmationRequest,
+    current_user: dict = Depends(get_current_user),
+) -> SupplierConfirmationResponse:
+    """Create a short-lived, single-use confirmation for an irreversible supplier action."""
+    from .schemas import SupplierStatus
+
+    if body.action == "status_change":
+        if body.status is None:
+            raise HTTPException(status_code=422, detail="status requerido para status_change.")
+        params = {"status": body.status.value}
+    elif body.action == "delete":
+        params = {}
+    else:
+        raise HTTPException(status_code=422, detail="Acción no soportada.")
+
+    # Ensure supplier exists.
+    existing = service.get_supplier_by_id(supplier_id)
+    if existing is None:
+        raise HTTPException(status_code=404, detail="Supplier not found")
+
+    result = confirmation.create_confirmation(
+        supplier_id=supplier_id,
+        action=body.action,
+        params=params,
+        actor_uuid=str(current_user.get("uuid")),
+    )
+    return SupplierConfirmationResponse(
+        confirmation_id=result["confirmation_id"],
+        expires_at=result["expires_at"],
+    )
+
+
 # ── PATCH /api/suppliers/{id}/status ─────────────────────────
 @router.patch("/{supplier_id}/status", response_model=SupplierResponse)
 def update_supplier_status(
@@ -144,10 +187,28 @@ def update_supplier_status(
     data: SupplierStatusUpdate,
     current_user: dict = Depends(get_current_user),
 ) -> SupplierResponse:
-    """Activate or suspend a supplier. Only 'activo' and 'suspendido' are allowed."""
-    supplier = service.update_status(supplier_id, data)
+    """Activate or suspend a supplier. Requires a valid human confirmation."""
+    if not data.confirmation_id:
+        raise HTTPException(status_code=403, detail="Confirmación humana requerida.")
+    ok = confirmation.validate_and_consume(
+        confirmation_id=data.confirmation_id,
+        supplier_id=supplier_id,
+        action="status_change",
+        params={"status": data.status.value},
+        actor_uuid=str(current_user.get("uuid")),
+    )
+    if not ok:
+        raise HTTPException(status_code=403, detail="Confirmación inválida, expirada o reutilizada.")
+
+    supplier = service.update_status(supplier_id, SupplierStatusUpdate(status=data.status))
     if supplier is None:
         raise HTTPException(status_code=404, detail="Supplier not found")
+    _supplier_audit_logger.info(
+        "action=supplier_status_change actor=%s supplier_id=%s new_status=%s confirmed=true",
+        current_user.get("uuid"),
+        supplier_id,
+        data.status.value,
+    )
     _invalidate_all()
     return supplier
 
@@ -156,11 +217,29 @@ def update_supplier_status(
 @router.delete("/{supplier_id}", response_model=DeleteResponse)
 def delete_supplier(
     supplier_id: str,
+    confirmation_id: Optional[str] = Query(default=None),
     current_user: dict = Depends(get_current_user),
 ) -> DeleteResponse:
-    """Delete a supplier. Returns 404 if not found."""
+    """Delete a supplier. Requires a valid human confirmation."""
+    if not confirmation_id:
+        raise HTTPException(status_code=403, detail="Confirmación humana requerida.")
+    ok = confirmation.validate_and_consume(
+        confirmation_id=confirmation_id,
+        supplier_id=supplier_id,
+        action="delete",
+        params={},
+        actor_uuid=str(current_user.get("uuid")),
+    )
+    if not ok:
+        raise HTTPException(status_code=403, detail="Confirmación inválida, expirada o reutilizada.")
+
     deleted = service.delete_supplier(supplier_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Supplier not found")
+    _supplier_audit_logger.warning(
+        "action=supplier_delete actor=%s supplier_id=%s confirmed=true",
+        current_user.get("uuid"),
+        supplier_id,
+    )
     _invalidate_all()
     return DeleteResponse(detail="Supplier deleted")

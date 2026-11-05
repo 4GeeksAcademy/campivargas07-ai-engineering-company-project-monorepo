@@ -3862,3 +3862,25 @@ Rama de trabajo: `feature/mcp-oauth-tools`, creada sobre `feature/langgraph-exte
 - Gitleaks: sin fugas actuales; 8 hallazgos históricos en `services/api/.env` (commits c2383f2e y fe587de7).
 - npm audit fix revertido por romper validaciones.
 - Verificación: backend 207 passed/5 skipped.
+
+# Walkthrough: Prácticas Seguras en la Integración de IA (NIST CSF 2.0) — 2026-11-02
+
+## Cambios implementados
+- `services/api/app/common/rate_limit.py`: limitador compartido en memoria con identidad por clave, ventana configurable, deshabilitado en tests.
+- `services/api/app/main.py`: rate limiting extendido a `/agent/query` y `/knowledge/query`; reutiliza el limitador compartido.
+- `services/api/app/domains/chat/router.py`: rate limiting por usuario en `user_message`; mensajes de error genéricos (sin `str(exc)`).
+- `services/api/app/domains/agent/guardrails.py`: patrones de neutralización de inyección indirecta en contenido recuperado.
+- `services/api/app/domains/agent/graph.py`: trazas enriquecidas con `user_uuid`, `controls_activated`, `decision_reason`, `tool_selected`.
+- `services/api/app/domains/procurement/suppliers/router.py`: auditoría estructurada de cambios/bajas de proveedores.
+- `services/api/tests/test_security_prompt_injection.py`: caso legítimo aceptado + inyección indirecta neutralizada + término prohibido.
+- `services/api/tests/test_rate_limiting.py`: 429 sin llamada al proveedor.
+- Documentación: `docs/security/ai-component-inventory.md`, `docs/security/nist-security-practices.md`.
+
+## Verificación
+- `uv run --project services/api python -m pytest` → 211 passed, 5 skipped.
+- `git diff --check` limpio.
+
+## Brechas pendientes
+- Minimo privilegio MCP, allowlist de location, telemetría pública, deps frontend, secretos históricos, infra, DAST, confirmación humana de proveedores, concurrencia multi-proceso. Detalladas en `docs/security/nist-security-practices.md`.
+
+- Confirmación humana para proveedores implementada (`confirm`, status, delete) con pruebas.
