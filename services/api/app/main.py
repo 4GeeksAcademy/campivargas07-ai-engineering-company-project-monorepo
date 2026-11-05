@@ -1,9 +1,12 @@
 import os
 import logging
+import time
+from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.common.timing import RequestTimingMiddleware
 from app.database import backfill_users_uuid, init_db
@@ -51,18 +54,70 @@ app = FastAPI(
 app.add_middleware(RequestTimingMiddleware)
 register_incident_error_handlers(app)
 
+# CORS: origins can be configured; defaults are local development only.
+_cors_origins = [
+    origin.strip()
+    for origin in os.environ.get(
+        "CORS_ALLOWED_ORIGINS",
+        "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001",
+    ).split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:3002",
-        "http://127.0.0.1:3002",
-    ],
+    allow_origins=_cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "X-Requested-With"],
 )
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+        # HSTS only when the deployment is known to be HTTPS.
+        if os.environ.get("ENABLE_HSTS", "").lower() == "true":
+            response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+        return response
+
+
+# Simple in-memory rate limiting for sensitive endpoints.
+_RATE_LIMITS: dict[str, deque[float]] = defaultdict(deque)
+
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if os.environ.get("BRASALAND_ENV", "").lower() in {"test"}:
+            return await call_next(request)
+        path = request.url.path
+        limit = None
+        window = 60.0
+        if path.endswith("/auth/login"):
+            limit = int(os.environ.get("RATE_LIMIT_LOGIN_PER_MINUTE", "10"))
+        elif path.startswith("/telemetry/events"):
+            limit = int(os.environ.get("RATE_LIMIT_TELEMETRY_PER_MINUTE", "60"))
+        if limit is not None:
+            client = request.client.host if request.client else "unknown"
+            key = f"{client}:{path}"
+            now = time.monotonic()
+            bucket = _RATE_LIMITS[key]
+            while bucket and now - bucket[0] > window:
+                bucket.popleft()
+            if len(bucket) >= limit:
+                from fastapi.responses import JSONResponse
+
+                return JSONResponse({"detail": "Too many requests"}, status_code=429)
+            bucket.append(now)
+        return await call_next(request)
+
+
+app.add_middleware(RateLimitMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
 
 # Domain Routers
 app.include_router(auth_router)

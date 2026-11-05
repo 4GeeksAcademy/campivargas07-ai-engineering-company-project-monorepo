@@ -13,11 +13,13 @@ export function connectChatSocket(options: ChatSocketOptions): { send: (event: s
 
   const connect = () => {
     onStatus?.('connecting');
-    const url = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/api/chat/ws?session_id=${encodeURIComponent(sessionId)}&token=${encodeURIComponent(token)}`;
+    const url = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/api/chat/ws?session_id=${encodeURIComponent(sessionId)}`;
     socket = new WebSocket(url);
     socket.onopen = () => {
       attempt = 0;
       onStatus?.('connected');
+      // Authenticate with the first frame so the token is not exposed in the URL.
+      socket?.send(JSON.stringify({ event: 'auth', data: { token, session_id: sessionId } }));
     };
     socket.onmessage = (ev) => {
       try {
