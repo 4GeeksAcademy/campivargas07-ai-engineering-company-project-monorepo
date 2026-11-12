@@ -14,10 +14,12 @@ from app.database import get_db
 from app.domains.auth.dependencies import get_current_user
 from app.domains.rfp import events as rfp_events
 from app.domains.rfp import service as rfp_service
-from app.domains.rfp.errors import RfpNotFoundError
+from app.domains.rfp.errors import RfpNotFoundError, RfpValidationError
 from app.domains.rfp.models import RfpTicket
 from app.domains.rfp.repository import RfpRepository
 from app.domains.rfp.schemas import (
+    RfpApprovalDecisionRequest,
+    RfpApproverAssignRequest,
     RfpCreateResponse,
     RfpGenerateResponse,
     RfpGenerationHandoffResponse,
@@ -326,3 +328,224 @@ def get_rfp_result(
         if generation_handoff
         else None,
     )
+
+
+def _get_ticket_for_review(
+    session: Session,
+    ticket_id: uuid.UUID,
+    current_user: dict,
+    *,
+    department_id: str | None = None,
+    include_approvers: bool = False,
+) -> RfpTicket:
+    try:
+        ticket = rfp_service.get_ticket(session, ticket_id)
+    except RfpNotFoundError:
+        raise HTTPException(status_code=404, detail="RFP ticket not found.") from None
+    if _can_access_rfp_ticket(current_user, ticket):
+        return ticket
+
+    if department_id is not None or include_approvers:
+        run = RfpRepository(session).get_approval_run(ticket_id)
+        if run is not None:
+            departments = list(run.active_departments)
+            if run.requires_ceo_approval:
+                departments.append("ceo")
+            if any(
+                (department_id is None or department_id == active)
+                and rfp_service.is_authorized_approver(current_user, active, session=session)
+                for active in departments
+            ):
+                return ticket
+
+    raise HTTPException(status_code=404, detail="RFP ticket not found.")
+
+
+@router.post("/{ticket_id}/approval/start", status_code=202)
+def start_approval(
+    ticket_id: uuid.UUID,
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    session: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    _get_ticket_for_review(session, ticket_id, current_user)
+    try:
+        ticket, run = rfp_service.start_rfp_approval(session, ticket_id)
+    except RfpNotFoundError:
+        raise HTTPException(status_code=404, detail="RFP ticket not found.")
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    background_tasks.add_task(rfp_service.process_rfp_approval, ticket.id)
+    return {"ticket_id": str(ticket.id), "status": ticket.status, "run_id": str(run.id)}
+
+
+@router.get("/{ticket_id}/approvals")
+def get_approvals(
+    ticket_id: uuid.UUID,
+    session: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    ticket = _get_ticket_for_review(session, ticket_id, current_user, include_approvers=True)
+    repo = RfpRepository(session)
+    run = repo.get_approval_run(ticket_id)
+    approvals = repo.list_human_approvals(ticket_id)
+    conflicts = repo.list_conflicts(ticket_id)
+    final_doc = repo.get_final_document(ticket_id)
+    return {
+        "ticket_id": str(ticket.id),
+        "status": ticket.status,
+        "approval_status": run.status if run else None,
+        "approvals": [a.__dict__ for a in approvals],
+        "conflicts": [c.__dict__ for c in conflicts],
+        "requires_ceo_approval": run.requires_ceo_approval if run else False,
+        "ceo_approved": run.ceo_approved if run else False,
+        "correction_cycle": run.correction_cycle if run else 0,
+        "final_document_id": str(run.final_document_id) if (run and run.final_document_id) else None,
+        "final_document_reference": final_doc.file_reference if final_doc else None,
+    }
+
+
+@router.get("/{ticket_id}/approvals/{department_id}")
+def get_department_review(
+    ticket_id: uuid.UUID,
+    department_id: str,
+    session: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    ticket = _get_ticket_for_review(session, ticket_id, current_user, department_id=department_id)
+    repo = RfpRepository(session)
+    gen_handoff = repo.get_generation_handoff(ticket_id)
+    section = None
+    if gen_handoff is not None:
+        for s in (gen_handoff.sections or []):
+            if isinstance(s, dict) and s.get("department_id") == department_id:
+                section = s
+                break
+    drafts = [d for d in repo.list_drafts(ticket_id) if d.department_id == department_id]
+    latest_draft = max(drafts, key=lambda x: x.version) if drafts else None
+    evals = [e for e in repo.list_evaluations(ticket_id) if e.department_id == department_id]
+    latest_eval = max(evals, key=lambda x: x.iteration) if evals else None
+    return {
+        "ticket_id": str(ticket.id),
+        "department_id": department_id,
+        "section": section,
+        "draft": {
+            "id": str(latest_draft.id) if latest_draft else None,
+            "version": latest_draft.version if latest_draft else None,
+            "content": latest_draft.content if latest_draft else None,
+        },
+        "evaluation": {
+            "overall_pass": latest_eval.overall_pass if latest_eval else None,
+            "readability": latest_eval.readability if latest_eval else None,
+            "relevance": latest_eval.relevance if latest_eval else None,
+            "compliance": latest_eval.compliance if latest_eval else None,
+            "feedback_for_generator": latest_eval.feedback_for_generator if latest_eval else None,
+        } if latest_eval else None,
+        "global_compliance": gen_handoff.global_compliance if gen_handoff else None,
+        "open_questions": gen_handoff.open_questions if gen_handoff else [],
+        "requires_ceo_approval": gen_handoff.requires_ceo_approval if gen_handoff else False,
+    }
+
+
+@router.post("/{ticket_id}/approvals/{department_id}")
+def submit_department_decision(
+    ticket_id: uuid.UUID,
+    department_id: str,
+    payload: RfpApprovalDecisionRequest,
+    session: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    try:
+        result = rfp_service.submit_approval_decision(
+            session=session,
+            ticket_id=ticket_id,
+            department_id=department_id,
+            decision=payload.decision,
+            comment=payload.comment,
+            version=payload.version,
+            current_user=current_user,
+        )
+    except RfpNotFoundError:
+        raise HTTPException(status_code=404, detail="RFP ticket not found.")
+    except RfpValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    return result
+
+
+@router.post("/{ticket_id}/approvals/ceo")
+def submit_ceo_decision(
+    ticket_id: uuid.UUID,
+    payload: RfpApprovalDecisionRequest,
+    session: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    try:
+        result = rfp_service.submit_approval_decision(
+            session=session,
+            ticket_id=ticket_id,
+            department_id="ceo",
+            decision=payload.decision,
+            comment=payload.comment,
+            version=None,
+            current_user=current_user,
+        )
+    except RfpNotFoundError:
+        raise HTTPException(status_code=404, detail="RFP ticket not found.")
+    except RfpValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    return result
+
+
+@router.get("/{ticket_id}/final-document")
+def get_final_document(
+    ticket_id: uuid.UUID,
+    session: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    ticket = _get_ticket_for_review(session, ticket_id, current_user)
+    repo = RfpRepository(session)
+    doc = repo.get_final_document(ticket_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Final document not found.")
+    return {
+        "ticket_id": str(ticket.id),
+        "id": str(doc.id),
+        "content": doc.content,
+        "file_reference": doc.file_reference,
+        "sections": doc.sections,
+        "total_estimated_value": doc.total_estimated_value,
+        "generated_at": doc.generated_at,
+    }
+
+
+@router.post("/approvers", status_code=201)
+def assign_approver(
+    payload: RfpApproverAssignRequest,
+    session: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    try:
+        row = rfp_service.assign_department_approver(
+            session=session,
+            department_id=payload.department_id,
+            user_uuid=payload.user_uuid,
+            responsible_name=payload.responsible_name,
+            current_user=current_user,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    return {"department_id": row.department_id, "user_uuid": row.user_uuid, "responsible_name": row.responsible_name}
+
+
+@router.get("/approvers/{department_id}")
+def list_approvers(
+    department_id: str,
+    session: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    rows = rfp_service.list_department_approvers(session, department_id)
+    return [{"department_id": r.department_id, "user_uuid": r.user_uuid, "responsible_name": r.responsible_name} for r in rows]

@@ -3884,3 +3884,21 @@ Rama de trabajo: `feature/mcp-oauth-tools`, creada sobre `feature/langgraph-exte
 - Minimo privilegio MCP, allowlist de location, telemetría pública, deps frontend, secretos históricos, infra, DAST, confirmación humana de proveedores, concurrencia multi-proceso. Detalladas en `docs/security/nist-security-practices.md`.
 
 - Confirmación humana para proveedores implementada (`confirm`, status, delete) con pruebas.
+
+
+## RFP Approval and Completion — Parte 3 de 3 (feature/rfp-approval-completion)
+
+- Rama creada desde `origin/feature/rfp-response-generation` (`82cd7a3`), sin modificar PR #36.
+- Implementado grafo `data/pipelines/rfp_approval.py` (interrupts paralelos, arbitraje, correcciones, síntesis final).
+- Modelos y repositorio extendidos; endpoints y esquemas añadidos.
+- Checkpointer persistente Postgres/SQLite; no in-memory para evidencia.
+- Pruebas: `tests/pipelines/test_rfp_approval.py` 6 passed; `services/api/tests/test_rfp_part3.py` 2 passed.
+- Suite: 192 passed + 5 pruebas Postgres passed con TEST_DATABASE_URL; setup de PostgresSaver verificado.
+- Pendientes reales: integración con usuarios reales para mapeo de aprobadores (env `RFP_APPROVER_MAP`); métricas estructuradas para `cost-vs-feasibility` aún no extraídas de Parte 1/2.
+
+## Capstone — recorrido de verificación
+
+1. Iniciar la API y el backoffice con PostgreSQL y Qdrant de prueba.
+2. Entrar con una cuenta sintética. Desde Resumen, abrir Conocimiento y Chat, comprobar la respuesta y redirigirla mediante Detener durante la generación.
+3. Desde RFPs, cargar un PDF sintético, generar el borrador y abrir su aprobación. Confirmar que el documento se guarda y que una cuenta ajena no puede consultarlo.
+4. Revisar [resultados, comandos y pendientes](../docs/capstone/verificacion.md) antes de filmar. [Guion y entrega](../docs/capstone/guion-y-grabacion.md).

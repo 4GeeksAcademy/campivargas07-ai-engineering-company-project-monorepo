@@ -657,3 +657,17 @@
 - Confirmación humana implementada para cambio/baja de proveedores: flujo de confirmación de un solo uso con expiración, anti-reutilización, validación de parámetros/actor y auditoría. Pruebas actualizadas.
 
 - Secretos históricos: decisión autorizada opción (a) — rotación en proveedor + .env local, sin reescribir historial. Código actual sin credenciales hardcodeadas.
+## Hito 9 Parte 3 — Aprobación y cierre de RFPs (feature/rfp-approval-completion)
+
+- Base: `origin/feature/rfp-response-generation` (`82cd7a3`); PR #36 permanece abierta y no se modificó.
+- Implementado: grafo `data/pipelines/rfp_approval.py` con interrupts paralelos por departamento, arbitraje estructurado, correcciones selectivas, síntesis final idempotente.
+- Persistencia: `RfpApprovalRun`, `RfpHumanApproval`, `RfpConflict`, `RfpFinalDocument` + checkpointer `PostgresSaver`/`SqliteSaver`.
+- API: endpoints de inicio, consulta, decisión por departamento/CEO y documento final.
+- Pruebas: `tests/pipelines/test_rfp_approval.py` (6 passed) y `services/api/tests/test_rfp_part3.py` (2 passed); suite completa 192 passed (5 postgres omitidos).
+- Dependencias añadidas: `langgraph-checkpoint-postgres`, `langgraph-checkpoint-sqlite`, `psycopg[binary]`.
+
+## Capstone — integración de Brasaland
+
+- Rama `feature/capstone-integration` desde `main` (`37a60ef)). Incorpora #37, #40 y #41 conservando SSE, aprobación RFP y los controles de seguridad.
+- El backoffice enlaza recepción y aprobaciones de RFP. Los checkpoints PostgreSQL se preparan en el arranque y las decisiones se reanudan únicamente en el departamento correspondiente.
+- Verificación y pendientes en `docs/capstone/verificacion.md`. El guion y la descripción están preparados en `docs/capstone/`.

@@ -22,6 +22,7 @@ from app.domains.users.router import router as users_router
 from app.domains.knowledge.router import router as knowledge_router
 from app.domains.agent.router import router as agent_router
 from app.domains.rfp.router import router as rfp_router
+from app.domains.rfp.service import init_rfp_checkpoints
 from app.domains.chat.router import router as chat_router
 from pydantic import BaseModel
 
@@ -38,6 +39,7 @@ async def lifespan(app: FastAPI):
     # Initialize SQLModel PostgreSQL tables if DATABASE_URL is configured
     if os.environ.get("DATABASE_URL"):
         init_db()
+        init_rfp_checkpoints()
     yield
 
 
