@@ -17,8 +17,8 @@ def test_health_has_explicit_json_contract(client: TestClient) -> None:
 def test_user_responses_never_expose_password_hash(
     client: TestClient, create_test_user
 ) -> None:
-    user = create_test_user(email="serializacion@brasaland.com")
-    token = create_access_token(data={"sub": str(user.doc_id), "role": user["role"]})
+    user = create_test_user(email="serializacion@brasaland.com", role="admin")
+    token = create_access_token(data={"sub": str(user.doc_id), "role": "admin"})
     headers = {"Authorization": f"Bearer {token}"}
 
     response = client.get("/users", headers=headers)

@@ -17,18 +17,31 @@ from fastapi import HTTPException, status
 from jose import JWTError, jwt
 
 # --- JWT configuration ---
-SECRET_KEY = os.environ.get(
-    "SECRET_KEY", "brasa-land-dev-secret-key-change-in-production"
-)
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(
     os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", "60")
 )
 
+_DEV_SECRET = "brasa-land-dev-secret-key-change-in-production"
+_DEV_RESET_SECRET = "brasa-reset-dev-secret-change-in-production"
+
+
+def _required_secret(env_name: str, dev_value: str) -> str:
+    value = os.environ.get(env_name, "").strip()
+    env = os.environ.get("BRASALAND_ENV", "").strip().lower()
+    dev_mode = env in {"development", "dev", "local", "test"}
+    if not value:
+        if dev_mode:
+            return dev_value
+        raise RuntimeError(f"{env_name} is required outside development/test mode")
+    if value == dev_value and not dev_mode:
+        raise RuntimeError(f"{env_name} uses an insecure development default")
+    return value
+
+
+SECRET_KEY = _required_secret("SECRET_KEY", _DEV_SECRET)
 # --- Password Reset configuration ---
-PASSWORD_RESET_SECRET_KEY = os.environ.get(
-    "PASSWORD_RESET_SECRET_KEY", "brasa-reset-dev-secret-change-in-production"
-)
+PASSWORD_RESET_SECRET_KEY = _required_secret("PASSWORD_RESET_SECRET_KEY", _DEV_RESET_SECRET)
 PASSWORD_RESET_EXPIRE_MINUTES = int(
     os.environ.get("PASSWORD_RESET_EXPIRE_MINUTES", "30")
 )

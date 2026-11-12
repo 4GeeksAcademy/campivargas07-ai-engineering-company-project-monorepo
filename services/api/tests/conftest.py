@@ -13,6 +13,12 @@ Provides:
 from __future__ import annotations
 
 import os
+if not os.environ.get("SECRET_KEY"):
+    os.environ["SECRET_KEY"] = "test-secret-key-not-for-production"
+if not os.environ.get("PASSWORD_RESET_SECRET_KEY"):
+    os.environ["PASSWORD_RESET_SECRET_KEY"] = "test-reset-secret-key-not-for-production"
+if not os.environ.get("BRASALAND_ENV"):
+    os.environ["BRASALAND_ENV"] = "test"
 import uuid
 from pathlib import Path
 from typing import Generator
@@ -44,6 +50,10 @@ def test_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[TinyDB
     # A developer's root .env may point at a real PostgreSQL instance. Tests use
     # the SQLite fixture below and must never connect to that external database.
     monkeypatch.delenv("DATABASE_URL", raising=False)
+    # Security defaults: tests always run with explicit non-default secrets.
+    monkeypatch.setenv("SECRET_KEY", "test-secret-key-not-for-production")
+    monkeypatch.setenv("PASSWORD_RESET_SECRET_KEY", "test-reset-secret-key-not-for-production")
+    monkeypatch.setenv("BRASALAND_ENV", "test")
 
     db_file = tmp_path / "isolated_test_db.json"
     isolated_db = TinyDB(db_file)
