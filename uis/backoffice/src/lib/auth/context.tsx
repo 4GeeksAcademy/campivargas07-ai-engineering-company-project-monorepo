@@ -69,7 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    telemetryService.setUserContext(user ? user.id : null);
+    telemetryService.setUserContext(user?.user.uuid ?? null);
   }, [user]);
 
   const login = async (email: string, password: string) => {

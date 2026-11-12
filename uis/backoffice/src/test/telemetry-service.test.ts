@@ -14,7 +14,7 @@ describe('TelemetryService Unit Tests', () => {
       status: 200,
       json: async () => ({ received: 1 }),
     });
-    global.fetch = fetchMock;
+    vi.stubGlobal('fetch', fetchMock);
 
     sendBeaconMock = vi.fn().mockReturnValue(true);
     Object.defineProperty(global.navigator, 'sendBeacon', {
@@ -38,6 +38,7 @@ describe('TelemetryService Unit Tests', () => {
     vi.clearAllTimers();
     vi.useRealTimers();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it('completes the event envelope with required metadata', () => {

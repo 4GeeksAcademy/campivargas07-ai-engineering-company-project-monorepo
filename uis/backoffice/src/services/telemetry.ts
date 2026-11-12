@@ -172,17 +172,17 @@ export class TelemetryService {
         }
       }
 
-      const envelope: AnyTelemetryEnvelope = {
+      const envelope = {
         eventId: this.generateUUID(),
         timestamp: new Date().toISOString(),
         sessionId: this.getSessionId(),
         userId: this.userId,
         event_type: eventType,
-        entity_action: EVENT_ACTION_MAPPING[eventType] as any,
+        entity_action: EVENT_ACTION_MAPPING[eventType],
         schemaVersion: SCHEMA_VERSION,
         requestId: this.generateUUID(),
-        properties: { ...properties } as any,
-      };
+        properties: { ...properties },
+      } as AnyTelemetryEnvelope;
 
       this.queue.push(envelope);
 

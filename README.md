@@ -1,121 +1,46 @@
-# AI Engineering Company Project — Student Template
+# Brasaland — Operaciones y soporte con IA
 
-[![4Geeks Academy](https://img.shields.io/badge/4Geeks-Academy-blue)](https://4geeksacademy.com)
-[![AI Engineering](https://img.shields.io/badge/track-AI%20Engineering-green)](https://4geeksacademy.com/es/programas-de-carrera/ingenieria-ia)
+Brasaland es el proyecto transversal de Ingeniería de IA de Carlos Vargas para 4Geeks Academy. El backoffice reúne operaciones de restaurante, consultas a los manuales y procesamiento de solicitudes de propuesta (RFP).
 
-_Base template for transversal projects in the AI Engineering Career Program — 4Geeks Academy._
+El agente de soporte consulta la base de conocimiento para responder preguntas de los encargados. El chat transmite la respuesta mientras se genera y permite interrumpirla para redirigir la consulta. Las RFPs recorren recepción, generación de borradores y revisión humana. Los controles de seguridad están documentados en los informes [OWASP](docs/security/owasp-top10-audit.md) y [NIST](docs/security/nist-security-practices.md).
 
-> _Instrucciones disponibles en español en [README.es.md](./README.es.md)._
+## Arranque local
 
----
+Requisitos: Docker con Compose y una base PostgreSQL de desarrollo. Usa una base aislada para crear cuentas de demo y cargar PDFs sintéticos.
 
-## Purpose
+1. Copia `.env.example` a `.env` si todavía no existe. Configura `DATABASE_URL`, un `SECRET_KEY` y un `PASSWORD_RESET_SECRET_KEY` distinto. Mantén las credenciales en el entorno local.
+2. Para usar el agente, configura los campos `RAG_*` en ese archivo siguiendo [el diseño RAG](docs/rag/rag-design.md). El backend usa Qdrant en el contenedor correspondiente.
+3. Arranca los servicios e indexa los manuales una vez que el backend esté disponible.
 
-This repository is the **starter template** for transversal projects. You will work on real company scenarios (Brasaland, TrackFlow, Nexova), building deliverables that map to course milestones (Web, Programming, Backend, Telemetry, RAG, Agents, Workflows, Real-time).
+   ```bash
+   docker compose up -d --build
+   docker compose exec backend python -m data.process.rag
+   ```
 
-- Create a template from this repository.
-- Replace the placeholder `CONTEXT.md` with your assigned company context.
-- Use `skills/` and the directory-level `README.md` files as working guidance.
+4. Abre [el backoffice](http://localhost:3001), registra una cuenta de demo e inicia sesión. La [web pública](http://localhost:3000) y la [documentación de la API](http://localhost:8000/docs) se sirven por separado.
 
----
+El arranque de la API inicializa las tablas de aplicación y los checkpoints de RFP en PostgreSQL. La cuenta de base de datos de desarrollo debe poder crearlos. Para la revisión de RFP, configura los responsables de los departamentos con `RFP_APPROVER_MAP` o la asignación de aprobadores del backend. Consulta el [contrato de aprobación](docs/rfp/rfp_approval_and_final.md).
 
-## Current status of the template
+## Recorrido del backoffice
 
-The repository currently provides a **base folder structure and documentation skeleton**. It does not include runnable apps or global scripts yet.
+| Menú | Función |
+|---|---|
+| Resumen | Indicadores de muestra por local y alertas de inventario |
+| Inventario | Catálogo, registro de entradas y salidas e historial |
+| Incidencias | Gestión y análisis de incidencias |
+| Proveedores | Directorio y operaciones de compras |
+| Conocimiento | Preguntas sobre manuales de Brasaland |
+| Chat | Conversación con el agente de soporte en tiempo real |
+| RFPs | Recepción de PDFs, notificaciones SSE, borradores y evaluaciones |
+| Aprobaciones RFP | Revisión por departamento y documento final |
+| Cuenta | Perfil y gestión de contraseña |
 
-- `CONTEXT.md` is a placeholder and must be replaced with your assigned company context.
-- There is no root `AGENTS.md` yet.
-- Shared package metadata exists in `packages/shared/package.json` (`@repo/shared-types`), but no workspace runner is configured at root.
+Desde una RFP con borradores, **Abrir aprobación de este ticket** lleva a su revisión con el identificador ya seleccionado.
 
----
+## Capstone
 
-## Repository structure
+- [Guion, tomas y checklist de entrega](docs/capstone/guion-y-grabacion.md)
+- Vídeo del proyecto: enlace pendiente de grabación y publicación.
+- [Evidencia técnica de integración](docs/capstone/verificacion.md)
 
-```text
-ai-engineering-company-project-monorepo/
-├── README.md
-├── README.es.md
-├── CONTEXT.md                # Placeholder to be replaced with assigned context
-├── agents/                   # Agent patterns/templates and tools docs
-├── data/                     # raw, process, pipelines, eval
-├── docs/                     # Project and architecture documentation
-├── infra/                    # Docker, Terraform, deployment configs
-├── internal/                 # CLIs, packaged migration scripts, internal utilities
-├── mcps/                     # Model Context Protocol (MCP) Servers
-├── packages/
-│   └── shared/               # Shared package (@repo/shared-types)
-├── scripts/                  # Script conventions/documentation
-├── services/                 # APIs and background workers
-├── shared/                   # Shared assets/conventions at repo level
-├── skills/                   # Reusable agent skills
-├── uis/                      # User interfaces (React, Next.js, Streamlit, HTML)
-└── workflows/                # Automation/orchestration documentation
-```
-
----
-
-## Docker Development Environment
-
-The entire development stack can be started with a single Docker Compose command from the repository root:
-
-```bash
-# 1. Prepare environment variables
-cp .env.example .env
-# Edit .env with your accessible PostgreSQL DATABASE_URL and SECRET_KEY
-
-# 2. Build and start services
-docker compose up --build
-```
-
-### Services and Ports
-
-| Service | Technology | Internal Port | Published Port | Description |
-|---|---|---|---|---|
-| `interfaces` | Next.js 16 (Node 22 Alpine) | 3000, 3001 | `http://localhost:3000`<br>`http://localhost:3001` | Single container running Website (3000) and Backoffice (3001) |
-| `backend` | FastAPI (Python 3.12 Slim, uv) | 8000 | `http://localhost:8000` | Operations, inventory, auth, and analytics API (`/health`, `/docs`) |
-
-### Key Characteristics
-
-- **Internal Networking**: Services communicate over the `brasaland-dev` bridge network using Docker service hostnames (`http://backend:8000`).
-- **Client Proxy Rewrites**: The browser communicates with `/api/*` through Next.js server-side rewrites targeting `INTERNAL_API_URL`.
-- **Hot Reload**: Live code changes in `uis/` and `services/` trigger instant reloads via bind mounts without rebuilding containers.
-- **Stop Services Safely**:
-  ```bash
-  docker compose down
-  ```
-  *(Avoid `docker compose down -v` to prevent accidental volume deletion).*
-
----
-
-## Milestones (reference)
-
-| Milestone | Focus        | Typical deliverables                        |
-| --------- | ------------ | ------------------------------------------- |
-| 0         | Prework      | Environment setup, first prompts            |
-| 1         | Web          | Corporate website, forms, SEO               |
-| 2         | Programming  | Business logic, scoring, calculations       |
-| 3         | AI-driven UI | AI-generated interfaces                     |
-| 4         | Next.js      | Portals, loyalty app, operations UI         |
-| 5         | Backend      | Central API (locations, menus, sales, etc.) |
-| 6         | Telemetry    | Data pipeline, dashboards                   |
-| 7         | RAG & Memory | Semantic knowledge base, search             |
-| 8         | Agents       | Support, onboarding, training agents        |
-| 9         | Workflows    | n8n automations                             |
-| 10        | Real-time    | Live dashboards, alerts, streaming          |
-
----
-
-## Links
-
-- [4Geeks Academy — AI Engineering](https://4geeksacademy.com/es/programas-de-carrera/ingenieria-ia)
-- [How to start a coding project](https://4geeks.com/lesson/how-to-start-a-project)
-
----
-
-## Contributors
-
-This template was built as part of the 4Geeks Academy AI Engineering Career Program by [@marcogonzalo](https://www.linkedin.com/in/marcogonzalo) and [@alezanchezr](https://x.com/alesanchezr) and many other contributors. Find out more about our [AI Engineering Course](https://4geeksacademy.com/en/career-programs/ai-engineering), and [other courses](https://4geeksacademy.com/en/program-comparison).
-
-You can find other templates and resources like this at the [4Geeks Academy GitHub page](https://github.com/4geeksacademy).
-
-_This template is maintained by 4Geeks Academy for the AI Engineering track. For exclusive use in the programme._
+Usa `docker compose down` para detener el entorno de desarrollo conservando sus datos.

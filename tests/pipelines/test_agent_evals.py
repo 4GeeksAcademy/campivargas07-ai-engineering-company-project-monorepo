@@ -181,7 +181,7 @@ def test_compiled_graph_structure_and_separate_node_imports(cfg, tmp_path, monke
         calls.append(("retrieve", q, k, min_score))
         return expected_chunks
 
-    def fake_generate(q, ctx, *, config):
+    def fake_generate(q, ctx, *, config, memories=None):
         calls.append(("generate_answer", q, ctx))
         return "Para el nivel Oro necesitas 50+ puntos y obtienes 15% de descuento."
 
@@ -233,7 +233,7 @@ def test_no_evidence_routes_to_abstain_node_and_persists_trace(cfg, tmp_path):
     """Verifica que cuando retrieve() devuelve [] se enruta al nodo abstain_without_evidence."""
     seen_contexts = []
 
-    def fake_generate(q, ctx, *, config):
+    def fake_generate(q, ctx, *, config, memories=None):
         seen_contexts.append(ctx)
         return "La base de conocimiento no tiene información suficiente para responder a esta pregunta."
 
@@ -273,34 +273,34 @@ def test_checkpointing_isolation_and_state_inspection_across_threads(cfg, tmp_pa
         }
     ]
     execute_agent_query(
-        "Pregunta hilo A",
+        "¿Qué indica el manual de Brasa Points sobre el nivel Oro?",
         run_id="run-thread-a",
         thread_id="thread-a",
         trace_dir=tmp_path,
         checkpointer=saver,
         retrieve_fn=lambda *a, **kw: chunks_a,
-        generate_fn=lambda q, ctx, *, config: f"Respuesta para {q}",
+        generate_fn=lambda q, ctx, *, config, memories=None: f"Respuesta para {q}",
         config_fn=lambda: cfg,
     )
     execute_agent_query(
-        "Pregunta hilo B sin contexto",
+        "¿Cuál fue la venta de ayer en Miami?",
         run_id="run-thread-b",
         thread_id="thread-b",
         trace_dir=tmp_path,
         checkpointer=saver,
         retrieve_fn=lambda *a, **kw: [],
-        generate_fn=lambda q, ctx, *, config: "Sin evidencia para B",
+        generate_fn=lambda q, ctx, *, config, memories=None: "Sin evidencia para B",
         config_fn=lambda: cfg,
     )
 
     graph = build_agent_graph(checkpointer=saver, config_fn=lambda: cfg)
     state_a = get_run_state("thread-a", graph=graph)
     state_b = get_run_state("thread-b", graph=graph)
-    assert state_a["values"]["question"] == "Pregunta hilo A"
+    assert state_a["values"]["question"] == "¿Qué indica el manual de Brasa Points sobre el nivel Oro?"
     assert state_a["values"]["route"] == "grounded"
     assert len(state_a["values"]["retrieved_context"]) == 1
 
-    assert state_b["values"]["question"] == "Pregunta hilo B sin contexto"
+    assert state_b["values"]["question"] == "¿Cuál fue la venta de ayer en Miami?"
     assert state_b["values"]["route"] == "no_evidence"
     assert state_b["values"]["retrieved_context"] == []
 
@@ -425,7 +425,7 @@ def test_eval_document_question_uses_rag_without_incidents(cfg, tmp_path):
         trace_dir=tmp_path,
         checkpointer=InMemorySaver(),
         retrieve_fn=lambda question, **kwargs: calls.append("retrieve") or chunks,
-        generate_fn=lambda question, context, *, config: calls.append("generate") or "50+ puntos y 15%.",
+        generate_fn=lambda question, context, *, config, memories=None: calls.append("generate") or "50+ puntos y 15%.",
         config_fn=lambda: cfg,
         incident_fn=lambda _: pytest.fail("La pregunta documental no debe consultar incidencias"),
     )
@@ -481,7 +481,7 @@ def test_combined_question_keeps_rag_and_incident_results_separate(cfg, tmp_path
         trace_dir=tmp_path,
         checkpointer=InMemorySaver(),
         retrieve_fn=lambda *a, **kw: rag_context,
-        generate_fn=lambda question, context, *, config: "La política requiere aprobación.",
+        generate_fn=lambda question, context, *, config, memories=None: "La política requiere aprobación.",
         config_fn=lambda: cfg,
         incident_fn=lambda _: IncidentToolResult(
             status=IncidentToolStatus.SUCCESS,

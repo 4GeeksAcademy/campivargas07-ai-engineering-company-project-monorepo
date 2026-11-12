@@ -1,0 +1,1 @@
+Brasaland reúne operaciones y soporte en un backoffice para encargados de restaurante. La demo muestra cómo su asistente consulta los manuales de la empresa y permite interrumpir y redirigir una respuesta en tiempo real.

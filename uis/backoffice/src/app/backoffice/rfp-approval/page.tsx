@@ -1,9 +1,28 @@
 'use client';
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { AuthGuard } from '@/components/auth-guard';
+import { BackofficeHeader } from '@/components/backoffice-header';
 import { getRfpApprovals, submitDecision, getFinalDocument, startRfpApproval } from '@/lib/rfp-approval';
 
 export default function RfpApprovalPage() {
-  const [ticketId, setTicketId] = useState('');
+  return (
+    <AuthGuard>
+      <div className="backoffice-page">
+        <BackofficeHeader activeView="rfp-approval" badge="Revisión de propuestas" />
+        <main className="container bo-main">
+          <Suspense fallback={<p>Cargando aprobación…</p>}>
+            <RfpApproval />
+          </Suspense>
+        </main>
+      </div>
+    </AuthGuard>
+  );
+}
+
+function RfpApproval() {
+  const searchParams = useSearchParams();
+  const [ticketId, setTicketId] = useState(searchParams.get('ticket') ?? '');
   const [summary, setSummary] = useState<any>(null);
   const [finalDoc, setFinalDoc] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
@@ -53,9 +72,16 @@ export default function RfpApprovalPage() {
   return (
     <section>
       <h1>Aprobación de RFP</h1>
-      <input value={ticketId} onChange={(e) => setTicketId(e.target.value)} placeholder="Ticket ID" />
-      <button onClick={start}>Iniciar aprobación</button>
-      <button onClick={load}>Consultar</button>
+      <label>
+        ID del ticket
+        <input value={ticketId} onChange={(e) => {
+          setTicketId(e.target.value);
+          setSummary(null);
+          setFinalDoc(null);
+        }} />
+      </label>
+      <button onClick={start} disabled={!ticketId.trim()}>Iniciar aprobación</button>
+      <button onClick={load} disabled={!ticketId.trim()}>Consultar</button>
       {error && <p style={{ color: 'red' }}>{error}</p>}
       {summary && (
         <div>
