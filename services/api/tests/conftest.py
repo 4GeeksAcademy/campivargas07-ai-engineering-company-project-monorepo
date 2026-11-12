@@ -13,6 +13,12 @@ Provides:
 from __future__ import annotations
 
 import os
+if not os.environ.get("SECRET_KEY"):
+    os.environ["SECRET_KEY"] = "test-secret-key-not-for-production"
+if not os.environ.get("PASSWORD_RESET_SECRET_KEY"):
+    os.environ["PASSWORD_RESET_SECRET_KEY"] = "test-reset-secret-key-not-for-production"
+if not os.environ.get("BRASALAND_ENV"):
+    os.environ["BRASALAND_ENV"] = "test"
 import uuid
 from pathlib import Path
 from typing import Generator
@@ -28,6 +34,7 @@ import app.database as database
 import app.domains.auth.dependencies as auth_deps
 import app.domains.auth.router as auth_router
 import app.domains.auth.service as auth_service
+import app.domains.procurement.suppliers.confirmation as suppliers_confirmation
 import app.domains.procurement.suppliers.service as suppliers_service
 import app.domains.agent.memory as agent_memory
 import app.domains.chat.repository as chat_repository
@@ -44,6 +51,10 @@ def test_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[TinyDB
     # A developer's root .env may point at a real PostgreSQL instance. Tests use
     # the SQLite fixture below and must never connect to that external database.
     monkeypatch.delenv("DATABASE_URL", raising=False)
+    # Security defaults: tests always run with explicit non-default secrets.
+    monkeypatch.setenv("SECRET_KEY", "test-secret-key-not-for-production")
+    monkeypatch.setenv("PASSWORD_RESET_SECRET_KEY", "test-reset-secret-key-not-for-production")
+    monkeypatch.setenv("BRASALAND_ENV", "test")
 
     db_file = tmp_path / "isolated_test_db.json"
     isolated_db = TinyDB(db_file)
@@ -52,6 +63,7 @@ def test_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[TinyDB
     profiles_tbl = isolated_db.table("profiles")
     password_resets_tbl = isolated_db.table("password_resets")
     suppliers_tbl = isolated_db.table("suppliers")
+    supplier_confirmations_tbl = isolated_db.table("supplier_confirmations")
     agent_memories_tbl = isolated_db.table("agent_memories")
     agent_proposals_tbl = isolated_db.table("agent_proposals")
     agent_audits_tbl = isolated_db.table("agent_audits")
@@ -75,6 +87,7 @@ def test_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[TinyDB
     monkeypatch.setattr(users_service, "profiles_table", profiles_tbl)
     monkeypatch.setattr(profiles_service, "profiles_table", profiles_tbl)
     monkeypatch.setattr(suppliers_service, "suppliers_table", suppliers_tbl)
+    monkeypatch.setattr(suppliers_confirmation, "confirmations_table", supplier_confirmations_tbl)
     monkeypatch.setattr(agent_memory, "memories_table", agent_memories_tbl)
     monkeypatch.setattr(agent_memory, "proposals_table", agent_proposals_tbl)
     monkeypatch.setattr(agent_memory, "audits_table", agent_audits_tbl)

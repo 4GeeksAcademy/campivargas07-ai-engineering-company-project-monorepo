@@ -3844,3 +3844,61 @@ Rama de trabajo: `feature/mcp-oauth-tools`, creada sobre `feature/langgraph-exte
 - Rama: `feature/websocket-chat` (base actualizada con PR #38).
 - Evidencia real de streaming/cancelación registrada.
 - Captura: `docs/pr-assets/chat/chat-streaming.png`.
+
+## OWASP Top 10 audit and hardening — 2026-11-02
+
+- Branch: `feature/owasp-top10-audit` from `origin/feature/websocket-chat @ 7eff737582fbb9c952b3f985e640d5d66c885db5` (PR #39 untouched).
+- Baseline: backend 204 passed/5 skipped; MCP 54 passed; backoffice 107 passed.
+- Corrections: JWT required secret, CORS allowlist, security headers, WebSocket Origin, RFP upload limit and ownership, infra DB bind to localhost, chat frame limit, frontend first-frame auth.
+- Verification: backend 204 passed/5 skipped; MCP 54 passed; backoffice 107 passed; no new TS errors.
+- Report: `docs/security/owasp-top10-audit.md`.
+- Residuals: location allowlist, login rate limiting, telemetry auth, npm audit vulnerabilities, Git history secret scan.
+
+## Segunda pasada OWASP — 2 de noviembre de 2026
+
+- Añadido rate limiting en memoria para `/auth/login` y telemetría.
+- `GET /users` restringido a admin.
+- Pruebas de regresión de prompt injection: 3 nuevas, verdes.
+- Gitleaks: sin fugas actuales; 8 hallazgos históricos en `services/api/.env` (commits c2383f2e y fe587de7).
+- npm audit fix revertido por romper validaciones.
+- Verificación: backend 207 passed/5 skipped.
+
+# Walkthrough: Prácticas Seguras en la Integración de IA (NIST CSF 2.0) — 2026-11-02
+
+## Cambios implementados
+- `services/api/app/common/rate_limit.py`: limitador compartido en memoria con identidad por clave, ventana configurable, deshabilitado en tests.
+- `services/api/app/main.py`: rate limiting extendido a `/agent/query` y `/knowledge/query`; reutiliza el limitador compartido.
+- `services/api/app/domains/chat/router.py`: rate limiting por usuario en `user_message`; mensajes de error genéricos (sin `str(exc)`).
+- `services/api/app/domains/agent/guardrails.py`: patrones de neutralización de inyección indirecta en contenido recuperado.
+- `services/api/app/domains/agent/graph.py`: trazas enriquecidas con `user_uuid`, `controls_activated`, `decision_reason`, `tool_selected`.
+- `services/api/app/domains/procurement/suppliers/router.py`: auditoría estructurada de cambios/bajas de proveedores.
+- `services/api/tests/test_security_prompt_injection.py`: caso legítimo aceptado + inyección indirecta neutralizada + término prohibido.
+- `services/api/tests/test_rate_limiting.py`: 429 sin llamada al proveedor.
+- Documentación: `docs/security/ai-component-inventory.md`, `docs/security/nist-security-practices.md`.
+
+## Verificación
+- `uv run --project services/api python -m pytest` → 211 passed, 5 skipped.
+- `git diff --check` limpio.
+
+## Brechas pendientes
+- Minimo privilegio MCP, allowlist de location, telemetría pública, deps frontend, secretos históricos, infra, DAST, confirmación humana de proveedores, concurrencia multi-proceso. Detalladas en `docs/security/nist-security-practices.md`.
+
+- Confirmación humana para proveedores implementada (`confirm`, status, delete) con pruebas.
+
+
+## RFP Approval and Completion — Parte 3 de 3 (feature/rfp-approval-completion)
+
+- Rama creada desde `origin/feature/rfp-response-generation` (`82cd7a3`), sin modificar PR #36.
+- Implementado grafo `data/pipelines/rfp_approval.py` (interrupts paralelos, arbitraje, correcciones, síntesis final).
+- Modelos y repositorio extendidos; endpoints y esquemas añadidos.
+- Checkpointer persistente Postgres/SQLite; no in-memory para evidencia.
+- Pruebas: `tests/pipelines/test_rfp_approval.py` 6 passed; `services/api/tests/test_rfp_part3.py` 2 passed.
+- Suite: 192 passed + 5 pruebas Postgres passed con TEST_DATABASE_URL; setup de PostgresSaver verificado.
+- Pendientes reales: integración con usuarios reales para mapeo de aprobadores (env `RFP_APPROVER_MAP`); métricas estructuradas para `cost-vs-feasibility` aún no extraídas de Parte 1/2.
+
+## Capstone — recorrido de verificación
+
+1. Iniciar la API y el backoffice con PostgreSQL y Qdrant de prueba.
+2. Entrar con una cuenta sintética. Desde Resumen, abrir Conocimiento y Chat, comprobar la respuesta y redirigirla mediante Detener durante la generación.
+3. Desde RFPs, cargar un PDF sintético, generar el borrador y abrir su aprobación. Confirmar que el documento se guarda y que una cuenta ajena no puede consultarlo.
+4. Revisar [resultados, comandos y pendientes](../docs/capstone/verificacion.md) antes de filmar. [Guion y entrega](../docs/capstone/guion-y-grabacion.md).

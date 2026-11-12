@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
@@ -94,9 +95,22 @@ def _user_from_token(token: str) -> dict[str, Any] | None:
     return user_doc
 
 
+def _allowed_websocket_origins() -> set[str]:
+    raw = os.environ.get(
+        "WS_ALLOWED_ORIGINS",
+        "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001",
+    )
+    return {item.strip() for item in raw.split(",") if item.strip()}
+
+
 @router.websocket("/ws")
 async def websocket_chat(websocket: WebSocket):
     await websocket.accept()
+    origin = websocket.headers.get("origin")
+    if origin is not None and origin not in _allowed_websocket_origins():
+        await websocket.send_json({"event": "error", "data": {"code": "forbidden_origin", "message": "Origen no permitido"}})
+        await websocket.close(code=4403)
+        return
     user, session_id = await _authenticate_websocket(websocket)
     if user is None:
         await websocket.send_json({"event": "error", "data": {"code": "unauthorized", "message": "Autenticación requerida"}})
@@ -139,6 +153,9 @@ async def websocket_chat(websocket: WebSocket):
 async def _receive_loop(websocket: WebSocket, session_id: str, user: dict, channel) -> None:
     while True:
         text = await websocket.receive_text()
+        if len(text) > 8192:
+            await channel.publish({"event": "error", "data": {"session_id": session_id, "code": "frame_too_large", "message": "Frame demasiado grande"}})
+            continue
         try:
             frame = json.loads(text)
         except json.JSONDecodeError:
@@ -155,9 +172,16 @@ async def _receive_loop(websocket: WebSocket, session_id: str, user: dict, chann
 
 
 async def _handle_user_message(session_id: str, user: dict, channel, data: dict) -> None:
+    from app.common.rate_limit import check_rate_limit
+
     text = str(data.get("text", "")).strip()
     if not text:
         await channel.publish({"event": "error", "data": {"session_id": session_id, "code": "empty_message", "message": "Mensaje vacío"}})
+        return
+    user_key = str(user.get("uuid") or user.get("id") or "unknown")
+    allowed, retry_after = check_rate_limit(f"ws-agent:{user_key}", int(__import__("os").environ.get("RATE_LIMIT_AGENT_PER_MINUTE", "20")), 60.0)
+    if not allowed:
+        await channel.publish({"event": "error", "data": {"session_id": session_id, "code": "rate_limited", "message": "Demasiadas solicitudes al agente. Inténtalo más tarde.", "retry_after": int(retry_after) + 1}})
         return
     # If a generation is active, treat as implicit interrupt with new_input.
     if channel.active_generation is not None:
@@ -236,7 +260,7 @@ async def _handle_user_message(session_id: str, user: dict, channel, data: dict)
         except Exception as exc:
             channel.active_generation = None
             update_chat_message(message_id=assistant_message_id, content="".join(accumulated), status="complete", is_complete=True)
-            await channel.publish({"event": "error", "data": {"session_id": session_id, "code": "generation_failed", "message": str(exc)}})
+            await channel.publish({"event": "error", "data": {"session_id": session_id, "code": "generation_failed", "message": "Error interno al generar la respuesta."}})
 
     task = asyncio.create_task(_run_generation())
     channel.generation_task = task

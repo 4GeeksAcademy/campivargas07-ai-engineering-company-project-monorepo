@@ -621,3 +621,53 @@
 - Implementado: sesiones TinyDB, WebSocket autenticado, pub/sub en memoria, streaming real, guardrails, interrupción/cancelación, reconexión, UI, checkpoint helper.
 - Verificación real: Google Gemini OpenAI-compatible + Qdrant `brasaland_knowledge` (14 puntos); `token_chunk` progresivos y cancelación efectiva verificados.
 - Pruebas: `test_chat_websocket.py` (5 passed), `test_chat_multi_subscriber.py` (1 passed), `test_agent_api.py` passed.
+
+## Auditoría OWASP Top 10 — 2 de noviembre de 2026
+
+- Rama: `feature/owasp-top10-audit`, base `origin/feature/websocket-chat @ 7eff737582fbb9c952b3f985e640d5d66c885db5`. PR #39 no modificada.
+- Baseline: backend 204 passed/5 skipped; MCP 54 passed; backoffice 107 passed.
+- Correcciones aplicadas: secreto JWT obligatorio, CORS explícito, headers de seguridad, Origin WebSocket, límite de carga RFP, ownership RFP, bind localhost en infra Compose, límite de frame chat, autenticación primer frame en frontend.
+- Verificación posterior: backend 204 passed/5 skipped; MCP 54 passed; backoffice 107 passed; sin nuevos errores TypeScript.
+- Informe: `docs/security/owasp-top10-audit.md`.
+- Pendientes: allowlist por location, rate limiting, telemetría autenticada, vulnerabilidades npm, escaneo de historial Git, DAST.
+
+## Segunda pasada OWASP — 2 de noviembre de 2026
+
+- Rate limiting en memoria para login/telemetría (desactivado en tests).
+- Listado de usuarios restringido a admin.
+- Pruebas de regresión de prompt injection.
+- Gitleaks: sin fugas en archivos actuales; 8 hallazgos históricos en `services/api/.env` (commits c2383f2e y fe587de7), valores redactados.
+- npm audit fix intentado y revertido por romper validaciones; quedan 17 vulnerabilidades.
+- DAST y controles de infraestructura externa siguen pendientes.
+
+## Hito: Prácticas Seguras en la Integración de IA (NIST CSF 2.0) — feature/nist-security-practices
+
+- Base: `origin/feature/owasp-top10-audit @ f377183` (PR #40 abierta/draft). Rama nueva `feature/nist-security-practices`.
+- Implementado:
+  - Rate limiting compartido para `/agent/query`, `/knowledge/query` (HTTP) y `user_message` (WebSocket), con identidad por usuario y límites configurables.
+  - Sanitización de mensajes de error en chat (sin `str(exc)`).
+  - Neutralización de inyección indirecta en chunks RAG (patrones de recomendación manipulada).
+  - Trazas LangGraph enriquecidas: `user_uuid`, `controls_activated`, `decision_reason`, `tool_selected`.
+  - Auditoría estructurada de cambios/bajas de proveedores.
+  - Pruebas: `test_security_prompt_injection.py` (inyección bloqueada + consulta legítima), `test_rate_limiting.py`.
+- Documentación nueva: `docs/security/ai-component-inventory.md`, `docs/security/nist-security-practices.md`.
+- Verificación: 211 passed, 5 skipped (backend). MCP no re-ejecutado en esta sesión.
+- Brechas pendientes documentadas en el informe NIST (minimo privilegio MCP, allowlist location, telemetría pública, deps frontend, secretos históricos, infra, DAST, confirmación humana proveedores, concurrencia multi-proceso).
+
+- Confirmación humana implementada para cambio/baja de proveedores: flujo de confirmación de un solo uso con expiración, anti-reutilización, validación de parámetros/actor y auditoría. Pruebas actualizadas.
+
+- Secretos históricos: decisión autorizada opción (a) — rotación en proveedor + .env local, sin reescribir historial. Código actual sin credenciales hardcodeadas.
+## Hito 9 Parte 3 — Aprobación y cierre de RFPs (feature/rfp-approval-completion)
+
+- Base: `origin/feature/rfp-response-generation` (`82cd7a3`); PR #36 permanece abierta y no se modificó.
+- Implementado: grafo `data/pipelines/rfp_approval.py` con interrupts paralelos por departamento, arbitraje estructurado, correcciones selectivas, síntesis final idempotente.
+- Persistencia: `RfpApprovalRun`, `RfpHumanApproval`, `RfpConflict`, `RfpFinalDocument` + checkpointer `PostgresSaver`/`SqliteSaver`.
+- API: endpoints de inicio, consulta, decisión por departamento/CEO y documento final.
+- Pruebas: `tests/pipelines/test_rfp_approval.py` (6 passed) y `services/api/tests/test_rfp_part3.py` (2 passed); suite completa 192 passed (5 postgres omitidos).
+- Dependencias añadidas: `langgraph-checkpoint-postgres`, `langgraph-checkpoint-sqlite`, `psycopg[binary]`.
+
+## Capstone — integración de Brasaland
+
+- Rama `feature/capstone-integration` desde `main` (`37a60ef)). Incorpora #37, #40 y #41 conservando SSE, aprobación RFP y los controles de seguridad.
+- El backoffice enlaza recepción y aprobaciones de RFP. Los checkpoints PostgreSQL se preparan en el arranque y las decisiones se reanudan únicamente en el departamento correspondiente.
+- Verificación y pendientes en `docs/capstone/verificacion.md`. El guion y la descripción están preparados en `docs/capstone/`.

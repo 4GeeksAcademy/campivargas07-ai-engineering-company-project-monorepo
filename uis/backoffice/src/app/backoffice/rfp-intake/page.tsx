@@ -5,7 +5,7 @@ import { RfpIntake } from '@/components/rfp-intake/RfpIntake';
 export default function RfpIntakePage() {
   return <AuthGuard>
     <div className="backoffice-page">
-      <BackofficeHeader activeView="knowledge" badge="RFP Intake" />
+      <BackofficeHeader activeView="rfp" badge="Recepción de RFP" />
       <main className="container bo-main"><RfpIntake /></main>
     </div>
   </AuthGuard>;

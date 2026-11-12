@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { uploadRfp, getRfpStatus, startRfpGeneration, getRfpResult, RfpStatusResponse } from '@/lib/rfp';
 import { subscribeRfpTicketEvents, RfpTicketCreatedEvent } from '@/lib/rfp-events';
@@ -98,6 +99,11 @@ export function RfpIntake() {
       {result?.drafts?.length > 0 && (
         <div>
           <h2>Borradores</h2>
+          {ticketId && result.generation_handoff && (
+            <Link href={{ pathname: '/backoffice/rfp-approval', query: { ticket: ticketId } }}>
+              Abrir aprobación de este ticket
+            </Link>
+          )}
           {result.drafts.map((d: any) => (
             <div key={d.id} style={{ border: '1px solid #ccc', padding: 8, marginBottom: 8 }}>
               <strong>{d.department_id} (v{d.version})</strong>

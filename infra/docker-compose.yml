@@ -17,7 +17,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-brasaland_db}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - brasaland_pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -36,7 +36,7 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-brasaland}
       MONGO_INITDB_DATABASE: ${MONGO_DB:-brasaland}
     ports:
-      - "27017:27017"
+      - "127.0.0.1:27017:27017"
     volumes:
       - brasaland_mongodata:/data/db
     healthcheck:
@@ -60,7 +60,7 @@ services:
       # Necesario en Codespaces: evita el error 400/loop de login detrás del proxy
       PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION: "False"
     ports:
-      - "5050:80"
+      - "127.0.0.1:5050:80"
 
 volumes:
   brasaland_pgdata:

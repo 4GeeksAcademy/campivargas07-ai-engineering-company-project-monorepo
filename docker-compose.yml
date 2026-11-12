@@ -10,6 +10,10 @@ services:
     environment:
       - DATABASE_URL=${DATABASE_URL:?DATABASE_URL is required. Configure a valid accessible PostgreSQL connection URL in .env}
       - SECRET_KEY=${SECRET_KEY:?SECRET_KEY is required. Set a secure secret key in .env}
+      - PASSWORD_RESET_SECRET_KEY=${PASSWORD_RESET_SECRET_KEY:-}
+      - BRASALAND_ENV=${BRASALAND_ENV:-development}
+      - RFP_RAW_DIR=/app/api/data/rfp-raw
+      - RFP_APPROVER_MAP=${RFP_APPROVER_MAP:-}
       - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES:-60}
       - QDRANT_URL=http://qdrant:6333
       - QDRANT_API_KEY=${QDRANT_API_KEY:-}

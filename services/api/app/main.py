@@ -1,9 +1,12 @@
 import os
 import logging
+import time
+from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.common.timing import RequestTimingMiddleware
 from app.database import backfill_users_uuid, init_db
@@ -19,6 +22,7 @@ from app.domains.users.router import router as users_router
 from app.domains.knowledge.router import router as knowledge_router
 from app.domains.agent.router import router as agent_router
 from app.domains.rfp.router import router as rfp_router
+from app.domains.rfp.service import init_rfp_checkpoints
 from app.domains.chat.router import router as chat_router
 from pydantic import BaseModel
 
@@ -35,6 +39,7 @@ async def lifespan(app: FastAPI):
     # Initialize SQLModel PostgreSQL tables if DATABASE_URL is configured
     if os.environ.get("DATABASE_URL"):
         init_db()
+        init_rfp_checkpoints()
     yield
 
 
@@ -51,18 +56,68 @@ app = FastAPI(
 app.add_middleware(RequestTimingMiddleware)
 register_incident_error_handlers(app)
 
+# CORS: origins can be configured; defaults are local development only.
+_cors_origins = [
+    origin.strip()
+    for origin in os.environ.get(
+        "CORS_ALLOWED_ORIGINS",
+        "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001",
+    ).split(",")
+    if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:3002",
-        "http://127.0.0.1:3002",
-    ],
+    allow_origins=_cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "X-Requested-With"],
 )
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+        # HSTS only when the deployment is known to be HTTPS.
+        if os.environ.get("ENABLE_HSTS", "").lower() == "true":
+            response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+        return response
+
+
+from app.common.rate_limit import check_rate_limit, reset_rate_limits
+
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+        limit = None
+        window = 60.0
+        if path.endswith("/auth/login"):
+            limit = int(os.environ.get("RATE_LIMIT_LOGIN_PER_MINUTE", "10"))
+        elif path.startswith("/telemetry/events"):
+            limit = int(os.environ.get("RATE_LIMIT_TELEMETRY_PER_MINUTE", "60"))
+        elif path == "/agent/query":
+            limit = int(os.environ.get("RATE_LIMIT_AGENT_PER_MINUTE", "20"))
+        elif path == "/knowledge/query":
+            limit = int(os.environ.get("RATE_LIMIT_KNOWLEDGE_PER_MINUTE", "30"))
+        if limit is not None:
+            client = request.client.host if request.client else "unknown"
+            key = f"{client}:{path}"
+            allowed, retry_after = check_rate_limit(key, limit, window)
+            if not allowed:
+                from fastapi.responses import JSONResponse
+
+                headers = {"Retry-After": str(int(retry_after) + 1)} if retry_after > 0 else {}
+                return JSONResponse({"detail": "Too many requests"}, status_code=429, headers=headers)
+        return await call_next(request)
+
+
+app.add_middleware(RateLimitMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
 
 # Domain Routers
 app.include_router(auth_router)

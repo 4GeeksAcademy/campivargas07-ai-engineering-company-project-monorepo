@@ -81,6 +81,19 @@ class SupplierRateUpdate(BaseModel):
 
 class SupplierStatusUpdate(BaseModel):
     status: SupplierStatus
+    confirmation_id: Optional[str] = Field(default=None, description="ID de confirmación humana de un solo uso.")
+
+
+# --- Input/Output: Human confirmation ---
+
+class SupplierConfirmationRequest(BaseModel):
+    action: str = Field(..., description="status_change | delete")
+    status: Optional[SupplierStatus] = Field(default=None, description="Nuevo estado (solo status_change).")
+
+
+class SupplierConfirmationResponse(BaseModel):
+    confirmation_id: str
+    expires_at: str
 
 
 # --- Output: Supplier ---
