@@ -172,9 +172,16 @@ async def _receive_loop(websocket: WebSocket, session_id: str, user: dict, chann
 
 
 async def _handle_user_message(session_id: str, user: dict, channel, data: dict) -> None:
+    from app.common.rate_limit import check_rate_limit
+
     text = str(data.get("text", "")).strip()
     if not text:
         await channel.publish({"event": "error", "data": {"session_id": session_id, "code": "empty_message", "message": "Mensaje vacío"}})
+        return
+    user_key = str(user.get("uuid") or user.get("id") or "unknown")
+    allowed, retry_after = check_rate_limit(f"ws-agent:{user_key}", int(__import__("os").environ.get("RATE_LIMIT_AGENT_PER_MINUTE", "20")), 60.0)
+    if not allowed:
+        await channel.publish({"event": "error", "data": {"session_id": session_id, "code": "rate_limited", "message": "Demasiadas solicitudes al agente. Inténtalo más tarde.", "retry_after": int(retry_after) + 1}})
         return
     # If a generation is active, treat as implicit interrupt with new_input.
     if channel.active_generation is not None:
@@ -253,7 +260,7 @@ async def _handle_user_message(session_id: str, user: dict, channel, data: dict)
         except Exception as exc:
             channel.active_generation = None
             update_chat_message(message_id=assistant_message_id, content="".join(accumulated), status="complete", is_complete=True)
-            await channel.publish({"event": "error", "data": {"session_id": session_id, "code": "generation_failed", "message": str(exc)}})
+            await channel.publish({"event": "error", "data": {"session_id": session_id, "code": "generation_failed", "message": "Error interno al generar la respuesta."}})
 
     task = asyncio.create_task(_run_generation())
     channel.generation_task = task

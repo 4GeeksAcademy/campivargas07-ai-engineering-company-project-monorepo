@@ -392,7 +392,11 @@ def test_invalidation_after_status_update(client: TestClient):
     client.get("/api/suppliers")
     client.get(f"/api/suppliers/{sid}")  # warm detail
 
-    response = client.patch(f"/api/suppliers/{sid}/status", json={"status": "suspendido"})
+    confirm = client.post(f"/api/suppliers/{sid}/confirm", json={"action": "status_change", "status": "suspendido"})
+    assert confirm.status_code == 200
+    confirmation_id = confirm.json()["confirmation_id"]
+
+    response = client.patch(f"/api/suppliers/{sid}/status", json={"status": "suspendido", "confirmation_id": confirmation_id})
     assert response.status_code == 200
 
     assert client.get("/api/suppliers").json()["suppliers"][0]["status"] == "suspendido"
@@ -406,7 +410,11 @@ def test_invalidation_after_delete(client: TestClient):
     client.get("/api/suppliers")
     assert client.get(f"/api/suppliers/{sid}").status_code == 200  # warm detail
 
-    response = client.delete(f"/api/suppliers/{sid}")
+    confirm = client.post(f"/api/suppliers/{sid}/confirm", json={"action": "delete"})
+    assert confirm.status_code == 200
+    confirmation_id = confirm.json()["confirmation_id"]
+
+    response = client.delete(f"/api/suppliers/{sid}?confirmation_id={confirmation_id}")
     assert response.status_code == 200
 
     assert client.get("/api/suppliers").json()["total"] == 0

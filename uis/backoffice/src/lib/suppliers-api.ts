@@ -103,15 +103,34 @@ export async function updateSupplierStatus(
   id: string,
   status: "activo" | "suspendido"
 ): Promise<Supplier> {
+  const confirmation = await apiFetch<{ confirmation_id: string }>(
+    `/api/suppliers/${id}/confirm`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "status_change", status }),
+    }
+  );
   return apiFetch<Supplier>(`/api/suppliers/${id}/status`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, confirmation_id: confirmation.confirmation_id }),
   });
 }
 
 export async function deleteSupplier(id: string): Promise<void> {
-  await apiFetch<{ detail: string }>(`/api/suppliers/${id}`, {
-    method: "DELETE",
-  });
+  const confirmation = await apiFetch<{ confirmation_id: string }>(
+    `/api/suppliers/${id}/confirm`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "delete" }),
+    }
+  );
+  await apiFetch<{ detail: string }>(
+    `/api/suppliers/${id}?confirmation_id=${confirmation.confirmation_id}`,
+    {
+      method: "DELETE",
+    }
+  );
 }

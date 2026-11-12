@@ -131,15 +131,44 @@ def test_update_status_and_delete_supplier(
     created = create_supplier(client, auth_headers)
     supplier_path = f"/api/suppliers/{created['id']}"
 
+    # Human confirmation step.
+    confirm_response = client.post(
+        f"{supplier_path}/confirm",
+        json={"action": "status_change", "status": "suspendido"},
+        headers=auth_headers,
+    )
+    assert confirm_response.status_code == 200
+    confirmation_id = confirm_response.json()["confirmation_id"]
+
     status_response = client.patch(
         f"{supplier_path}/status",
-        json={"status": "suspendido"},
+        json={"status": "suspendido", "confirmation_id": confirmation_id},
         headers=auth_headers,
     )
     assert status_response.status_code == 200
     assert status_response.json()["status"] == "suspendido"
 
-    delete_response = client.delete(supplier_path, headers=auth_headers)
+    # Reuse must fail.
+    reuse_response = client.patch(
+        f"{supplier_path}/status",
+        json={"status": "activo", "confirmation_id": confirmation_id},
+        headers=auth_headers,
+    )
+    assert reuse_response.status_code == 403
+
+    # Delete requires its own confirmation.
+    confirm_delete = client.post(
+        f"{supplier_path}/confirm",
+        json={"action": "delete"},
+        headers=auth_headers,
+    )
+    assert confirm_delete.status_code == 200
+    delete_confirmation_id = confirm_delete.json()["confirmation_id"]
+
+    delete_response = client.delete(
+        f"{supplier_path}?confirmation_id={delete_confirmation_id}",
+        headers=auth_headers,
+    )
     assert delete_response.status_code == 200
     assert client.get(supplier_path).status_code == 404
 
@@ -155,7 +184,8 @@ def test_unknown_and_non_numeric_ids_return_404(
             json={"montoMinimoOrden": 100},
             headers=auth_headers,
         ).status_code == 404
-        assert client.delete(
-            f"/api/suppliers/{supplier_id}",
+        assert client.post(
+            f"/api/suppliers/{supplier_id}/confirm",
+            json={"action": "delete"},
             headers=auth_headers,
         ).status_code == 404
