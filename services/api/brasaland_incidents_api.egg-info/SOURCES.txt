@@ -4,6 +4,7 @@ app/database.py
 app/main.py
 app/common/__init__.py
 app/common/cache.py
+app/common/rate_limit.py
 app/common/timing.py
 app/domains/agent/__init__.py
 app/domains/agent/graph.py
@@ -50,6 +51,7 @@ app/domains/operations/inventory/schemas.py
 app/domains/operations/inventory/seed.py
 app/domains/operations/inventory/service.py
 app/domains/procurement/suppliers/__init__.py
+app/domains/procurement/suppliers/confirmation.py
 app/domains/procurement/suppliers/router.py
 app/domains/procurement/suppliers/schemas.py
 app/domains/procurement/suppliers/service.py
@@ -59,6 +61,7 @@ app/domains/profiles/schemas.py
 app/domains/profiles/service.py
 app/domains/rfp/__init__.py
 app/domains/rfp/errors.py
+app/domains/rfp/events.py
 app/domains/rfp/models.py
 app/domains/rfp/repository.py
 app/domains/rfp/router.py
@@ -93,8 +96,13 @@ tests/test_knowledge_api.py
 tests/test_login.py
 tests/test_me.py
 tests/test_password_service.py
+tests/test_rate_limiting.py
 tests/test_register.py
 tests/test_rfp_intake.py
+tests/test_rfp_part2.py
+tests/test_rfp_part3.py
+tests/test_rfp_sse.py
+tests/test_security_prompt_injection.py
 tests/test_serialization_contracts.py
 tests/test_suppliers_api.py
 tests/test_suppliers_cache.py

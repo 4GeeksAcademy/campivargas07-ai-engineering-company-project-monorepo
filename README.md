@@ -19,6 +19,14 @@ Requisitos: Docker con Compose y una base PostgreSQL de desarrollo. Usa una base
 
 4. Abre [el backoffice](http://localhost:3001), registra una cuenta de demo e inicia sesión. La [web pública](http://localhost:3000) y la [documentación de la API](http://localhost:8000/docs) se sirven por separado.
 
+## Acceso de prueba
+
+- URL: http://localhost:3001/login
+- Usuario: `demo@brasaland.co`
+- Contraseña: `DemoBrasaland2026!`
+
+Esta cuenta sirve únicamente para demostraciones locales. Tiene rol de usuario, no privilegios administrativos, y no debe reutilizarse en un entorno compartido o de producción.
+
 El arranque de la API inicializa las tablas de aplicación y los checkpoints de RFP en PostgreSQL. La cuenta de base de datos de desarrollo debe poder crearlos. Para la revisión de RFP, configura los responsables de los departamentos con `RFP_APPROVER_MAP` o la asignación de aprobadores del backend. Consulta el [contrato de aprobación](docs/rfp/rfp_approval_and_final.md).
 
 ## Recorrido del backoffice
@@ -37,10 +45,3 @@ El arranque de la API inicializa las tablas de aplicación y los checkpoints de 
 
 Desde una RFP con borradores, **Abrir aprobación de este ticket** lleva a su revisión con el identificador ya seleccionado.
 
-## Capstone
-
-- [Guion, tomas y checklist de entrega](docs/capstone/guion-y-grabacion.md)
-- Vídeo del proyecto: enlace pendiente de grabación y publicación.
-- [Evidencia técnica de integración](docs/capstone/verificacion.md)
-
-Usa `docker compose down` para detener el entorno de desarrollo conservando sus datos.
