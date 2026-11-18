@@ -8,16 +8,30 @@ El agente de soporte consulta la base de conocimiento para responder preguntas d
 
 Requisitos: Docker con Compose y una base PostgreSQL de desarrollo. Usa una base aislada para crear cuentas de demo y cargar PDFs sintéticos.
 
-1. Copia `.env.example` a `.env` si todavía no existe. Configura `DATABASE_URL`, un `SECRET_KEY` y un `PASSWORD_RESET_SECRET_KEY` distinto. Mantén las credenciales en el entorno local.
-2. Para usar el agente, configura los campos `RAG_*` en ese archivo siguiendo [el diseño RAG](docs/rag/rag-design.md). El backend usa Qdrant en el contenedor correspondiente.
-3. Arranca los servicios e indexa los manuales una vez que el backend esté disponible.
+1. Copia `.env.example` a `.env`. Configura `DATABASE_URL` con una PostgreSQL accesible, `SECRET_KEY` y un `PASSWORD_RESET_SECRET_KEY` distinto. Mantén estas credenciales fuera del repositorio.
+2. Arranca los servicios:
 
    ```bash
    docker compose up -d --build
+   ```
+
+3. Comprueba que el backend esté disponible:
+
+   ```bash
+   curl http://localhost:8000/health
+   ```
+
+   Debe responder `{"status":"ok"}`.
+
+4. Abre el [backoffice](http://localhost:3001/login) e inicia sesión con el acceso de prueba indicado abajo. No es necesario registrar otra cuenta. Si `demo@brasaland.co` no existe en una base nueva, créala una sola vez desde [Registro](http://localhost:3001/register).
+
+5. Opcional: para probar Conocimiento y Chat, configura los campos `RAG_*` siguiendo [el diseño RAG](docs/rag/rag-design.md) e indexa los manuales:
+
+   ```bash
    docker compose exec backend python -m data.process.rag
    ```
 
-4. Abre [el backoffice](http://localhost:3001), registra una cuenta de demo e inicia sesión. La [web pública](http://localhost:3000) y la [documentación de la API](http://localhost:8000/docs) se sirven por separado.
+La [web pública](http://localhost:3000) y la [documentación de la API](http://localhost:8000/docs) se sirven por separado.
 
 ## Acceso de prueba
 
@@ -28,6 +42,8 @@ Requisitos: Docker con Compose y una base PostgreSQL de desarrollo. Usa una base
 Esta cuenta sirve únicamente para demostraciones locales. Tiene rol de usuario, no privilegios administrativos, y no debe reutilizarse en un entorno compartido o de producción.
 
 El arranque de la API inicializa las tablas de aplicación y los checkpoints de RFP en PostgreSQL. La cuenta de base de datos de desarrollo debe poder crearlos. Para la revisión de RFP, configura los responsables de los departamentos con `RFP_APPROVER_MAP` o la asignación de aprobadores del backend. Consulta el [contrato de aprobación](docs/rfp/rfp_approval_and_final.md).
+
+Si el entorno usa puertos distintos, usa la URL expuesta por esa ejecución. La sesión de desarrollo temporal no comparte necesariamente usuarios con una base o un contenedor nuevo.
 
 ## Recorrido del backoffice
 
